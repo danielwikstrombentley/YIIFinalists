@@ -1,0 +1,24 @@
+{
+  "name": "yii-2026-led-experience",
+  "private": true,
+  "version": "0.0.0",
+  "description": "YII 2026 Interactive LED Experience — monorepo: public runtime (apps/experience), content pipeline (apps/content-pipeline), shared contracts (packages/*), kiosk tooling (tools/kiosk).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm --filter experience run dev",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test:unit"
+  },
+  "devDependencies": {}
+}

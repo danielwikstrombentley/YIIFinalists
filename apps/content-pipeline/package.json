@@ -1,0 +1,7 @@
+{
+  "name": "content-pipeline",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Prep-time content pipeline CLI: ingest, analyze, review, validate, publish (never bundled into the public runtime).",
+  "type": "module"
+}

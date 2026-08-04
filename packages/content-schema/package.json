@@ -1,0 +1,7 @@
+{
+  "name": "@yii/content-schema",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Zod schemas + JSON Schema export for the published content package and editorial records.",
+  "type": "module"
+}
