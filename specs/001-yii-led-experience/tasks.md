@@ -54,6 +54,26 @@ Writing code alone NEVER completes a task.
 - Strict TDD: every verification task (marked *(red-first)*) MUST exist and fail before its
   paired implementation task is coded.
 
+### Cost-aware execution (agent sessions)
+
+Agent sessions resend their entire accumulated context every turn, so cost grows roughly
+quadratically with session length. To keep credit consumption proportional to the work
+(lesson from PH2: 15 tasks in one session):
+
+- **Session cap**: implement at most **5 tasks per agent session**. Larger phases are executed
+  as consecutive chunks — commit and push at the end of each chunk, then start a **fresh
+  session** for the next chunk on the same phase branch. The consolidated-phase exception
+  still applies across chunks (chunking does not require separate task branches/PRs).
+- **Verification tiering**: while working tasks, run only the targeted suite for the touched
+  package(s) (`pnpm --filter <pkg> test`, or a single test file). Run the **full**
+  `pnpm run verify` only (a) at the end of a session chunk before its final commit, and
+  (b) before opening or updating a PR — not after every task.
+- **Context budget**: an implementing agent reads only (a) §1–§3 of this file plus the
+  **current phase's section**, and (b) the specific spec/plan/contract sections a task's
+  **Do**/**Accept** fields cite. Tasks are written self-contained (Do/Files/Deps/Tests/Accept)
+  precisely so full-artifact reads are unnecessary; do not read spec.md/plan.md/research.md
+  end-to-end by default.
+
 ### Branch & PR model
 
 - `main` — protected; only phase branches merge into it, and only after the cross-provider

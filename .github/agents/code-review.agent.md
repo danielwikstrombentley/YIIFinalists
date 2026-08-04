@@ -50,10 +50,35 @@ Read (do not skip any):
 Then obtain the diff: `git fetch && git diff <base>...<branch>` (default base `main`), plus the
 list of changed files and the test files added/modified.
 
+**Re-reviews** (a prior review of this branch exists — check the PR comments and
+`specs/001-yii-led-experience/evidence/reviews/`): the scope shrinks to (a) verifying each prior
+finding was fixed or consciously deferred, and (b) reviewing only the commits added since the
+last reviewed commit. Do NOT raise new findings against code that was already in scope of a
+prior round unless they are CRITICAL. Record the round number in the report header.
+
 ## Step 2 — Review the Diff
 
 Review ONLY what the diff changes plus its blast radius. For each finding record: severity
 (CRITICAL / MAJOR / MINOR / NIT), file:line, issue, and a concrete fix suggestion.
+
+**Severity calibration** (apply before recording any finding):
+
+- CRITICAL — broken build/verify, security vulnerability, data loss, or a constitution
+  violation with runtime impact.
+- MAJOR — an in-scope task's **Accept** criterion is not met, or the diff introduces a real,
+  reachable defect.
+- MINOR — hardening gaps, theoretical bypasses of a guard that demonstrably blocks the
+  straightforward paths, maintainability concerns.
+- NIT — style/preference.
+
+Anti-escalation rule: when a guard (lint rule, validation, config) demonstrably blocks the
+straightforward paths, do NOT hunt for exotic bypass variants round after round. Record at most
+ONE MINOR finding proposing a follow-up task for residual vectors, then move on.
+
+Proportionality rule: scale depth to risk. For setup/scaffolding/config/docs diffs, check task
+conformance, registry hygiene, and that local verification passes — skip exhaustive adversarial
+analysis. Reserve deep review (races, leaks, cancellation paths, probing) for runtime
+interaction/state/orchestration/pipeline code.
 
 **A. Task conformance**
 
@@ -103,7 +128,7 @@ Output exactly this structure:
 
 **Reviewer**: <model (provider)> · **Implementer(s)**: <models/humans (providers)>
 **Provider independence**: PASS | REFUSED | provenance-undeclared
-**Scope**: <task IDs> · **Files reviewed**: <n> · **Date**: <date>
+**Scope**: <task IDs> · **Files reviewed**: <n> · **Round**: <n> · **Date**: <date>
 
 ## Verdict: APPROVE | REQUEST CHANGES
 
@@ -126,10 +151,14 @@ Output exactly this structure:
 Verdict rules:
 
 - Any CRITICAL finding, any unexplained constitution violation, missing required tests, or
-  failing CI → **REQUEST CHANGES**.
-- MAJOR findings → REQUEST CHANGES unless the user explicitly accepts them as follow-up tasks
-  (which must be appended to `tasks.md` with new IDs before approval).
-- MINOR/NIT findings alone → APPROVE with notes.
+  failing local verification → **REQUEST CHANGES**.
+- MAJOR findings → REQUEST CHANGES, except: a MAJOR that does not affect the phase's runtime
+  behaviour SHOULD be offered for conversion to a follow-up task (appended to `tasks.md` with a
+  new ID); if the user accepts, the verdict is APPROVE with notes.
+- MINOR/NIT findings alone → APPROVE with notes. Never REQUEST CHANGES on MINOR/NIT alone.
+- Convergence cap: from review round 3 of the same branch onward, every remaining non-CRITICAL
+  finding MUST be converted to a follow-up task in `tasks.md` and the verdict is APPROVE with
+  notes. Review loops do not run past round 3 except for CRITICALs.
 
 Post the report as the review comment on the PR when PR tooling is available; otherwise save it
 to `specs/001-yii-led-experience/evidence/reviews/<branch-slug>-<date>.md` and tell the user to
