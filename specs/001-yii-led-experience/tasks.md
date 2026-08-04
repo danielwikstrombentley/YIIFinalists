@@ -225,7 +225,7 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
 **Purpose**: shared contracts, state machine, input boundary, orchestrator, content loader, dev
 kiosk — the boundaries every story builds on.
 **Phase branch**: `phase/001-ph2-foundation` · **Depends on**: PH1
-`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/2 · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: — · Verdict: —`
+`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/2 · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: GPT-5.6 Sol (OpenAI) · Verdict: REQUEST CHANGES (round 1, 2026-08-04)`
 
 ⚠️ No user story phase may start until this phase's PR is merged.
 
