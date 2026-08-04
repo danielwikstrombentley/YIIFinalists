@@ -16,9 +16,14 @@
     "test:endurance": "echo \"(placeholder) T068 full-day endurance soak lands in PH10\""
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@yii/content-schema": "workspace:^",
+    "@yii/semantic-actions": "workspace:^",
     "cesium": "^1.144.0",
+    "gsap": "^3.15.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "xstate": "^5.32.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -27,6 +32,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "@xstate/graph": "^3.0.4",
     "jsdom": "^30.0.1",
     "typescript": "^5.9.0",
     "vite": "^8.2.0",

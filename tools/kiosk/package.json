@@ -3,5 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "description": "Local kiosk sidecar: static serve, WS input endpoint bridge, telemetry sink, startup/recovery runbooks.",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.21.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.5",
+    "typescript": "^5.9.0"
+  }
 }
