@@ -937,6 +937,33 @@ plan-recorded N/A rationale — currently none).
 
 ---
 
+## Deferred Follow-ups (opened during phase review)
+
+- [ ] T077 [P] Add a dependency-graph boundary checker (e.g. dependency-cruiser) enforcing apps/experience ↔ apps/content-pipeline separation beyond lint-pattern reach in package.json
+  - Meta: Phase PH2 · Feature F001 · Owner — · Branch `task/001-T077-dependency-boundary-tool` · PR — · Blockers —
+  - Do: PH1's cross-provider review (T004/T005, PR #1) progressively hardened `eslint.config.js`'s
+    `no-restricted-imports`/`no-restricted-syntax` rules to catch static imports, dynamic
+    `import()` (literal, template-literal), and `import.meta.glob()`/`globEager()` (scalar,
+    template, and array-of-patterns forms) across the apps/experience ↔ apps/content-pipeline
+    boundary — accepted by the reviewer as sufficient for PH1 (see PR #1 review history), with an
+    explicitly documented residual limitation: a module specifier built at runtime from a variable
+    (or indirection through a third re-exporting module) is not statically analyzable by any lint
+    rule. This task closes that gap properly with a tool that resolves the actual module/dependency
+    graph rather than pattern-matching AST literals: evaluate and wire in `dependency-cruiser` (or
+    equivalent) with a `forbidden` rule pair mirroring `eslint.config.js`'s
+    `crossAppBoundarySelectors()` intent, run as part of `pnpm run verify` alongside lint.
+  - Files: `.dependency-cruiser.cjs` (or chosen tool's config), `package.json` (`verify` script),
+    `eslint.config.js` (remove/simplify the AST-selector rules once the graph tool supersedes them,
+    or keep both as defense-in-depth — implementer's call, document the choice)
+  - Deps: T004
+  - Tests: seeded violation fixture (static import, dynamic import, and one indirection-through-a-
+    third-module case) all caught; existing codebase stays clean; `pnpm run verify` green.
+  - Accept: the apps/experience ↔ apps/content-pipeline boundary is enforced at the resolved
+    dependency-graph level, not just AST pattern matching; the "runtime-computed specifier" class
+    remains the only documented, industry-standard residual limitation.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase order
