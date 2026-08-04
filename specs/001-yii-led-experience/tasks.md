@@ -23,13 +23,19 @@
 
 ### Definition of Done — a task may be marked `[x]` ONLY after ALL of
 
-1. Required tests pass (locally and in CI).
+1. Required tests pass locally.
 2. The implementation is submitted through a pull request.
 3. The pull request receives code review (see §3 Code Review Protocol).
 4. Required review changes are resolved.
 5. The pull request is merged.
 
 Writing code alone NEVER completes a task.
+
+> **No hosted CI**: this project deliberately runs no GitHub Actions (or any other hosted CI
+> runner) to avoid consuming Actions budget. Every place below that would otherwise say "green
+> CI" means **green local verification** — run `pnpm run verify` (typecheck, lint, format check,
+> unit tests, build) plus `pnpm --filter experience run test:e2e` before opening or approving any
+> PR, and record the result in the PR description. Reviewers re-run it themselves if in doubt.
 
 ### Claiming & updating
 
@@ -48,10 +54,10 @@ Writing code alone NEVER completes a task.
 - **Phase integration branches**: `phase/001-phN-<slug>` (listed in each phase header). Created
   from `main` when the phase starts.
 - **Task branches**: `task/001-T0XX-<slug>` (pre-filled per task). PR target = the task's phase
-  branch. Task PRs require green CI + one review.
+  branch. Task PRs require green local verification (see note above) + one review.
 - **Phase PR**: phase branch → `main`. Requires: all phase tasks `[x]` or explicitly deferred,
-  full CI green, and an **APPROVE verdict from the code-review agent run on a different model
-  provider than the implementation** (§3).
+  full local verification green, and an **APPROVE verdict from the code-review agent run on a
+  different model provider than the implementation** (§3).
 
 ### Task field reference
 
@@ -97,7 +103,8 @@ graph TD
 
 The review agent lives at [.github/agents/code-review.agent.md](../../.github/agents/code-review.agent.md).
 
-1. Every **task PR** gets a normal review (human or agent) plus green CI.
+1. Every **task PR** gets a normal review (human or agent) plus green local verification (§1 note
+   — no hosted CI runs in this project).
 2. Every **phase PR into `main`** MUST be reviewed by running the `code-review` agent **on a
    model from a different provider than the model(s) that implemented the phase's tasks**.
    Example: tasks implemented by `agent:GPT-5.6-Sol (OpenAI)` → review with
@@ -137,7 +144,7 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
 
 ## Phase 1: Setup (PH1)
 
-**Purpose**: monorepo scaffolding, toolchain, CI, and the contribution/review workflow.
+**Purpose**: monorepo scaffolding, toolchain, local verification tooling, and the contribution/review workflow. No hosted CI (GitHub Actions) is used in this project — see §1 note.
 **Phase branch**: `phase/001-ph1-setup` · **Depends on**: — (start immediately)
 `Phase PR: — · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: — · Verdict: —`
 
@@ -146,7 +153,7 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
   - Do: Create root `package.json`, `pnpm-workspace.yaml`, strict `tsconfig.base.json`, `.gitignore` (+ git LFS attributes for media), `.editorconfig`, and empty workspace directories `apps/experience`, `apps/content-pipeline`, `packages/content-schema`, `packages/semantic-actions`, `tools/kiosk` with placeholder `package.json` in each.
   - Files: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, `.gitattributes`, `apps/*/package.json`, `packages/*/package.json`, `tools/kiosk/package.json`
   - Deps: —
-  - Tests: `pnpm install` succeeds; `pnpm -r build` runs (no-op OK) in CI once T004 lands.
+  - Tests: `pnpm install` succeeds; `pnpm -r build` runs (no-op OK) once T004 lands.
   - Accept: workspace layout matches plan.md §Project Structure exactly; TypeScript strict mode on.
 
 - [R] T002 [P] Initialize experience app toolchain (Vite + React 19 + Cesium assets + Vitest + Playwright) in apps/experience/vite.config.ts
@@ -165,13 +172,13 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
   - Tests: `pnpm --filter content-pipeline exec tsx src/cli.ts --help` lists all subcommands; `pnpm -r build` compiles packages.
   - Accept: CLI runs on Node 22 LTS; no pipeline code is importable from `apps/experience` (enforced via package boundaries).
 
-- [R] T004 [P] Configure linting, formatting, and CI workflow in .github/workflows/ci.yml
+- [R] T004 [P] Configure linting, formatting, and local verification tooling in eslint.config.js
   - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR — · Blockers —
-  - Do: ESLint (typescript-eslint, react-hooks) + Prettier at root; CI workflow on every PR: install, typecheck, lint, unit tests per workspace, Playwright smoke job, build. Cache pnpm store. Required status checks documented for branch protection on `main` and `phase/**`.
-  - Files: `eslint.config.js`, `.prettierrc`, `.github/workflows/ci.yml`
+  - Do: ESLint (typescript-eslint, react-hooks) + Prettier at root; a root `verify` script chaining typecheck → lint → format check → unit tests per workspace → build, run locally by contributors/agents before opening or approving any PR (**no hosted CI/GitHub Actions in this project — explicit decision to avoid consuming Actions budget**); Playwright e2e is run as a separate documented step (`pnpm --filter experience run test:e2e`). Required pre-merge checks documented in CONTRIBUTING.md (T005) for `main` and `phase/**`.
+  - Files: `eslint.config.js`, `.prettierrc`, `.prettierignore`, `package.json` (`verify` script)
   - Deps: T001
-  - Tests: CI green on a trivial PR; lint catches a seeded violation in a fixture branch (verified once, then removed).
-  - Accept: every PR runs typecheck+lint+tests automatically; failures block merge.
+  - Tests: `pnpm run verify` green locally; lint catches a seeded violation in a throwaway fixture file (verified once, then removed).
+  - Accept: a single local command (`pnpm run verify`) runs typecheck+lint+format+tests+build; every PR description records that it was run green; no hosted CI workflow exists in the repo.
 
 - [R] T005 Establish contribution workflow: PR template, branch protection docs, and code-review agent wiring in .github/PULL_REQUEST_TEMPLATE.md
   - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR — · Blockers —
@@ -181,7 +188,8 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
   - Tests: dry-run review of a sample PR produces a verdict report with findings table; provider-mismatch rule refuses a same-provider run.
   - Accept: PR template enforces implementer-model declaration; review agent produces APPROVE/REQUEST CHANGES verdicts; workflow documented.
 
-**Checkpoint PH1**: repo installs, builds, CI runs, review workflow live → open phase PR → cross-provider review → merge.
+**Checkpoint PH1**: repo installs, builds, `pnpm run verify` passes locally, review workflow live
+→ open phase PR → cross-provider review → merge.
 
 ---
 
