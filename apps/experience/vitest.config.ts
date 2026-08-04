@@ -12,6 +12,9 @@ export default mergeConfig(
       setupFiles: ['./tests/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
       exclude: ['tests/e2e/**', 'node_modules/**'],
+      // No hosted CI in this project (local verification only) — reject accidentally committed
+      // `.only` focused tests unconditionally instead of gating on a CI env var that never exists.
+      allowOnly: false,
     },
   }),
 );

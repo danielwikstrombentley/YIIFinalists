@@ -12,8 +12,8 @@
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:state": "vitest run tests/state --passWithNoTests",
-    "test:perf": "echo \"(placeholder) perf budget suite lands in Phase 3+ (research R14)\"",
-    "test:endurance": "echo \"(placeholder) full-day endurance soak lands in PH10 (T067)\""
+    "test:perf": "echo \"(placeholder) T067 250ms response-budget harness lands in PH10 (research R14)\"",
+    "test:endurance": "echo \"(placeholder) T068 full-day endurance soak lands in PH10\""
   },
   "dependencies": {
     "cesium": "^1.144.0",

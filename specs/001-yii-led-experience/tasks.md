@@ -43,6 +43,13 @@ Writing code alone NEVER completes a task.
   `agent:<Model Name (Provider)>`) and **Branch**, commit the tasks.md change before starting.
 - **Update**: when opening a PR set status `[R]` and record **PR**; when blocked set `[?]` and
   fill **Blockers**; after merge set `[x]`.
+- **Consolidated-phase exception** (e.g. PH1): when a task's recorded **Branch**/**PR** is the
+  *phase's own* branch/PR rather than a separate `task/001-T0XX-<slug>` branch (one contributor
+  implementing a whole phase in one sitting — see the phase header's note), there is no separate
+  task-PR merge step. That task goes `[~]` → `[R]` (phase PR open) → `[x]` **at the moment the
+  phase PR merges** — the same merge event that closes the phase PR also completes every task
+  consolidated into it. The phase-merge prerequisite "all phase tasks `[x]`" is satisfied
+  atomically by that merge, not before.
 - One task = one claim. Do not batch-claim tasks you are not actively working.
 - Strict TDD: every verification task (marked *(red-first)*) MUST exist and fail before its
   paired implementation task is coded.

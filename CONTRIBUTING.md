@@ -46,7 +46,10 @@ update this section plus `tasks.md` §1 accordingly — don't silently reintrodu
     `phase/001-ph1-setup` without individual task branches, since one contributor authored all of
     it in one sitting and per-task self-review adds no signal. This is recorded explicitly in each
     task's Meta line; it is not the default going forward — use task branches once more than one
-    contributor/agent is active on a phase.
+    contributor/agent is active on a phase. When a task's Branch/PR points at the phase's own
+    branch/PR like this, that task goes `[~]` → `[R]` → `[x]` **at the moment the phase PR
+    merges** (see `tasks.md` §1 "Consolidated-phase exception") — there is no separate task-PR
+    merge step to wait for.
 - **Task PR**: task branch → phase branch. Requires green local verification + one review (human
   or agent).
 - **Phase PR**: phase branch → `main`. Requires all phase tasks `[x]` (or explicitly deferred with
@@ -87,13 +90,24 @@ The review agent lives at [.github/agents/code-review.agent.md](.github/agents/c
 
 ## Branch protection (GitHub settings)
 
-Since there is no hosted CI status check to require, configure branch protection on `main` and
-`phase/**` using **PR-review-based** rules only:
+Since there is no hosted CI status check to require, `main` and `phase/**` are protected by a
+GitHub **repository ruleset** ("protected-branches") instead of a CI-status-based rule:
 
-- Require a pull request before merging (no direct pushes).
-- Require at least one approving review before merge.
-- Require conversation resolution before merge.
-- Do **not** add "required status checks" (there are none — see the no-hosted-CI section above).
+- Changes must go through a pull request (no direct pushes to `main` or any `phase/**` branch).
+- Force-pushes and branch deletion are blocked.
+- Conversation resolution is required before merge.
+- No "required status checks" are configured (there are none — see the no-hosted-CI section
+  above).
+
+**Review-count enforcement is a process rule, not a platform rule.** The ruleset's
+`required_approving_review_count` is intentionally `0`: this repository currently has a single
+collaborator/owner account, and GitHub does not count a PR author's own approval toward a
+required-reviews threshold — setting it to 1+ would make every PR permanently unmergeable by that
+sole account rather than actually enforcing review. The real review gate is the process documented
+above (§Code review) and in `tasks.md` §3: a task PR needs a real review (human or agent) and a
+phase PR needs a genuine cross-provider `code-review` agent **APPROVE** verdict before anyone
+merges — honesty here is on the person/agent doing the merge, not on GitHub. If/when a second
+human collaborator joins, raise `required_approving_review_count` to 1 on the ruleset.
 
 ## Implementer model declaration
 
