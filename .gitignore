@@ -1,0 +1,42 @@
+# Vendored tooling (github/spec-kit clone) — not part of this project's source
+spec-kit/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+*.local
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment / secrets (kiosk + pipeline config; never commit tokens)
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+
+# Telemetry (local JSONL sink output, not source)
+tools/kiosk/logs/
