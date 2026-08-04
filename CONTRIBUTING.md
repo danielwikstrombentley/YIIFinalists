@@ -12,6 +12,7 @@ if the two ever disagree.
 
 ```bash
 pnpm install
+pnpm exec playwright install chromium   # one-time, needed before any Playwright e2e run
 pnpm run verify   # typecheck + lint + format check + unit tests + build
 ```
 

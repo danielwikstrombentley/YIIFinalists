@@ -153,9 +153,9 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
 
 **Purpose**: monorepo scaffolding, toolchain, local verification tooling, and the contribution/review workflow. No hosted CI (GitHub Actions) is used in this project — see §1 note.
 **Phase branch**: `phase/001-ph1-setup` · **Depends on**: — (start immediately)
-`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/1 · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: — · Verdict: —`
+`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/1 · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: GPT-5.6 Sol (OpenAI) · Verdict: APPROVE`
 
-- [R] T001 Create pnpm-workspace monorepo skeleton per plan.md Project Structure in pnpm-workspace.yaml
+- [x] T001 Create pnpm-workspace monorepo skeleton per plan.md Project Structure in pnpm-workspace.yaml
   - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated — bootstrap phase implemented directly on the phase branch, no separate task branch) · PR #1 · Blockers —
   - Do: Create root `package.json`, `pnpm-workspace.yaml`, strict `tsconfig.base.json`, `.gitignore` (+ git LFS attributes for media), `.editorconfig`, and empty workspace directories `apps/experience`, `apps/content-pipeline`, `packages/content-schema`, `packages/semantic-actions`, `tools/kiosk` with placeholder `package.json` in each.
   - Files: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, `.gitattributes`, `apps/*/package.json`, `packages/*/package.json`, `tools/kiosk/package.json`
@@ -163,7 +163,7 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
   - Tests: `pnpm install` succeeds; `pnpm -r build` runs (no-op OK) once T004 lands.
   - Accept: workspace layout matches plan.md §Project Structure exactly; TypeScript strict mode on.
 
-- [R] T002 [P] Initialize experience app toolchain (Vite + React 19 + Cesium assets + Vitest + Playwright) in apps/experience/vite.config.ts
+- [x] T002 [P] Initialize experience app toolchain (Vite + React 19 + Cesium assets + Vitest + Playwright) in apps/experience/vite.config.ts
   - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
   - Do: Vite config with Cesium static asset handling and local `CESIUM_BASE_URL` (research R16), React 19 entry, `index.html` full-screen stage shell, Vitest config sharing the Vite pipeline, Playwright config with `test:e2e` project, scripts `dev/build/test:unit/test:e2e/test:state/test:perf/test:endurance` (placeholders where suites don't exist yet).
   - Files: `apps/experience/{vite.config.ts,index.html,src/main.tsx,vitest.config.ts,playwright.config.ts,package.json}`, `apps/experience/public/` (cesium assets pipeline)
@@ -171,7 +171,7 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
   - Tests: `pnpm --filter experience build` produces a static bundle; smoke Vitest + Playwright example pass.
   - Accept: production build is fully static with Cesium assets served locally (offline requirement, QR-004); no CDN references.
 
-- [R] T003 [P] Initialize content-pipeline CLI app and shared package builds in apps/content-pipeline/src/cli.ts
+- [x] T003 [P] Initialize content-pipeline CLI app and shared package builds in apps/content-pipeline/src/cli.ts
   - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
   - Do: Node 22 CLI skeleton (tsx + small command runner) with stub subcommands `ingest analyze ingest-drafts review validate publish rollback freeze seed:sample`; build config for `packages/content-schema` and `packages/semantic-actions` (plain TS libs consumed by both apps).
   - Files: `apps/content-pipeline/{package.json,tsconfig.json,src/cli.ts,src/commands/index.ts}`, `packages/content-schema/{tsconfig.json,src/index.ts}`, `packages/semantic-actions/{tsconfig.json,src/index.ts}`
@@ -179,7 +179,7 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
   - Tests: `pnpm --filter content-pipeline exec tsx src/cli.ts --help` lists all subcommands; `pnpm -r build` compiles packages.
   - Accept: CLI runs on Node 22 LTS; no pipeline code is importable from `apps/experience` (enforced via package boundaries).
 
-- [R] T004 [P] Configure linting, formatting, and local verification tooling in eslint.config.js
+- [x] T004 [P] Configure linting, formatting, and local verification tooling in eslint.config.js
   - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
   - Do: ESLint (typescript-eslint, react-hooks) + Prettier at root; a root `verify` script chaining typecheck → lint → format check → unit tests per workspace → build, run locally by contributors/agents before opening or approving any PR (**no hosted CI/GitHub Actions in this project — explicit decision to avoid consuming Actions budget**); Playwright e2e is run as a separate documented step (`pnpm --filter experience run test:e2e`). Required pre-merge checks documented in CONTRIBUTING.md (T005) for `main` and `phase/**`.
   - Files: `eslint.config.js`, `.prettierrc`, `.prettierignore`, `package.json` (`verify` script)
@@ -187,7 +187,7 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
   - Tests: `pnpm run verify` green locally; lint catches a seeded violation in a throwaway fixture file (verified once, then removed).
   - Accept: a single local command (`pnpm run verify`) runs typecheck+lint+format+tests+build; every PR description records that it was run green; no hosted CI workflow exists in the repo.
 
-- [R] T005 Establish contribution workflow: PR template, branch protection docs, and code-review agent wiring in .github/PULL_REQUEST_TEMPLATE.md
+- [x] T005 Establish contribution workflow: PR template, branch protection docs, and code-review agent wiring in .github/PULL_REQUEST_TEMPLATE.md
   - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
   - Do: PR template (task ID, phase, tests run, constitution gates touched, implementer model+provider declaration); document the branch/PR/review flow from §1–§3 of this file in `CONTRIBUTING.md`; verify the already-scaffolded [.github/agents/code-review.agent.md](../../.github/agents/code-review.agent.md) runs end-to-end by dry-running it against a sample task PR and refining its instructions if the dry run misbehaves.
   - Files: `.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, `.github/agents/code-review.agent.md`
