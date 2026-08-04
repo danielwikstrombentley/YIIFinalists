@@ -21,7 +21,8 @@ export const commands: CliCommand[] = [
   },
   {
     name: 'analyze',
-    description: 'Run provider-agnostic LLM drafting analysis on ingested submissions (research R9).',
+    description:
+      'Run provider-agnostic LLM drafting analysis on ingested submissions (research R9).',
     run: notYetImplemented('analyze'),
   },
   {
@@ -36,7 +37,8 @@ export const commands: CliCommand[] = [
   },
   {
     name: 'validate',
-    description: 'Validate a content package against the schema and the FR-036 rule set before publish.',
+    description:
+      'Validate a content package against the schema and the FR-036 rule set before publish.',
     run: notYetImplemented('validate'),
   },
   {
@@ -56,7 +58,8 @@ export const commands: CliCommand[] = [
   },
   {
     name: 'seed:sample',
-    description: 'Generate a schema-valid sample release (2 categories x 3 projects) for local dev/tests (T018).',
+    description:
+      'Generate a schema-valid sample release (2 categories x 3 projects) for local dev/tests (T018).',
     run: notYetImplemented('seed:sample'),
   },
 ];
