@@ -28,7 +28,9 @@ export const projectSchema = z
     marker: markerSpecSchema,
     geographicFraming: geographicFramingSchema,
     contentOptions: z.array(contentOptionSchema).min(1).max(5),
-    inactivePositions: z.array(z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])),
+    inactivePositions: z.array(
+      z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+    ),
   })
   .strict()
   .superRefine((project, ctx) => {

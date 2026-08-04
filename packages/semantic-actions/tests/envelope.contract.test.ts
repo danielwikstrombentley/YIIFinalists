@@ -78,7 +78,11 @@ describe('Action set (contract table + FR-019 priorities)', () => {
 describe('Boundary rule 1: envelope validation', () => {
   it('accepts the exact wire-format example from the contract', () => {
     const result = parseSemanticEnvelope(
-      envelope({ type: 'content.select', payload: { position: 2 }, msgId: 'optional-transport-id' }),
+      envelope({
+        type: 'content.select',
+        payload: { position: 2 },
+        msgId: 'optional-transport-id',
+      }),
     );
     expect(result.success).toBe(true);
   });
@@ -113,7 +117,9 @@ describe('Boundary rule 1: envelope validation', () => {
   });
 
   it('rejects content.select with a position outside 1..5', () => {
-    const result = parseSemanticEnvelope(envelope({ type: 'content.select', payload: { position: 6 } }));
+    const result = parseSemanticEnvelope(
+      envelope({ type: 'content.select', payload: { position: 6 } }),
+    );
     expect(result.success).toBe(false);
   });
 

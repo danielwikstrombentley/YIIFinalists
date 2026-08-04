@@ -19,7 +19,12 @@ export const EXPERIENCE_STATE_IDS = [
 export type ExperienceStateId = (typeof EXPERIENCE_STATE_IDS)[number];
 
 /** The four nav actions the interruption matrix scaffold covers (T010 Do). */
-export const INTERRUPTION_MATRIX_ACTIONS = ['operator.reset', 'nav.idle', 'category.select', 'nav.back'] as const;
+export const INTERRUPTION_MATRIX_ACTIONS = [
+  'operator.reset',
+  'nav.idle',
+  'category.select',
+  'nav.back',
+] as const;
 export type InterruptionMatrixAction = (typeof INTERRUPTION_MATRIX_ACTIONS)[number];
 
 export interface InterruptionExpectation {
@@ -37,14 +42,21 @@ export interface InterruptionExpectation {
  * `idle` — data-model.md's "re-entry via routed idle (category)" wording describes the cleanup
  * guarantee (same as going through idle), not a visible idle frame.
  */
-export const INTERRUPTION_MATRIX: Record<ExperienceStateId, Record<InterruptionMatrixAction, InterruptionExpectation>> = {
+export const INTERRUPTION_MATRIX: Record<
+  ExperienceStateId,
+  Record<InterruptionMatrixAction, InterruptionExpectation>
+> = {
   boot: {
     // operator.reset/nav.idle are the two highest-priority actions (FR-019: 7 and 6) — they
     // always win, even during boot, with no special-cased exceptions (simpler and more
     // defensible than making boot a dead zone for the two actions that must never get "stuck").
     'operator.reset': { destination: 'idle' },
     'nav.idle': { destination: 'idle' },
-    'category.select': { destination: 'self', pending: true, note: 'boot has no active category yet' },
+    'category.select': {
+      destination: 'self',
+      pending: true,
+      note: 'boot has no active category yet',
+    },
     'nav.back': { destination: 'self', pending: true },
   },
   idle: {
@@ -56,25 +68,40 @@ export const INTERRUPTION_MATRIX: Record<ExperienceStateId, Record<InterruptionM
   'categoryActive.preview': {
     'operator.reset': { destination: 'idle' },
     'nav.idle': { destination: 'idle' },
-    'category.select': { destination: 'categoryActive.preview', note: 'full re-entry (exit+entry) with the new category' },
+    'category.select': {
+      destination: 'categoryActive.preview',
+      note: 'full re-entry (exit+entry) with the new category',
+    },
     'nav.back': { destination: 'idle' },
   },
   transitionToProject: {
     'operator.reset': { destination: 'idle' },
     'nav.idle': { destination: 'idle' },
-    'category.select': { destination: 'categoryActive.preview', note: 'priority 5 > project.select 3 — may interrupt' },
-    'nav.back': { destination: 'categoryActive.preview', note: 'priority 4 > project.select 3 — may interrupt' },
+    'category.select': {
+      destination: 'categoryActive.preview',
+      note: 'priority 5 > project.select 3 — may interrupt',
+    },
+    'nav.back': {
+      destination: 'categoryActive.preview',
+      note: 'priority 4 > project.select 3 — may interrupt',
+    },
   },
   projectLanding: {
     'operator.reset': { destination: 'idle' },
     'nav.idle': { destination: 'idle' },
-    'category.select': { destination: 'transitionToPreview', note: 'reverse handover, lands in the newly selected category' },
+    'category.select': {
+      destination: 'transitionToPreview',
+      note: 'reverse handover, lands in the newly selected category',
+    },
     'nav.back': { destination: 'transitionToPreview' },
   },
   contentPlaying: {
     'operator.reset': { destination: 'idle' },
     'nav.idle': { destination: 'idle' },
-    'category.select': { destination: 'transitionToPreview', note: 'reverse handover, lands in the newly selected category' },
+    'category.select': {
+      destination: 'transitionToPreview',
+      note: 'reverse handover, lands in the newly selected category',
+    },
     'nav.back': { destination: 'transitionToPreview' },
   },
   contentFinalHold: {
@@ -96,7 +123,11 @@ export const INTERRUPTION_MATRIX: Record<ExperienceStateId, Record<InterruptionM
   recovering: {
     'operator.reset': { destination: 'idle' },
     'nav.idle': { destination: 'idle' },
-    'category.select': { destination: 'self', pending: true, note: 'recovering exits via its own internal recovery-complete event' },
+    'category.select': {
+      destination: 'self',
+      pending: true,
+      note: 'recovering exits via its own internal recovery-complete event',
+    },
     'nav.back': { destination: 'self', pending: true },
   },
 };

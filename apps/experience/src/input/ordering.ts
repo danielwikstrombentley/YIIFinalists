@@ -24,6 +24,8 @@ export class HoverOrdering {
   }
 }
 
-export function isDirectionHover(payload: PreviewHoverPayload): payload is { direction: 'next' | 'prev' } {
+export function isDirectionHover(
+  payload: PreviewHoverPayload,
+): payload is { direction: 'next' | 'prev' } {
   return 'direction' in payload;
 }

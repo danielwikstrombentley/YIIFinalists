@@ -69,7 +69,11 @@ export function createValidContentOption(
   };
 }
 
-export function createValidProject(id: string, categoryId: string, overrides: Partial<Project> = {}): Project {
+export function createValidProject(
+  id: string,
+  categoryId: string,
+  overrides: Partial<Project> = {},
+): Project {
   return {
     id,
     name: `Project ${id}`,
@@ -171,7 +175,9 @@ export function createValidDraftAnalysis(overrides: Partial<DraftAnalysis> = {})
   };
 }
 
-export function createValidEditorialOption(overrides: Partial<EditorialOption> = {}): EditorialOption {
+export function createValidEditorialOption(
+  overrides: Partial<EditorialOption> = {},
+): EditorialOption {
   const sourceLinks = [{ submissionId: 'submission-01', passageId: 'p1' }];
   return {
     projectId: 'cat1-proj-a',

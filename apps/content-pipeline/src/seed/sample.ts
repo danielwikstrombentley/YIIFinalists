@@ -2,7 +2,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Category, ChannelsFile, Manifest, Project } from '@yii/content-schema';
-import { categorySchema, channelsFileSchema, manifestSchema, projectSchema } from '@yii/content-schema';
+import {
+  categorySchema,
+  channelsFileSchema,
+  manifestSchema,
+  projectSchema,
+} from '@yii/content-schema';
 
 // Sample release seed generator (T018): produces a schema-valid release (2 categories x 3
 // projects per quickstart.md Setup) for local dev servers and every runtime test suite. Output is
@@ -159,10 +164,12 @@ export async function generateSampleRelease(
   await writeJson(join(outputDir, 'channels.json'), channels);
   await writeJson(join(releaseDir, 'manifest.json'), manifest);
   await writeJson(join(releaseDir, 'categories.json'), categories);
-  await writeJson(
-    join(releaseDir, 'validation-report.json'),
-    { generatedBy: 'seed:sample', generatedAt: new Date().toISOString(), valid: true, checks: projects.length },
-  );
+  await writeJson(join(releaseDir, 'validation-report.json'), {
+    generatedBy: 'seed:sample',
+    generatedAt: new Date().toISOString(),
+    valid: true,
+    checks: projects.length,
+  });
 
   for (const project of projects) {
     const projectDir = join(releaseDir, 'projects', project.id);

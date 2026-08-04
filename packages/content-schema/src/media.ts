@@ -5,7 +5,14 @@ import { packageRelativePathSchema, rightsRecordSchema } from './shared.js';
 // research.md R14 by the pipeline validator (T062/T070); this schema enforces shape and the
 // structural fallback requirement only.
 
-export const MEDIA_KINDS = ['image', 'video', 'image-sequence', 'diagram', 'model3d', 'motion'] as const;
+export const MEDIA_KINDS = [
+  'image',
+  'video',
+  'image-sequence',
+  'diagram',
+  'model3d',
+  'motion',
+] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 
 /** Kinds whose fallback asset is mandatory (data-model.md: "required for video and model3d kinds"). */

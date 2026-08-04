@@ -1,4 +1,9 @@
-import { Transport, TransportEventHub, type TransportStatus, type Unsubscribe } from './transport.js';
+import {
+  Transport,
+  TransportEventHub,
+  type TransportStatus,
+  type Unsubscribe,
+} from './transport.js';
 
 // Dev WebSocket transport (T014): JSON-over-WebSocket, served by the kiosk sidecar (tools/kiosk).
 // The socket implementation is injectable so this adapter is unit-testable without a real network

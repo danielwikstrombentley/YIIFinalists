@@ -1,6 +1,9 @@
 import gsap from 'gsap';
 import { describe, expect, it } from 'vitest';
-import { SequenceOrchestrator, type PlayableSequence } from '../../src/orchestration/orchestrator.js';
+import {
+  SequenceOrchestrator,
+  type PlayableSequence,
+} from '../../src/orchestration/orchestrator.js';
 import { Ticker } from '../../src/orchestration/ticker.js';
 
 // T015 (red-first): Principle II cancellation/replay semantics + research.md R6 single-ticker

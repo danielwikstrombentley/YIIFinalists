@@ -24,7 +24,8 @@ export function loadKioskConfig(env: NodeJS.ProcessEnv = process.env): KioskConf
   return {
     port: Number(env.KIOSK_PORT ?? 4174),
     staticRoot: env.KIOSK_STATIC_ROOT ?? join(repoRoot, 'apps', 'experience', 'dist'),
-    contentRoot: env.KIOSK_CONTENT_ROOT ?? join(repoRoot, 'apps', 'content-pipeline', 'assets', 'sample'),
+    contentRoot:
+      env.KIOSK_CONTENT_ROOT ?? join(repoRoot, 'apps', 'content-pipeline', 'assets', 'sample'),
     logDir: env.KIOSK_LOG_DIR ?? join(here, '..', 'logs'),
     ionAccessToken: env.ION_ACCESS_TOKEN,
     ionGoogleTilesAssetId: env.ION_GOOGLE_TILES_ASSET_ID,

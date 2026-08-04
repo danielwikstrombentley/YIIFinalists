@@ -65,7 +65,8 @@ export const contentSequenceSchema = z
           ctx.addIssue({
             code: 'custom',
             path: ['beats', index, 'startTime'],
-            message: 'beats must be ordered by non-decreasing startTime (data-model.md ContentSequence)',
+            message:
+              'beats must be ordered by non-decreasing startTime (data-model.md ContentSequence)',
           });
         }
       }

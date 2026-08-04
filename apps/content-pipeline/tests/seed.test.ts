@@ -56,7 +56,10 @@ describe('generateSampleRelease', () => {
   it('writes a schema-valid categories.json with exactly 2 categories x 3 project refs', async () => {
     await generateSampleRelease({ outputDir });
     const raw = JSON.parse(
-      await readFile(join(outputDir, 'releases', SAMPLE_RELEASE_VERSION, 'categories.json'), 'utf8'),
+      await readFile(
+        join(outputDir, 'releases', SAMPLE_RELEASE_VERSION, 'categories.json'),
+        'utf8',
+      ),
     );
     // categoriesFileSchema requires exactly 12 (production shape, QR-005) — the sample
     // intentionally has only 2 (quickstart.md), so re-validate each category individually.
@@ -66,7 +69,9 @@ describe('generateSampleRelease', () => {
       expect(categorySchema.safeParse(category).success).toBe(true);
     }
     for (const category of raw as unknown[]) {
-      expect((category as { projectIds: unknown[] }).projectIds).toHaveLength(SAMPLE_PROJECTS_PER_CATEGORY);
+      expect((category as { projectIds: unknown[] }).projectIds).toHaveLength(
+        SAMPLE_PROJECTS_PER_CATEGORY,
+      );
     }
   });
 
@@ -75,7 +80,14 @@ describe('generateSampleRelease', () => {
     for (const project of result.projects) {
       const raw = JSON.parse(
         await readFile(
-          join(outputDir, 'releases', SAMPLE_RELEASE_VERSION, 'projects', project.id, 'project.json'),
+          join(
+            outputDir,
+            'releases',
+            SAMPLE_RELEASE_VERSION,
+            'projects',
+            project.id,
+            'project.json',
+          ),
           'utf8',
         ),
       );
@@ -83,11 +95,29 @@ describe('generateSampleRelease', () => {
       expect(parsed.success, `project "${project.id}" should be schema-valid`).toBe(true);
 
       await expect(
-        readFile(join(outputDir, 'releases', SAMPLE_RELEASE_VERSION, 'projects', project.id, 'media', 'hero.jpg')),
+        readFile(
+          join(
+            outputDir,
+            'releases',
+            SAMPLE_RELEASE_VERSION,
+            'projects',
+            project.id,
+            'media',
+            'hero.jpg',
+          ),
+        ),
       ).resolves.toBeInstanceOf(Buffer);
       await expect(
         readFile(
-          join(outputDir, 'releases', SAMPLE_RELEASE_VERSION, 'projects', project.id, 'voiceover', 'overview.opus'),
+          join(
+            outputDir,
+            'releases',
+            SAMPLE_RELEASE_VERSION,
+            'projects',
+            project.id,
+            'voiceover',
+            'overview.opus',
+          ),
         ),
       ).resolves.toBeInstanceOf(Buffer);
     }

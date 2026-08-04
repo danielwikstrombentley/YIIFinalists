@@ -70,10 +70,16 @@ describe('Validation (boundary rule 1)', () => {
     const boundary = new InputBoundary({
       onAccepted,
       onRejected,
-      releaseValidator: { hasCategory: () => false, hasProject: () => true, hasContentPosition: () => true },
+      releaseValidator: {
+        hasCategory: () => false,
+        hasProject: () => true,
+        hasContentPosition: () => true,
+      },
     });
 
-    boundary.handle(envelope({ type: 'category.select', payload: { categoryId: 'does-not-exist' } }));
+    boundary.handle(
+      envelope({ type: 'category.select', payload: { categoryId: 'does-not-exist' } }),
+    );
     expect(onAccepted).not.toHaveBeenCalled();
     expect(onRejected).toHaveBeenCalledTimes(1);
   });
@@ -82,7 +88,11 @@ describe('Validation (boundary rule 1)', () => {
     const onAccepted = vi.fn();
     const boundary = new InputBoundary({
       onAccepted,
-      releaseValidator: { hasCategory: () => true, hasProject: () => true, hasContentPosition: () => true },
+      releaseValidator: {
+        hasCategory: () => true,
+        hasProject: () => true,
+        hasContentPosition: () => true,
+      },
     });
 
     boundary.handle(envelope({ type: 'category.select', payload: { categoryId: 'cat-1' } }));
@@ -132,14 +142,24 @@ describe('Ordering (boundary rule 4): newer preview.hover supersedes an unproces
     const boundary = new InputBoundary({ onAccepted });
 
     boundary.handle(
-      envelope({ type: 'preview.hover', payload: { direction: 'next' }, sentAt: '2026-08-03T12:00:01.000Z' }),
+      envelope({
+        type: 'preview.hover',
+        payload: { direction: 'next' },
+        sentAt: '2026-08-03T12:00:01.000Z',
+      }),
     );
     boundary.handle(
-      envelope({ type: 'preview.hover', payload: { direction: 'prev' }, sentAt: '2026-08-03T12:00:00.000Z' }),
+      envelope({
+        type: 'preview.hover',
+        payload: { direction: 'prev' },
+        sentAt: '2026-08-03T12:00:00.000Z',
+      }),
     );
 
     expect(onAccepted).toHaveBeenCalledTimes(1);
-    expect(onAccepted).toHaveBeenCalledWith(expect.objectContaining({ payload: { direction: 'next' } }));
+    expect(onAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { direction: 'next' } }),
+    );
   });
 
   it('does not apply hover-supersession ordering across different sources', () => {
@@ -194,7 +214,11 @@ describe('Connection monitoring (boundary rule 6)', () => {
     const boundary = new InputBoundary({ onAccepted, onConnectionStatus });
 
     boundary.handle(
-      envelope({ type: 'connection.status', payload: { connected: true, transportId: 'ws-1' }, source: 'simulator' }),
+      envelope({
+        type: 'connection.status',
+        payload: { connected: true, transportId: 'ws-1' },
+        source: 'simulator',
+      }),
     );
 
     expect(onAccepted).not.toHaveBeenCalled();

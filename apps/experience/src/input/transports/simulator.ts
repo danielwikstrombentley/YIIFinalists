@@ -1,4 +1,9 @@
-import { Transport, TransportEventHub, type TransportStatus, type Unsubscribe } from './transport.js';
+import {
+  Transport,
+  TransportEventHub,
+  type TransportStatus,
+  type Unsubscribe,
+} from './transport.js';
 
 // In-process simulator transport (T014, research.md R7): the hidden operator simulator's headless
 // core. Used directly by tests now and by the operator UI in T052. Every injection method builds

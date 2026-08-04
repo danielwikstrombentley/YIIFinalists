@@ -39,7 +39,12 @@ function safeJoin(root: string, requestPath: string): string | null {
   return resolved;
 }
 
-async function serveStatic(root: string, requestPath: string, res: ServerResponse, fallbackToIndex: boolean): Promise<void> {
+async function serveStatic(
+  root: string,
+  requestPath: string,
+  res: ServerResponse,
+  fallbackToIndex: boolean,
+): Promise<void> {
   const filePath = safeJoin(root, requestPath === '/' ? '/index.html' : requestPath);
   if (!filePath) {
     res.writeHead(400).end('Bad request');
@@ -91,9 +96,9 @@ export function createKioskServer(config: KioskConfig = loadKioskConfig()) {
       } catch (error) {
         // Malformed request body: never a 5xx (Principle IV — telemetry failures are invisible
         // to the runtime); report a 200 with zero accepted instead.
-        res.writeHead(200, { 'Content-Type': 'application/json' }).end(
-          JSON.stringify({ accepted: 0, rejected: 0, errors: [describeError(error)] }),
-        );
+        res
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ accepted: 0, rejected: 0, errors: [describeError(error)] }));
       }
       return;
     }

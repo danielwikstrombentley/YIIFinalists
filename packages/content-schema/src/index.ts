@@ -36,7 +36,11 @@ export {
 } from './sequence.js';
 export type { Beat, CompositionSpec, ContentSequence, SequenceTimebase } from './sequence.js';
 
-export { CONTENT_OPTION_POSITIONS, KNOWN_FORMAT_IDS, contentOptionSchema } from './content-option.js';
+export {
+  CONTENT_OPTION_POSITIONS,
+  KNOWN_FORMAT_IDS,
+  contentOptionSchema,
+} from './content-option.js';
 export type { ContentOption, ContentOptionPosition, FormatId } from './content-option.js';
 
 export { markerSpecSchema, projectSchema } from './project.js';
@@ -58,7 +62,12 @@ export {
   channelEventSchema,
   channelsFileSchema,
 } from './channels.js';
-export type { ChannelEvent, ChannelEventType, ChannelsFile, ReleaseChannelName } from './channels.js';
+export type {
+  ChannelEvent,
+  ChannelEventType,
+  ChannelsFile,
+  ReleaseChannelName,
+} from './channels.js';
 
 export {
   REVIEW_STATES,

@@ -38,7 +38,10 @@ function arriveAt(stateId: ExperienceStateId) {
   send({ type: 'project.select', payload: {} });
   if (stateId === 'transitionToProject') return actor;
 
-  send({ type: 'internal.handoverToProjectComplete', generation: actor.getSnapshot().context.generation });
+  send({
+    type: 'internal.handoverToProjectComplete',
+    generation: actor.getSnapshot().context.generation,
+  });
   if (stateId === 'projectLanding') return actor;
 
   if (stateId === 'transitionToPreview') {

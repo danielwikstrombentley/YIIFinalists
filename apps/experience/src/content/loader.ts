@@ -82,7 +82,9 @@ export class ContentLoader {
     const categoriesRaw = await this.fetchJson(`${releaseBase}/categories.json`);
     const categoriesResult = revalidateCategories(categoriesRaw);
     if (!categoriesResult.success) {
-      throw new ContentLoadError(`categories.json failed schema validation for release "${version}"`);
+      throw new ContentLoadError(
+        `categories.json failed schema validation for release "${version}"`,
+      );
     }
 
     return { version, manifest: manifestResult.data, categories: categoriesResult.data };

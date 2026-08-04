@@ -68,7 +68,8 @@ describe('Valid full-release fixture (12x3, Overview at position 1, ...)', () =>
   });
 
   it('accepts a valid manifest', () => {
-    const { categories: _categories, ...manifest } = createValidRelease();
+    const manifest: Record<string, unknown> = { ...createValidRelease() };
+    delete manifest.categories;
     expect(manifestSchema.safeParse(manifest).success).toBe(true);
   });
 
@@ -77,7 +78,9 @@ describe('Valid full-release fixture (12x3, Overview at position 1, ...)', () =>
       staging: '1.0.0',
       production: null,
       frozen: false,
-      history: [{ type: 'publish', channel: 'staging', version: '1.0.0', at: '2026-08-03T12:00:00.000Z' }],
+      history: [
+        { type: 'publish', channel: 'staging', version: '1.0.0', at: '2026-08-03T12:00:00.000Z' },
+      ],
     });
     expect(result.success).toBe(true);
   });

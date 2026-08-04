@@ -14,7 +14,9 @@ export function revalidateManifest(raw: unknown) {
   return manifestSchema.safeParse(raw);
 }
 
-export function revalidateCategories(raw: unknown): { success: true; data: Category[] } | { success: false } {
+export function revalidateCategories(
+  raw: unknown,
+): { success: true; data: Category[] } | { success: false } {
   const result = categoriesFileSchema.safeParse(raw);
   return result.success ? { success: true, data: result.data } : { success: false };
 }

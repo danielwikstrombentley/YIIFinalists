@@ -7,7 +7,13 @@ import { semverSchema } from './shared.js';
 export const RELEASE_CHANNEL_NAMES = ['staging', 'production'] as const;
 export type ReleaseChannelName = (typeof RELEASE_CHANNEL_NAMES)[number];
 
-export const CHANNEL_EVENT_TYPES = ['publish', 'promote', 'rollback', 'freeze', 'unfreeze'] as const;
+export const CHANNEL_EVENT_TYPES = [
+  'publish',
+  'promote',
+  'rollback',
+  'freeze',
+  'unfreeze',
+] as const;
 export type ChannelEventType = (typeof CHANNEL_EVENT_TYPES)[number];
 
 export const channelEventSchema = z

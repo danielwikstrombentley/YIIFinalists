@@ -13,6 +13,13 @@ import {
 // obligations (T007 Accept criterion). Each function returns a value that MUST fail validation
 // against the corresponding content-schema schema/helper.
 
+/** Shallow-omits one key, used to build "missing required field" fixtures without an unused var. */
+function omit<T extends object, K extends keyof T>(value: T, key: K): Omit<T, K> {
+  const clone: Partial<T> = { ...value };
+  delete clone[key];
+  return clone as Omit<T, K>;
+}
+
 /** 1. missing Overview — no content option at position 1. */
 export function missingOverview(): Project {
   return createValidProject('proj-x', 'cat-1', { contentOptions: [createValidContentOption(2)] });
@@ -20,7 +27,9 @@ export function missingOverview(): Project {
 
 /** 2. >5 options — six content options on one project. */
 export function tooManyOptions(): Project {
-  const options: ContentOption[] = [1, 2, 3, 4, 5].map((p) => createValidContentOption(p as 1 | 2 | 3 | 4 | 5));
+  const options: ContentOption[] = [1, 2, 3, 4, 5].map((p) =>
+    createValidContentOption(p as 1 | 2 | 3 | 4 | 5),
+  );
   return createValidProject('proj-x', 'cat-1', {
     // Cast through unknown: the valid type only allows 5 positions: 1-5; this fixture
     // deliberately violates the max(5) array bound by duplicating position 5 as a 6th entry.
@@ -30,16 +39,12 @@ export function tooManyOptions(): Project {
 
 /** 3. missing metadata — required project fields (organisation) absent. */
 export function missingMetadata(): unknown {
-  const project = createValidProject('proj-x', 'cat-1');
-  const { organisation: _organisation, ...withoutOrganisation } = project;
-  return withoutOrganisation;
+  return omit(createValidProject('proj-x', 'cat-1'), 'organisation');
 }
 
 /** 4. missing framing — geographicFraming absent. */
 export function missingFraming(): unknown {
-  const project = createValidProject('proj-x', 'cat-1');
-  const { geographicFraming: _geographicFraming, ...withoutFraming } = project;
-  return withoutFraming;
+  return omit(createValidProject('proj-x', 'cat-1'), 'geographicFraming');
 }
 
 /** 5. missing media — a video asset without the fallback data-model.md requires. */
@@ -55,9 +60,10 @@ export function missingMediaFallback(): Project {
 
 /** 6. missing voiceover — content option without a voiceover asset. */
 export function missingVoiceover(): unknown {
-  const option = createValidContentOption(1);
-  const { voiceover: _voiceover, ...withoutVoiceover } = option;
-  return createValidProject('proj-x', 'cat-1', { contentOptions: [withoutVoiceover as unknown as ContentOption] });
+  const withoutVoiceover = omit(createValidContentOption(1), 'voiceover');
+  return createValidProject('proj-x', 'cat-1', {
+    contentOptions: [withoutVoiceover as unknown as ContentOption],
+  });
 }
 
 /** 7. missing display text — content option with an empty displayText array. */
@@ -120,9 +126,11 @@ export function invalidSequence(): Project {
 /** 11. missing final frame — sequence without a finalFrame. */
 export function missingFinalFrame(): unknown {
   const option = createValidContentOption(1);
-  const { finalFrame: _finalFrame, ...sequenceWithoutFinalFrame } = option.sequence;
+  const sequenceWithoutFinalFrame = omit(option.sequence, 'finalFrame');
   return createValidProject('proj-x', 'cat-1', {
-    contentOptions: [{ ...option, sequence: sequenceWithoutFinalFrame as unknown as typeof option.sequence }],
+    contentOptions: [
+      { ...option, sequence: sequenceWithoutFinalFrame as unknown as typeof option.sequence },
+    ],
   });
 }
 
@@ -159,8 +167,7 @@ export function unverifiedMetrics() {
 
 /** 15. missing rights — a media asset without a rights record. */
 export function missingRights(): unknown {
-  const asset = createValidMediaAsset();
-  const { rights: _rights, ...withoutRights } = asset;
+  const withoutRights = omit(createValidMediaAsset(), 'rights');
   return createValidProject('proj-x', 'cat-1', {
     contentOptions: [createValidContentOption(1, { mediaRefs: [withoutRights as never] })],
   });

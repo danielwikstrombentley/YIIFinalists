@@ -26,7 +26,10 @@ export function getActionPriority(type: SemanticActionType): number | undefined 
 }
 
 /** `candidate.priority - current.priority`; positive means candidate outranks current. */
-export function comparePriority(candidate: SemanticActionType, current: SemanticActionType): number {
+export function comparePriority(
+  candidate: SemanticActionType,
+  current: SemanticActionType,
+): number {
   const candidatePriority = getActionPriority(candidate) ?? Number.NEGATIVE_INFINITY;
   const currentPriority = getActionPriority(current) ?? Number.NEGATIVE_INFINITY;
   return candidatePriority - currentPriority;

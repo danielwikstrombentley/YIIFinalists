@@ -90,7 +90,13 @@ describe('kiosk server', () => {
     await Promise.all([once(clientA, 'open'), once(clientB, 'open')]);
 
     const received = once(clientB, 'message');
-    const envelope = { v: 1, type: 'nav.idle', payload: {}, source: 'console', sentAt: new Date().toISOString() };
+    const envelope = {
+      v: 1,
+      type: 'nav.idle',
+      payload: {},
+      source: 'console',
+      sentAt: new Date().toISOString(),
+    };
     clientA.send(JSON.stringify(envelope));
 
     const [messageEvent] = await received;

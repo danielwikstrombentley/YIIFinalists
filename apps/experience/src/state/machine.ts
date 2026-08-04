@@ -74,7 +74,11 @@ export const experienceMachine = setup({
               target: '#experience.transitionToProject',
               actions: [beginTransitionToProject],
             },
-            'category.select': { target: 'preview', reenter: true, actions: [enterCategoryPreview] },
+            'category.select': {
+              target: 'preview',
+              reenter: true,
+              actions: [enterCategoryPreview],
+            },
           },
         },
       },
@@ -116,7 +120,11 @@ export const experienceMachine = setup({
           target: 'contentFinalHold',
           guard: ({ context, event }) => isCurrentGeneration(context, event),
         },
-        'content.select': { target: 'contentPlaying', reenter: true, actions: [beginContentPlaying] },
+        'content.select': {
+          target: 'contentPlaying',
+          reenter: true,
+          actions: [beginContentPlaying],
+        },
         'nav.back': { target: 'transitionToPreview', actions: [beginTransitionToPreview] },
         'category.select': {
           target: 'transitionToPreview',

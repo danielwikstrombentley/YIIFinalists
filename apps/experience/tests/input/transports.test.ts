@@ -59,7 +59,13 @@ describe('WebSocketTransport', () => {
     transport.connect();
     fakeSocket!.onopen?.();
 
-    const wireMessage = { v: 1, type: 'nav.idle', payload: {}, source: 'console', sentAt: '2026-08-03T12:00:00.000Z' };
+    const wireMessage = {
+      v: 1,
+      type: 'nav.idle',
+      payload: {},
+      source: 'console',
+      sentAt: '2026-08-03T12:00:00.000Z',
+    };
     fakeSocket!.onmessage?.({ data: JSON.stringify(wireMessage) });
 
     expect(onMessage).toHaveBeenCalledWith(wireMessage);
@@ -166,14 +172,9 @@ describe('SimulatorTransport failure injections reach the boundary unaltered', (
     simulator.injectRapidHoverStream(6, 20);
 
     expect(rawReceived).toHaveLength(6);
-    expect(rawReceived.map((raw) => (raw as { payload: { direction: string } }).payload.direction)).toEqual([
-      'next',
-      'prev',
-      'next',
-      'prev',
-      'next',
-      'prev',
-    ]);
+    expect(
+      rawReceived.map((raw) => (raw as { payload: { direction: string } }).payload.direction),
+    ).toEqual(['next', 'prev', 'next', 'prev', 'next', 'prev']);
     // sentAt strictly increases by the requested interval — nothing reordered or dropped in transit.
     const sentAts = rawReceived.map((raw) => Date.parse((raw as { sentAt: string }).sentAt));
     expect(sentAts).toEqual([0, 20, 40, 60, 80, 100]);

@@ -32,7 +32,11 @@ async function main(): Promise<void> {
 
   for (const [name, schema] of Object.entries(SCHEMAS)) {
     const jsonSchema = z.toJSONSchema(schema, { unrepresentable: 'any', io: 'input' });
-    await writeFile(join(outDir, `${name}.schema.json`), `${JSON.stringify(jsonSchema, null, 2)}\n`, 'utf8');
+    await writeFile(
+      join(outDir, `${name}.schema.json`),
+      `${JSON.stringify(jsonSchema, null, 2)}\n`,
+      'utf8',
+    );
   }
 
   console.log(`Exported ${Object.keys(SCHEMAS).length} JSON Schema files to ${outDir}`);

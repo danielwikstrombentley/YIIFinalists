@@ -16,7 +16,9 @@ export interface ChannelResolution {
   version: string;
 }
 
-export async function resolveActiveRelease(options: ResolveActiveReleaseOptions): Promise<ChannelResolution> {
+export async function resolveActiveRelease(
+  options: ResolveActiveReleaseOptions,
+): Promise<ChannelResolution> {
   const raw = await options.fetchJson(`${options.basePath}/channels.json`);
   const result = channelsFileSchema.safeParse(raw);
   if (!result.success) {

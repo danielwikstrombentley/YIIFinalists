@@ -52,7 +52,10 @@ const producedBySchema = z.union([
   z.literal('copilot-agent'),
   z
     .string()
-    .regex(/^api-llm:[a-z0-9_-]+:[a-zA-Z0-9._-]+$/, 'must be "api-llm:<provider>:<model>" or "copilot-agent"'),
+    .regex(
+      /^api-llm:[a-z0-9_-]+:[a-zA-Z0-9._-]+$/,
+      'must be "api-llm:<provider>:<model>" or "copilot-agent"',
+    ),
 ]);
 export type ProducedBy = z.infer<typeof producedBySchema>;
 
@@ -84,7 +87,14 @@ export const draftAnalysisSchema = z
   .strict();
 export type DraftAnalysis = z.infer<typeof draftAnalysisSchema>;
 
-export const REVIEW_STATES = ['draft', 'in-review', 'returned', 'approved', 'published', 'rejected'] as const;
+export const REVIEW_STATES = [
+  'draft',
+  'in-review',
+  'returned',
+  'approved',
+  'published',
+  'rejected',
+] as const;
 export type ReviewState = (typeof REVIEW_STATES)[number];
 
 /** Legal reviewState transitions (data-model.md §2 "State transitions (editorial lifecycle)"). */
@@ -123,7 +133,9 @@ const assetRequestSchema = z.object({ description: z.string().min(1) }).strict()
 export const editorialOptionSchema = z
   .object({
     projectId: slugSchema,
-    position: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).nullable(),
+    position: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
+      .nullable(),
     title: z.string().min(1),
     rationale: z.string().min(1),
     sourceLinks: z.array(passageRefSchema).min(1),
