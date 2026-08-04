@@ -40,3 +40,7 @@ Thumbs.db
 
 # Telemetry (local JSONL sink output, not source)
 tools/kiosk/logs/
+
+# Generated dev/test fixture release (T018) — regenerate with `pnpm --filter content-pipeline
+# seed:sample`, never hand-edited or committed.
+apps/content-pipeline/assets/sample/

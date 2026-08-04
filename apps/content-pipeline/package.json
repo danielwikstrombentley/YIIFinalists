@@ -8,12 +8,14 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json",
     "cli": "tsx src/cli.ts",
-    "seed:sample": "tsx src/cli.ts seed:sample"
+    "seed:sample": "tsx src/cli.ts seed:sample",
+    "test:unit": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^22",
     "tsx": "^4.23.5",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@yii/content-schema": "workspace:^"
