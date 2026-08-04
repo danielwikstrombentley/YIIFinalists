@@ -19,20 +19,18 @@ import reactHooks from 'eslint-plugin-react-hooks';
  */
 function crossAppBoundarySelectors(forbiddenSegment, message) {
   const anchored = `/(^|\\/)${forbiddenSegment}(\\/|$)/`;
+  const globCallee = `CallExpression[callee.object.type='MetaProperty'][callee.property.name=/^glob(Eager)?$/]`;
   return [
     { selector: `ImportExpression > Literal[value=${anchored}]`, message },
     {
       selector: `ImportExpression > TemplateLiteral > TemplateElement[value.cooked=${anchored}]`,
       message,
     },
-    {
-      selector: `CallExpression[callee.object.type='MetaProperty'][callee.property.name=/^glob(Eager)?$/] > Literal[value=${anchored}]`,
-      message,
-    },
-    {
-      selector: `CallExpression[callee.object.type='MetaProperty'][callee.property.name=/^glob(Eager)?$/] > TemplateLiteral > TemplateElement[value.cooked=${anchored}]`,
-      message,
-    },
+    // Descendant (not child) combinator below: `import.meta.glob()`/`globEager()` accept either a
+    // single pattern or an array of patterns (`glob(['a', 'b'])`), so the literal/template can be
+    // nested one level deeper inside an ArrayExpression argument.
+    { selector: `${globCallee} Literal[value=${anchored}]`, message },
+    { selector: `${globCallee} TemplateElement[value.cooked=${anchored}]`, message },
   ];
 }
 
