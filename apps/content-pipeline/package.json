@@ -3,5 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "description": "Prep-time content pipeline CLI: ingest, analyze, review, validate, publish (never bundled into the public runtime).",
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "cli": "tsx src/cli.ts",
+    "seed:sample": "tsx src/cli.ts seed:sample"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.23.5",
+    "typescript": "^5.9.0"
+  }
 }
