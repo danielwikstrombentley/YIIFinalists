@@ -90,14 +90,21 @@ The review agent lives at [.github/agents/code-review.agent.md](.github/agents/c
 
 ## Branch protection (GitHub settings)
 
-Since there is no hosted CI status check to require, `main` and `phase/**` are protected by a
-GitHub **repository ruleset** ("protected-branches") instead of a CI-status-based rule:
+Since there is no hosted CI status check to require, `main` is protected by a GitHub **repository
+ruleset** ("protected-branches") instead of a CI-status-based rule:
 
-- Changes must go through a pull request (no direct pushes to `main` or any `phase/**` branch).
+- Changes must go through a pull request (no direct pushes to `main`).
 - Force-pushes and branch deletion are blocked.
 - Conversation resolution is required before merge.
 - No "required status checks" are configured (there are none — see the no-hosted-CI section
   above).
+
+`phase/**` branches are deliberately **not** covered by the ruleset: during solo-bootstrap
+consolidated phases (see the exception above) the implementer pushes fixup/review-fix commits
+directly to the phase branch, which a "changes must go through a pull request" rule on that same
+ref would block. `main` — the one branch every phase PR merges into — is what actually needs
+protecting; phase branches are transient working branches protected by convention/process, not the
+platform.
 
 **Review-count enforcement is a process rule, not a platform rule.** The ruleset's
 `required_approving_review_count` is intentionally `0`: this repository currently has a single
