@@ -54,6 +54,16 @@ export default tseslint.config(
           ],
         },
       ],
+      // `no-restricted-imports` only inspects static import/export declarations; dynamic
+      // `import()` needs its own AST-selector rule so the boundary can't be bypassed that way.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression > Literal[value=/(^|\\/)content-pipeline(\\/|$)/]',
+          message:
+            'apps/experience (public runtime) must not import apps/content-pipeline (prep-time only), including via dynamic import(). See plan.md Project Structure.',
+        },
+      ],
     },
   },
   {
@@ -76,6 +86,14 @@ export default tseslint.config(
                 'apps/content-pipeline (prep-time only) must not import apps/experience (public runtime). See plan.md Project Structure.',
             },
           ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression > Literal[value=/(^|\\/)experience(\\/|$)/]',
+          message:
+            'apps/content-pipeline (prep-time only) must not import apps/experience (public runtime), including via dynamic import(). See plan.md Project Structure.',
         },
       ],
     },
