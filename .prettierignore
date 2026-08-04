@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+spec-kit
+*.md
+
+# Tool-managed configuration (spec-kit CLI + VS Code scaffolding) — not manually maintained
+# project source, left in whatever shape the generating tool produced.
+.specify/
+.vscode/

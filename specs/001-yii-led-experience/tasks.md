@@ -23,7 +23,7 @@
 
 ### Definition of Done — a task may be marked `[x]` ONLY after ALL of
 
-1. Required tests pass (locally and in CI).
+1. Required tests pass locally.
 2. The implementation is submitted through a pull request.
 3. The pull request receives code review (see §3 Code Review Protocol).
 4. Required review changes are resolved.
@@ -31,12 +31,25 @@
 
 Writing code alone NEVER completes a task.
 
+> **No hosted CI**: this project deliberately runs no GitHub Actions (or any other hosted CI
+> runner) to avoid consuming Actions budget. Every place below that would otherwise say "green
+> CI" means **green local verification** — run `pnpm run verify` (typecheck, lint, format check,
+> unit tests, build) plus `pnpm --filter experience run test:e2e` before opening or approving any
+> PR, and record the result in the PR description. Reviewers re-run it themselves if in doubt.
+
 ### Claiming & updating
 
 - **Claim**: pull latest `main`, set the task's status to `[~]`, fill **Owner** (name or
   `agent:<Model Name (Provider)>`) and **Branch**, commit the tasks.md change before starting.
 - **Update**: when opening a PR set status `[R]` and record **PR**; when blocked set `[?]` and
   fill **Blockers**; after merge set `[x]`.
+- **Consolidated-phase exception** (e.g. PH1): when a task's recorded **Branch**/**PR** is the
+  *phase's own* branch/PR rather than a separate `task/001-T0XX-<slug>` branch (one contributor
+  implementing a whole phase in one sitting — see the phase header's note), there is no separate
+  task-PR merge step. That task goes `[~]` → `[R]` (phase PR open) → `[x]` **at the moment the
+  phase PR merges** — the same merge event that closes the phase PR also completes every task
+  consolidated into it. The phase-merge prerequisite "all phase tasks `[x]`" is satisfied
+  atomically by that merge, not before.
 - One task = one claim. Do not batch-claim tasks you are not actively working.
 - Strict TDD: every verification task (marked *(red-first)*) MUST exist and fail before its
   paired implementation task is coded.
@@ -48,10 +61,10 @@ Writing code alone NEVER completes a task.
 - **Phase integration branches**: `phase/001-phN-<slug>` (listed in each phase header). Created
   from `main` when the phase starts.
 - **Task branches**: `task/001-T0XX-<slug>` (pre-filled per task). PR target = the task's phase
-  branch. Task PRs require green CI + one review.
+  branch. Task PRs require green local verification (see note above) + one review.
 - **Phase PR**: phase branch → `main`. Requires: all phase tasks `[x]` or explicitly deferred,
-  full CI green, and an **APPROVE verdict from the code-review agent run on a different model
-  provider than the implementation** (§3).
+  full local verification green, and an **APPROVE verdict from the code-review agent run on a
+  different model provider than the implementation** (§3).
 
 ### Task field reference
 
@@ -97,7 +110,8 @@ graph TD
 
 The review agent lives at [.github/agents/code-review.agent.md](../../.github/agents/code-review.agent.md).
 
-1. Every **task PR** gets a normal review (human or agent) plus green CI.
+1. Every **task PR** gets a normal review (human or agent) plus green local verification (§1 note
+   — no hosted CI runs in this project).
 2. Every **phase PR into `main`** MUST be reviewed by running the `code-review` agent **on a
    model from a different provider than the model(s) that implemented the phase's tasks**.
    Example: tasks implemented by `agent:GPT-5.6-Sol (OpenAI)` → review with
@@ -137,51 +151,52 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
 
 ## Phase 1: Setup (PH1)
 
-**Purpose**: monorepo scaffolding, toolchain, CI, and the contribution/review workflow.
+**Purpose**: monorepo scaffolding, toolchain, local verification tooling, and the contribution/review workflow. No hosted CI (GitHub Actions) is used in this project — see §1 note.
 **Phase branch**: `phase/001-ph1-setup` · **Depends on**: — (start immediately)
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/1 · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: GPT-5.6 Sol (OpenAI) · Verdict: APPROVE`
 
-- [ ] T001 Create pnpm-workspace monorepo skeleton per plan.md Project Structure in pnpm-workspace.yaml
-  - Meta: Phase PH1 · Feature F001 · Owner — · Branch `task/001-T001-monorepo-skeleton` · PR — · Blockers —
+- [x] T001 Create pnpm-workspace monorepo skeleton per plan.md Project Structure in pnpm-workspace.yaml
+  - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated — bootstrap phase implemented directly on the phase branch, no separate task branch) · PR #1 · Blockers —
   - Do: Create root `package.json`, `pnpm-workspace.yaml`, strict `tsconfig.base.json`, `.gitignore` (+ git LFS attributes for media), `.editorconfig`, and empty workspace directories `apps/experience`, `apps/content-pipeline`, `packages/content-schema`, `packages/semantic-actions`, `tools/kiosk` with placeholder `package.json` in each.
   - Files: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, `.gitattributes`, `apps/*/package.json`, `packages/*/package.json`, `tools/kiosk/package.json`
   - Deps: —
-  - Tests: `pnpm install` succeeds; `pnpm -r build` runs (no-op OK) in CI once T004 lands.
+  - Tests: `pnpm install` succeeds; `pnpm -r build` runs (no-op OK) once T004 lands.
   - Accept: workspace layout matches plan.md §Project Structure exactly; TypeScript strict mode on.
 
-- [ ] T002 [P] Initialize experience app toolchain (Vite + React 19 + Cesium assets + Vitest + Playwright) in apps/experience/vite.config.ts
-  - Meta: Phase PH1 · Feature F001 · Owner — · Branch `task/001-T002-experience-toolchain` · PR — · Blockers —
+- [x] T002 [P] Initialize experience app toolchain (Vite + React 19 + Cesium assets + Vitest + Playwright) in apps/experience/vite.config.ts
+  - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
   - Do: Vite config with Cesium static asset handling and local `CESIUM_BASE_URL` (research R16), React 19 entry, `index.html` full-screen stage shell, Vitest config sharing the Vite pipeline, Playwright config with `test:e2e` project, scripts `dev/build/test:unit/test:e2e/test:state/test:perf/test:endurance` (placeholders where suites don't exist yet).
   - Files: `apps/experience/{vite.config.ts,index.html,src/main.tsx,vitest.config.ts,playwright.config.ts,package.json}`, `apps/experience/public/` (cesium assets pipeline)
   - Deps: T001
   - Tests: `pnpm --filter experience build` produces a static bundle; smoke Vitest + Playwright example pass.
   - Accept: production build is fully static with Cesium assets served locally (offline requirement, QR-004); no CDN references.
 
-- [ ] T003 [P] Initialize content-pipeline CLI app and shared package builds in apps/content-pipeline/src/cli.ts
-  - Meta: Phase PH1 · Feature F001 · Owner — · Branch `task/001-T003-pipeline-cli` · PR — · Blockers —
+- [x] T003 [P] Initialize content-pipeline CLI app and shared package builds in apps/content-pipeline/src/cli.ts
+  - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
   - Do: Node 22 CLI skeleton (tsx + small command runner) with stub subcommands `ingest analyze ingest-drafts review validate publish rollback freeze seed:sample`; build config for `packages/content-schema` and `packages/semantic-actions` (plain TS libs consumed by both apps).
   - Files: `apps/content-pipeline/{package.json,tsconfig.json,src/cli.ts,src/commands/index.ts}`, `packages/content-schema/{tsconfig.json,src/index.ts}`, `packages/semantic-actions/{tsconfig.json,src/index.ts}`
   - Deps: T001
   - Tests: `pnpm --filter content-pipeline exec tsx src/cli.ts --help` lists all subcommands; `pnpm -r build` compiles packages.
   - Accept: CLI runs on Node 22 LTS; no pipeline code is importable from `apps/experience` (enforced via package boundaries).
 
-- [ ] T004 [P] Configure linting, formatting, and CI workflow in .github/workflows/ci.yml
-  - Meta: Phase PH1 · Feature F001 · Owner — · Branch `task/001-T004-lint-ci` · PR — · Blockers —
-  - Do: ESLint (typescript-eslint, react-hooks) + Prettier at root; CI workflow on every PR: install, typecheck, lint, unit tests per workspace, Playwright smoke job, build. Cache pnpm store. Required status checks documented for branch protection on `main` and `phase/**`.
-  - Files: `eslint.config.js`, `.prettierrc`, `.github/workflows/ci.yml`
+- [x] T004 [P] Configure linting, formatting, and local verification tooling in eslint.config.js
+  - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
+  - Do: ESLint (typescript-eslint, react-hooks) + Prettier at root; a root `verify` script chaining typecheck → lint → format check → unit tests per workspace → build, run locally by contributors/agents before opening or approving any PR (**no hosted CI/GitHub Actions in this project — explicit decision to avoid consuming Actions budget**); Playwright e2e is run as a separate documented step (`pnpm --filter experience run test:e2e`). Required pre-merge checks documented in CONTRIBUTING.md (T005) for `main` and `phase/**`.
+  - Files: `eslint.config.js`, `.prettierrc`, `.prettierignore`, `package.json` (`verify` script)
   - Deps: T001
-  - Tests: CI green on a trivial PR; lint catches a seeded violation in a fixture branch (verified once, then removed).
-  - Accept: every PR runs typecheck+lint+tests automatically; failures block merge.
+  - Tests: `pnpm run verify` green locally; lint catches a seeded violation in a throwaway fixture file (verified once, then removed).
+  - Accept: a single local command (`pnpm run verify`) runs typecheck+lint+format+tests+build; every PR description records that it was run green; no hosted CI workflow exists in the repo.
 
-- [ ] T005 Establish contribution workflow: PR template, branch protection docs, and code-review agent wiring in .github/PULL_REQUEST_TEMPLATE.md
-  - Meta: Phase PH1 · Feature F001 · Owner — · Branch `task/001-T005-review-workflow` · PR — · Blockers —
+- [x] T005 Establish contribution workflow: PR template, branch protection docs, and code-review agent wiring in .github/PULL_REQUEST_TEMPLATE.md
+  - Meta: Phase PH1 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph1-setup` (consolidated) · PR #1 · Blockers —
   - Do: PR template (task ID, phase, tests run, constitution gates touched, implementer model+provider declaration); document the branch/PR/review flow from §1–§3 of this file in `CONTRIBUTING.md`; verify the already-scaffolded [.github/agents/code-review.agent.md](../../.github/agents/code-review.agent.md) runs end-to-end by dry-running it against a sample task PR and refining its instructions if the dry run misbehaves.
   - Files: `.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, `.github/agents/code-review.agent.md`
   - Deps: T001, T004
   - Tests: dry-run review of a sample PR produces a verdict report with findings table; provider-mismatch rule refuses a same-provider run.
   - Accept: PR template enforces implementer-model declaration; review agent produces APPROVE/REQUEST CHANGES verdicts; workflow documented.
 
-**Checkpoint PH1**: repo installs, builds, CI runs, review workflow live → open phase PR → cross-provider review → merge.
+**Checkpoint PH1**: repo installs, builds, `pnpm run verify` passes locally, review workflow live
+→ open phase PR → cross-provider review → merge.
 
 ---
 
@@ -919,6 +934,33 @@ plan-recorded N/A rationale — currently none).
   - Accept: all scenarios pass as written (or quickstart corrected and re-run); release sign-off recorded.
 
 **Checkpoint PH10**: all gates evidenced → final phase PR → cross-provider review → merge → release candidate.
+
+---
+
+## Deferred Follow-ups (opened during phase review)
+
+- [ ] T077 [P] Add a dependency-graph boundary checker (e.g. dependency-cruiser) enforcing apps/experience ↔ apps/content-pipeline separation beyond lint-pattern reach in package.json
+  - Meta: Phase PH2 · Feature F001 · Owner — · Branch `task/001-T077-dependency-boundary-tool` · PR — · Blockers —
+  - Do: PH1's cross-provider review (T004/T005, PR #1) progressively hardened `eslint.config.js`'s
+    `no-restricted-imports`/`no-restricted-syntax` rules to catch static imports, dynamic
+    `import()` (literal, template-literal), and `import.meta.glob()`/`globEager()` (scalar,
+    template, and array-of-patterns forms) across the apps/experience ↔ apps/content-pipeline
+    boundary — accepted by the reviewer as sufficient for PH1 (see PR #1 review history), with an
+    explicitly documented residual limitation: a module specifier built at runtime from a variable
+    (or indirection through a third re-exporting module) is not statically analyzable by any lint
+    rule. This task closes that gap properly with a tool that resolves the actual module/dependency
+    graph rather than pattern-matching AST literals: evaluate and wire in `dependency-cruiser` (or
+    equivalent) with a `forbidden` rule pair mirroring `eslint.config.js`'s
+    `crossAppBoundarySelectors()` intent, run as part of `pnpm run verify` alongside lint.
+  - Files: `.dependency-cruiser.cjs` (or chosen tool's config), `package.json` (`verify` script),
+    `eslint.config.js` (remove/simplify the AST-selector rules once the graph tool supersedes them,
+    or keep both as defense-in-depth — implementer's call, document the choice)
+  - Deps: T004
+  - Tests: seeded violation fixture (static import, dynamic import, and one indirection-through-a-
+    third-module case) all caught; existing codebase stays clean; `pnpm run verify` green.
+  - Accept: the apps/experience ↔ apps/content-pipeline boundary is enforced at the resolved
+    dependency-graph level, not just AST pattern matching; the "runtime-computed specifier" class
+    remains the only documented, industry-standard residual limitation.
 
 ---
 

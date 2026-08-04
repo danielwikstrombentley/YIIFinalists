@@ -1,0 +1,7 @@
+{
+  "name": "kiosk",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local kiosk sidecar: static serve, WS input endpoint bridge, telemetry sink, startup/recovery runbooks.",
+  "type": "module"
+}

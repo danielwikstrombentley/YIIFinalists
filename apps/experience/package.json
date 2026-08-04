@@ -1,0 +1,36 @@
+{
+  "name": "experience",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Public LED runtime + hidden operator tools (React + XState + GSAP + Three.js + CesiumJS).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc -p tsconfig.json",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test:state": "vitest run tests/state --passWithNoTests",
+    "test:perf": "echo \"(placeholder) T067 250ms response-budget harness lands in PH10 (research R14)\"",
+    "test:endurance": "echo \"(placeholder) T068 full-day endurance soak lands in PH10\""
+  },
+  "dependencies": {
+    "cesium": "^1.144.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.9.0",
+    "vite": "^8.2.0",
+    "vite-plugin-cesium": "^1.2.23",
+    "vitest": "^4.1.10"
+  }
+}
