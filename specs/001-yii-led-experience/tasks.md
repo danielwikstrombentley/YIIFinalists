@@ -408,8 +408,8 @@ presentation (spec US1).
   - Tests: unit: rapid retarget sequence ends at last target with no intermediate completions delivered; cancellation idempotent.
   - Accept: FR-006 retarget semantics native to the design (research R3).
 
-- [ ] T026 [US1] Implement GlobeRendererAdapter (adapter contract, ticker registration, resource ownership/dispose) in apps/experience/src/renderers/globe/GlobeRendererAdapter.ts
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T026-globe-adapter` · PR — · Blockers —
+- [~] T026 [US1] Implement GlobeRendererAdapter (adapter contract, ticker registration, resource ownership/dispose) in apps/experience/src/renderers/globe/GlobeRendererAdapter.ts
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Adapter facade over scene/markers/rig: `start/stop/dispose/setCategoryFilter/previewProject/enterIdle`; registers render callback with the single ticker only while active; owns and disposes all GPU/DOM resources; all operations return cancellable handles for the machine's cleanup registry.
   - Files: `apps/experience/src/renderers/globe/GlobeRendererAdapter.ts`
   - Deps: T023, T024, T025
