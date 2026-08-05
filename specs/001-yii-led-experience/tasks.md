@@ -384,8 +384,8 @@ presentation (spec US1).
 
 ### Implementation for US1
 
-- [ ] T023 [P] [US1] Build the cinematic globe scene (day/night blend, cloud layer, atmosphere, seamless idle loop) in apps/experience/src/renderers/globe/GlobeScene.ts
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T023-globe-scene` · PR — · Blockers —
+- [~] T023 [P] [US1] Build the cinematic globe scene (day/night blend, cloud layer, atmosphere, seamless idle loop) in apps/experience/src/renderers/globe/GlobeScene.ts
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Three.js scene per research R3: earth with day/night blending via sun uniform, animated cloud layer, atmospheric rim shader; idle loop driven by GSAP-tweened parameters through the orchestrator's ticker (no own RAF); texture set within R14 GPU budget (≤512 MB, mip-capped variants as fallback quality level).
   - Files: `apps/experience/src/renderers/globe/{GlobeScene.ts,shaders/atmosphere.glsl,shaders/earth.glsl,textures.ts,idle-loop.ts}`, `apps/experience/public/textures/*`
   - Deps: T016
