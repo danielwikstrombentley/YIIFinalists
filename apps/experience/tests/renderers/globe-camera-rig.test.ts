@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_IDLE_ORBIT_PARAMETERS,
   GlobeCameraRig,
   MAX_PREVIEW_DISTANCE,
   MIN_PREVIEW_DISTANCE,
   type GlobePreviewProject,
   type RetargetMotionDriver,
 } from '../../src/renderers/globe/camera-rig.js';
+import { MOTION_DURATIONS_MS } from '../../src/orchestration/motion-tokens.js';
 
 const PROJECT_A: GlobePreviewProject = {
   id: 'project-a',
@@ -19,6 +21,7 @@ const PROJECT_B: GlobePreviewProject = {
 interface PendingMotion<T extends object> {
   target: T;
   destination: Partial<T>;
+  durationMs: number;
   onUpdate: () => void;
   onComplete: () => void;
   cancelled: boolean;
@@ -30,11 +33,12 @@ class ControlledMotionDriver implements RetargetMotionDriver {
   retarget<T extends object>(
     target: T,
     destination: Partial<T>,
-    options: { onUpdate: () => void; onComplete: () => void },
+    options: { durationMs: number; onUpdate: () => void; onComplete: () => void },
   ) {
     const motion: PendingMotion<T> = {
       target,
       destination,
+      durationMs: options.durationMs,
       onUpdate: options.onUpdate,
       onComplete: options.onComplete,
       cancelled: false,
@@ -59,6 +63,12 @@ class ControlledMotionDriver implements RetargetMotionDriver {
 
   wasCancelled(index: number): boolean {
     return this.pending[index]?.cancelled ?? false;
+  }
+
+  durationAt(index: number): number {
+    const motion = this.pending[index];
+    if (!motion) throw new Error(`Missing controlled motion ${index}.`);
+    return motion.durationMs;
   }
 }
 
@@ -105,6 +115,21 @@ describe('GlobeCameraRig', () => {
 
     expect(driver.wasCancelled(0)).toBe(true);
     expect(completions).toBe(0);
+    expect(rig.isPreviewInFlight).toBe(false);
+  });
+
+  it('uses a slower category-entry duration and returns the camera to its original idle orbit', () => {
+    const driver = new ControlledMotionDriver();
+    const rig = new GlobeCameraRig({ motionDriver: driver });
+
+    rig.previewProject(PROJECT_A, { durationMs: MOTION_DURATIONS_MS.categoryPreviewEntry });
+    expect(driver.durationAt(0)).toBe(MOTION_DURATIONS_MS.categoryPreviewEntry);
+    driver.finish(0);
+
+    rig.returnToIdle();
+    driver.finish(1);
+
+    expect(rig.orbit).toEqual(DEFAULT_IDLE_ORBIT_PARAMETERS);
     expect(rig.isPreviewInFlight).toBe(false);
   });
 });

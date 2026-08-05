@@ -3,12 +3,17 @@ import {
   NormalBlending,
   SRGBColorSpace,
   Texture,
+  Vector3,
   type TextureLoader,
   type WebGLRenderer,
 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { GlobeScene } from '../../src/renderers/globe/GlobeScene.js';
 import { GLOBE_TEXTURE_BUDGET_BYTES } from '../../src/renderers/globe/textures.js';
+import type {
+  RetargetMotionDriver,
+  RetargetMotionOptions,
+} from '../../src/orchestration/gsap-motion.js';
 
 // T023: the scene itself owns scene-graph resources; the later GlobeRendererAdapter (T026) owns
 // its WebGLRenderer and the shared ticker registration. This keeps construction unit-testable in
@@ -30,6 +35,15 @@ function createTextureLoader() {
   return { loader, load, textures };
 }
 
+const immediateMotionDriver: RetargetMotionDriver = {
+  retarget<T extends object>(target: T, destination: Partial<T>, options: RetargetMotionOptions) {
+    Object.assign(target, destination);
+    options.onUpdate();
+    options.onComplete();
+    return { cancel: () => {} };
+  },
+};
+
 describe('GlobeScene', () => {
   it('builds the earth, animated cloud, and atmospheric layers within the GPU texture budget', () => {
     const globe = new GlobeScene();
@@ -48,6 +62,7 @@ describe('GlobeScene', () => {
   it('centralizes independent surface, cloud, and atmosphere tuning as shader uniforms', () => {
     const globe = new GlobeScene({
       visualTuning: {
+        previewDaylightTransitionSeconds: 0.8,
         dayExposure: 0.76,
         nightSaturation: 1.3,
         cloudOpacity: 0.41,
@@ -63,6 +78,7 @@ describe('GlobeScene', () => {
       },
     });
 
+    expect(globe.visualTuning.previewDaylightTransitionSeconds).toBe(0.8);
     expect(globe.earthUniforms.uDayExposure.value).toBe(0.76);
     expect(globe.earthUniforms.uNightSaturation.value).toBe(1.3);
     expect(globe.cloudUniforms.uCloudOpacity.value).toBe(0.41);
@@ -148,6 +164,64 @@ describe('GlobeScene', () => {
     expect(globe.earthUniforms.uSunDirection.value.length()).toBeCloseTo(1);
     expect(globe.cloudUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
     expect(globe.atmosphereUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
+
+    globe.dispose();
+  });
+
+  it('front-lights a previewed hemisphere and restores the idle solar orbit afterwards', () => {
+    const globe = new GlobeScene();
+    const renderer = createRenderer();
+    const previewDirection = new Vector3(-2, 1, 4).normalize();
+
+    globe.setPreviewDaylightDirection(previewDirection);
+    globe.advance(10);
+    globe.render(renderer);
+
+    expect(globe.previewDaylightActive).toBe(true);
+    expect(globe.earthUniforms.uSunDirection.value.angleTo(previewDirection)).toBeLessThan(0.0002);
+    expect(globe.cloudUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
+    expect(globe.atmosphereUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
+
+    globe.clearPreviewDaylight();
+    globe.setIdleParameters({ sunOrbit: Math.PI / 2 });
+    globe.render(renderer);
+
+    const idleDirection = new Vector3(0, 0.22, 1).normalize();
+    expect(globe.previewDaylightActive).toBe(false);
+    expect(globe.earthUniforms.uSunDirection.value.angleTo(idleDirection)).toBeLessThan(0.0001);
+
+    globe.dispose();
+  });
+
+  it('lerps the preview sun and restores the original idle globe axis', () => {
+    const globe = new GlobeScene({
+      motionDriver: immediateMotionDriver,
+      visualTuning: { previewDaylightTransitionSeconds: 1 },
+    });
+    const renderer = createRenderer();
+    const targetDirection = new Vector3(-1, 0, 0);
+
+    globe.setIdleParameters({ rotationY: 1.2, sunOrbit: 0 });
+    globe.render(renderer);
+    const idleSunDirection = globe.earthUniforms.uSunDirection.value.clone();
+
+    globe.setPreviewDaylightDirection(targetDirection);
+    globe.advance(0.05);
+    globe.render(renderer);
+
+    expect(globe.earthUniforms.uSunDirection.value.angleTo(targetDirection)).toBeGreaterThan(0.1);
+    expect(globe.earthUniforms.uSunDirection.value.angleTo(idleSunDirection)).toBeLessThan(
+      idleSunDirection.angleTo(targetDirection),
+    );
+
+    globe.advance(10);
+    globe.render(renderer);
+    expect(globe.earthUniforms.uSunDirection.value.angleTo(targetDirection)).toBeLessThan(0.0001);
+
+    globe.enterIdle();
+    globe.render(renderer);
+    expect(globe.globe.rotation.y).toBeCloseTo(0);
+    expect(globe.idleLoopRunning).toBe(true);
 
     globe.dispose();
   });

@@ -5,6 +5,15 @@ import {
   GlobeRendererAdapter,
   type GlobeRendererAdapterProject,
 } from '../../src/renderers/globe/GlobeRendererAdapter.js';
+import {
+  DEFAULT_IDLE_ORBIT_PARAMETERS,
+  GlobeCameraRig,
+} from '../../src/renderers/globe/camera-rig.js';
+import { GlobeScene } from '../../src/renderers/globe/GlobeScene.js';
+import type {
+  RetargetMotionDriver,
+  RetargetMotionOptions,
+} from '../../src/orchestration/gsap-motion.js';
 import { Ticker } from '../../src/orchestration/ticker.js';
 
 const PROJECTS: readonly GlobeRendererAdapterProject[] = [
@@ -29,6 +38,15 @@ function createRenderer() {
     dispose: ReturnType<typeof vi.fn>;
   };
 }
+
+const immediateMotionDriver: RetargetMotionDriver = {
+  retarget<T extends object>(target: T, destination: Partial<T>, options: RetargetMotionOptions) {
+    Object.assign(target, destination);
+    options.onUpdate();
+    options.onComplete();
+    return { cancel: () => {} };
+  },
+};
 
 describe('GlobeRendererAdapter', () => {
   it('uses an explicit display color space and cinematic tone mapping', () => {
@@ -115,6 +133,61 @@ describe('GlobeRendererAdapter', () => {
     handle.cancel();
 
     expect(adapter.emphasizedProjectId).toBeNull();
+    expect(adapter.scene.previewDaylightActive).toBe(false);
+    adapter.dispose();
+    ticker.stop();
+  });
+
+  it('keeps the camera-facing finalist hemisphere in daylight during preview', () => {
+    const ticker = new Ticker();
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      rendererFactory: () => createRenderer(),
+    });
+    const stage = document.createElement('div');
+
+    adapter.start(stage);
+    adapter.previewProject(PROJECTS[1]!);
+    gsap.ticker.tick();
+    adapter.scene.advance(10);
+
+    const cameraDirection = adapter.cameraRig.camera.position.clone().normalize();
+    expect(adapter.scene.previewDaylightActive).toBe(true);
+    expect(adapter.scene.earthUniforms.uSunDirection.value.angleTo(cameraDirection)).toBeLessThan(
+      0.0001,
+    );
+
+    adapter.enterIdle();
+    expect(adapter.scene.previewDaylightActive).toBe(false);
+
+    adapter.dispose();
+    ticker.stop();
+  });
+
+  it('restores the original globe and camera axes after leaving a preview', () => {
+    const ticker = new Ticker();
+    const scene = new GlobeScene({ motionDriver: immediateMotionDriver });
+    const cameraRig = new GlobeCameraRig({
+      camera: scene.camera,
+      motionDriver: immediateMotionDriver,
+    });
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      scene,
+      cameraRig,
+      rendererFactory: () => createRenderer(),
+    });
+
+    scene.setIdleParameters({ rotationY: 1.2, sunOrbit: 1.1 });
+    adapter.previewProject(PROJECTS[1]!);
+    adapter.enterIdle();
+
+    expect(scene.globe.rotation.y).toBeCloseTo(0);
+    expect(cameraRig.orbit).toEqual(DEFAULT_IDLE_ORBIT_PARAMETERS);
+    expect(scene.idleLoopRunning).toBe(true);
+
     adapter.dispose();
     ticker.stop();
   });

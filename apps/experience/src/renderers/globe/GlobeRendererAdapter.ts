@@ -1,5 +1,6 @@
 import { AgXToneMapping, SRGBColorSpace, WebGLRenderer } from 'three';
 import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
+import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
 import { GlobeCameraRig, type GlobePreviewProject } from './camera-rig.js';
 import { GlobeMarkerSystem, type GlobeMarkerProject } from './markers.js';
 import { GlobeScene, type GlobeSceneOptions } from './GlobeScene.js';
@@ -21,6 +22,10 @@ export interface GlobeRendererAdapterOptions {
   canvas?: HTMLCanvasElement;
   rendererFactory?: (canvas: HTMLCanvasElement) => WebGLRenderer;
   sceneOptions?: GlobeSceneOptions;
+}
+
+export interface GlobePreviewOptions {
+  durationMs?: number;
 }
 
 function createCanvas(): HTMLCanvasElement {
@@ -169,11 +174,13 @@ export class GlobeRendererAdapter {
     const operation = ++this.idleOperation;
     this.markers.setCategoryFilter(null);
     this.markers.setPreviewProject(null);
-    this.scene.startIdleLoop();
+    const cameraHandle = this.cameraRig.returnToIdle();
+    const sceneHandle = this.scene.enterIdle();
     this.syncTestAttributes();
     return once(() => {
       if (this.disposed || this.idleOperation !== operation) return;
-      this.scene.stopIdleLoop();
+      cameraHandle.cancel();
+      sceneHandle.cancel();
     });
   }
 
@@ -191,17 +198,30 @@ export class GlobeRendererAdapter {
   }
 
   /** Retargets the camera and marker emphasis; a newer preview cancels the prior live movement. */
-  previewProject(projectRef: GlobeRendererAdapterProject | string): GlobeOperationHandle {
+  previewProject(
+    projectRef: GlobeRendererAdapterProject | string,
+    options: GlobePreviewOptions = {},
+  ): GlobeOperationHandle {
     if (this.disposed) return once(() => {});
     const project = this.resolveProject(projectRef);
     const operation = ++this.previewOperation;
     this.markers.setPreviewProject(project.id);
-    const cameraHandle = this.cameraRig.previewProject(project);
+    const cameraHandle = this.cameraRig.previewProject(project, options);
+    this.scene.setPreviewDaylightDirection(this.cameraRig.camera.position);
     this.syncTestAttributes();
     return once(() => {
       if (this.disposed || this.previewOperation !== operation) return;
       cameraHandle.cancel();
       this.markers.setPreviewProject(null);
+      this.scene.clearPreviewDaylight();
+      this.syncTestAttributes();
+    });
+  }
+
+  /** Category entry is intentionally more cinematic than rapid wheel retargets. */
+  previewCategoryProject(projectRef: GlobeRendererAdapterProject | string): GlobeOperationHandle {
+    return this.previewProject(projectRef, {
+      durationMs: MOTION_DURATIONS_MS.categoryPreviewEntry,
     });
   }
 
@@ -253,6 +273,9 @@ export class GlobeRendererAdapter {
   private render(deltaSeconds: number): void {
     if (!this.active || this.disposed) return;
     this.markers.advance(deltaSeconds);
+    if (this.scene.previewDaylightActive) {
+      this.scene.setPreviewDaylightDirection(this.cameraRig.camera.position);
+    }
     this.scene.advance(deltaSeconds);
     this.scene.render(this.renderer);
     this.renderedFrame += 1;
@@ -267,6 +290,9 @@ export class GlobeRendererAdapter {
       : 'settled';
     this.canvas.dataset.queuedTargets = '0';
     this.canvas.dataset.idleLoop = this.scene.idleLoopRunning ? 'running' : 'stopped';
+    this.canvas.dataset.previewDaylight = this.scene.previewDaylightActive
+      ? 'camera-facing'
+      : 'idle';
     this.canvas.dataset.idleFrame = String(this.renderedFrame);
   }
 

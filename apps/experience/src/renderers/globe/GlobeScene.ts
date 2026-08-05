@@ -6,6 +6,7 @@ import {
   Mesh,
   NoColorSpace,
   PerspectiveCamera,
+  Quaternion,
   RGBAFormat,
   RepeatWrapping,
   SRGBColorSpace,
@@ -17,6 +18,12 @@ import {
   Vector3,
   type WebGLRenderer,
 } from 'three';
+import {
+  gsapRetargetMotionDriver,
+  type CancellableMotion,
+  type RetargetMotionDriver,
+} from '../../orchestration/gsap-motion.js';
+import { MOTION_DURATIONS_MS, MOTION_EASINGS } from '../../orchestration/motion-tokens.js';
 import {
   DEFAULT_GLOBE_IDLE_PARAMETERS,
   GlobeIdleLoop,
@@ -53,12 +60,16 @@ const ATMOSPHERE_SHADER = splitShaderSource(atmosphereShaderSource);
 
 const EARTH_RADIUS = 5;
 const CLOUD_RADIUS = 5.025;
+const IDENTITY_QUATERNION = new Quaternion();
+const SETTLED_ANGLE_RADIANS = 0.0001;
 
 export interface GlobeVisualTuning {
   /** Seconds per full Earth revolution; lower values rotate faster. */
   globeRotationCycleSeconds: number;
   /** Seconds per full day/night lighting revolution. */
   sunOrbitCycleSeconds: number;
+  /** Approximate time for preview daylight to reach 95% of its new target. */
+  previewDaylightTransitionSeconds: number;
   dayExposure: number;
   daySaturation: number;
   dayContrast: number;
@@ -88,6 +99,7 @@ export interface GlobeVisualTuning {
 export const DEFAULT_GLOBE_VISUAL_TUNING: Readonly<GlobeVisualTuning> = {
   globeRotationCycleSeconds: 120,
   sunOrbitCycleSeconds: 180,
+  previewDaylightTransitionSeconds: 4.2,
   dayExposure: 0.74,
   daySaturation: 0.76,
   dayContrast: 0.92,
@@ -111,6 +123,8 @@ export interface GlobeSceneOptions {
   textureProfileId?: GlobeTextureProfileId;
   idleParameters?: Partial<GlobeIdleParameters>;
   visualTuning?: Partial<GlobeVisualTuning>;
+  /** Injectable for deterministic preview/idle visual-motion tests. */
+  motionDriver?: RetargetMotionDriver;
   /** Injectable for deterministic tests; omitted in non-WebGL environments uses procedural fallback. */
   textureLoader?: TextureLoader | null;
 }
@@ -142,6 +156,12 @@ function defaultTextureLoader(): TextureLoader | null {
 
 function positiveFraction(value: number): number {
   return ((value % 1) + 1) % 1;
+}
+
+function nearestEquivalentAngle(current: number, target: number): number {
+  const fullTurn = Math.PI * 2;
+  const delta = ((((target - current + Math.PI) % fullTurn) + fullTurn) % fullTurn) - Math.PI;
+  return current + delta;
 }
 
 /**
@@ -210,14 +230,21 @@ export class GlobeScene {
 
   private readonly idleParameters: GlobeIdleParameters;
   private readonly idleLoop: GlobeIdleLoop;
+  private readonly motionDriver: RetargetMotionDriver;
   private readonly ownedResources: GlobeResource[] = [];
+  private readonly previewSunDirection = new Vector3();
+  private readonly previewSunRotation = new Quaternion();
   private cloudTimeSeconds: number;
+  private idleReturnMotion: CancellableMotion | null = null;
+  private idleReturnGeneration = 0;
+  private previewDaylight = false;
   private disposed = false;
 
   constructor(options: GlobeSceneOptions = {}) {
     this.textureProfile = getGlobeTextureProfile(options.textureProfileId);
     this.idleParameters = { ...DEFAULT_GLOBE_IDLE_PARAMETERS, ...options.idleParameters };
     this.visualTuning = { ...DEFAULT_GLOBE_VISUAL_TUNING, ...options.visualTuning };
+    this.motionDriver = options.motionDriver ?? gsapRetargetMotionDriver;
     this.cloudTimeSeconds =
       positiveFraction(this.idleParameters.cloudPhase) * this.visualTuning.cloudCycleSeconds;
     this.idleLoop = new GlobeIdleLoop(this.idleParameters, {
@@ -357,11 +384,101 @@ export class GlobeScene {
     this.syncVisualState();
   }
 
+  /**
+   * Locks daylight to the camera-facing preview hemisphere. The adapter refreshes this direction
+   * from the moving camera during a finalist retarget, so the location being presented stays in
+   * day mode without creating another motion or render loop.
+   */
+  setPreviewDaylightDirection(direction: Vector3): void {
+    if (this.disposed || direction.lengthSq() === 0) return;
+    if (!this.previewDaylight) {
+      // Capture the current idle solar state before beginning the blend, rather than snapping the
+      // target finalist directly from night to day.
+      this.syncVisualState();
+      this.previewDaylight = true;
+    }
+    this.previewSunDirection.copy(direction).normalize();
+  }
+
+  /** Restores the automatic solar path from the currently blended daylight direction. */
+  clearPreviewDaylight(): void {
+    if (this.disposed || !this.previewDaylight) return;
+    const sunDirection = this.earthUniforms.uSunDirection.value;
+    this.idleParameters.sunOrbit = Math.atan2(sunDirection.z, sunDirection.x);
+    this.previewDaylight = false;
+  }
+
   /** Advances shader time from the adapter's one shared ticker; this creates no timer of its own. */
   advance(deltaSeconds: number): void {
     if (this.disposed || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
     this.cloudTimeSeconds += deltaSeconds;
     this.cloudUniforms.uCloudTime.value = this.cloudTimeSeconds;
+    this.advancePreviewDaylight(deltaSeconds);
+  }
+
+  /**
+   * Returns the Earth to its original idle orientation and solar phase, then starts the continuous
+   * idle loop. Its cancellable handle is owned by the adapter's idle state lifecycle.
+   */
+  enterIdle(): CancellableMotion {
+    if (this.disposed) return { cancel: () => {} };
+
+    this.stopIdleLoop();
+    this.cancelIdleReturn();
+    this.clearPreviewDaylight();
+
+    const destination = {
+      rotationY: nearestEquivalentAngle(
+        this.idleParameters.rotationY,
+        DEFAULT_GLOBE_IDLE_PARAMETERS.rotationY,
+      ),
+      sunOrbit: nearestEquivalentAngle(
+        this.idleParameters.sunOrbit,
+        DEFAULT_GLOBE_IDLE_PARAMETERS.sunOrbit,
+      ),
+    };
+    const alreadyAligned =
+      Math.abs(destination.rotationY - this.idleParameters.rotationY) < SETTLED_ANGLE_RADIANS &&
+      Math.abs(destination.sunOrbit - this.idleParameters.sunOrbit) < SETTLED_ANGLE_RADIANS;
+
+    if (alreadyAligned) {
+      Object.assign(this.idleParameters, destination);
+      this.syncVisualState();
+      this.startIdleLoop();
+      return { cancel: () => this.stopIdleLoop() };
+    }
+
+    const generation = ++this.idleReturnGeneration;
+    let settled = false;
+    const motion = this.motionDriver.retarget(this.idleParameters, destination, {
+      durationMs: MOTION_DURATIONS_MS.idleReturn,
+      ease: MOTION_EASINGS.gentle,
+      onUpdate: () => this.syncVisualState(),
+      onComplete: () => {
+        if (this.disposed || generation !== this.idleReturnGeneration) return;
+        settled = true;
+        this.syncVisualState();
+        this.idleReturnMotion = null;
+        this.startIdleLoop();
+      },
+    });
+
+    if (!settled && generation === this.idleReturnGeneration) {
+      this.idleReturnMotion = motion;
+    }
+
+    let cancelled = false;
+    return {
+      cancel: () => {
+        if (cancelled) return;
+        cancelled = true;
+        if (generation !== this.idleReturnGeneration) return;
+        motion.cancel();
+        this.idleReturnMotion = null;
+        this.idleReturnGeneration += 1;
+        this.stopIdleLoop();
+      },
+    };
   }
 
   /** Starts only the GSAP parameter timeline; the adapter-owned ticker performs rendering. */
@@ -390,6 +507,7 @@ export class GlobeScene {
   /** Scene-graph cleanup is idempotent; the adapter can safely call it on every teardown path. */
   dispose(): void {
     if (this.disposed) return;
+    this.cancelIdleReturn();
     this.stopIdleLoop();
     for (const resource of this.ownedResources) resource.dispose();
     this.ownedResources.length = 0;
@@ -406,6 +524,10 @@ export class GlobeScene {
     return this.idleLoop.running;
   }
 
+  get previewDaylightActive(): boolean {
+    return this.previewDaylight;
+  }
+
   get isDisposed(): boolean {
     return this.disposed;
   }
@@ -420,9 +542,33 @@ export class GlobeScene {
     this.cloudUniforms.uCloudTime.value = this.cloudTimeSeconds;
 
     const sunDirection = this.earthUniforms.uSunDirection.value;
+    if (this.previewDaylight) return;
     sunDirection
       .set(Math.cos(this.idleParameters.sunOrbit), 0.22, Math.sin(this.idleParameters.sunOrbit))
       .normalize();
+  }
+
+  private advancePreviewDaylight(deltaSeconds: number): void {
+    if (!this.previewDaylight) return;
+
+    const sunDirection = this.earthUniforms.uSunDirection.value;
+    const angle = sunDirection.angleTo(this.previewSunDirection);
+    if (angle < SETTLED_ANGLE_RADIANS) {
+      sunDirection.copy(this.previewSunDirection);
+      return;
+    }
+
+    const durationSeconds = Math.max(this.visualTuning.previewDaylightTransitionSeconds, 0.001);
+    const progress = 1 - Math.exp((-3 * deltaSeconds) / durationSeconds);
+    this.previewSunRotation.setFromUnitVectors(sunDirection, this.previewSunDirection);
+    this.previewSunRotation.slerp(IDENTITY_QUATERNION, 1 - progress);
+    sunDirection.applyQuaternion(this.previewSunRotation).normalize();
+  }
+
+  private cancelIdleReturn(): void {
+    this.idleReturnMotion?.cancel();
+    this.idleReturnMotion = null;
+    this.idleReturnGeneration += 1;
   }
 
   private loadTextureProfile(textureLoader: TextureLoader): void {
