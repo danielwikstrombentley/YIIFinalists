@@ -1,6 +1,6 @@
-// Globe texture profiles are local package paths only — no runtime CDN requests. The initial
-// renderer is procedural until curated event artwork is placed at these paths; the profiles keep
-// the R14 512 MiB GPU budget and quality fallback explicit before that artwork arrives.
+// Globe texture profiles are local package paths only — no runtime CDN requests. The supplied 2K
+// maps are the active local profile; the higher-resolution event profile remains a future asset
+// upgrade while preserving the R14 GPU budget and explicit fallback level.
 
 export const GLOBE_TEXTURE_BUDGET_BYTES = 512 * 1024 * 1024;
 
@@ -49,10 +49,10 @@ const EVENT_ASSETS = [
 ] as const satisfies readonly GlobeTextureAsset[];
 
 const MIP_CAPPED_ASSETS = [
-  { id: 'day', path: '/textures/earth-day-2k.webp', width: 2048, height: 1024 },
-  { id: 'night', path: '/textures/earth-night-2k.webp', width: 2048, height: 1024 },
-  { id: 'clouds', path: '/textures/earth-clouds-1k.webp', width: 1024, height: 512 },
-  { id: 'normal', path: '/textures/earth-normal-1k.webp', width: 1024, height: 512 },
+  { id: 'day', path: '/textures/2k_earth_daymap.jpg', width: 2048, height: 1024 },
+  { id: 'night', path: '/textures/2k_earth_nightmap.jpg', width: 2048, height: 1024 },
+  { id: 'clouds', path: '/textures/2k_earth_clouds.jpg', width: 2048, height: 1024 },
+  { id: 'normal', path: '/textures/2k_earth_normal_map.png', width: 2048, height: 1024 },
 ] as const satisfies readonly GlobeTextureAsset[];
 
 export const GLOBE_TEXTURE_PROFILES = {
@@ -60,6 +60,8 @@ export const GLOBE_TEXTURE_PROFILES = {
   'mip-capped': profile('mip-capped', MIP_CAPPED_ASSETS, null),
 } as const satisfies Record<GlobeTextureProfileId, GlobeTextureProfile>;
 
-export function getGlobeTextureProfile(id: GlobeTextureProfileId = 'event'): GlobeTextureProfile {
+export function getGlobeTextureProfile(
+  id: GlobeTextureProfileId = 'mip-capped',
+): GlobeTextureProfile {
   return GLOBE_TEXTURE_PROFILES[id];
 }
