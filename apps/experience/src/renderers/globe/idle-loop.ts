@@ -1,4 +1,8 @@
-import { gsap } from 'gsap';
+import {
+  gsapLoopingMotionDriver,
+  type CancellableMotion,
+  type LoopingMotionDriver,
+} from '../../orchestration/gsap-motion.js';
 import { MOTION_DURATIONS_MS, MOTION_EASINGS } from '../../orchestration/motion-tokens.js';
 
 // Values are tweened by GSAP, while the adapter's registration with the application-owned ticker
@@ -16,46 +20,43 @@ export const DEFAULT_GLOBE_IDLE_PARAMETERS: GlobeIdleParameters = {
 };
 
 export class GlobeIdleLoop {
-  private timeline: gsap.core.Timeline | null = null;
+  private motion: CancellableMotion | null = null;
 
-  constructor(private readonly parameters: GlobeIdleParameters) {}
+  constructor(
+    private readonly parameters: GlobeIdleParameters,
+    private readonly motionDriver: LoopingMotionDriver = gsapLoopingMotionDriver,
+  ) {}
 
   start(): void {
-    if (this.timeline) return;
+    if (this.motion) return;
 
-    this.timeline = gsap
-      .timeline({ repeat: -1 })
-      .to(this.parameters, {
-        rotationY: Math.PI * 2,
-        duration: MOTION_DURATIONS_MS.globeIdleOrbit / 1000,
+    this.motion = this.motionDriver.loop(this.parameters, [
+      {
+        destination: { rotationY: Math.PI * 2 },
+        durationMs: MOTION_DURATIONS_MS.globeIdleOrbit,
         ease: MOTION_EASINGS.linear,
-      })
-      .to(
-        this.parameters,
-        {
-          cloudPhase: 1,
-          duration: MOTION_DURATIONS_MS.globeCloudCycle / 1000,
-          ease: MOTION_EASINGS.linear,
-        },
-        0,
-      )
-      .to(
-        this.parameters,
-        {
-          sunOrbit: Math.PI * 2 + DEFAULT_GLOBE_IDLE_PARAMETERS.sunOrbit,
-          duration: MOTION_DURATIONS_MS.globeDayNightCycle / 1000,
-          ease: MOTION_EASINGS.linear,
-        },
-        0,
-      );
+      },
+      {
+        destination: { cloudPhase: 1 },
+        durationMs: MOTION_DURATIONS_MS.globeCloudCycle,
+        ease: MOTION_EASINGS.linear,
+        position: 0,
+      },
+      {
+        destination: { sunOrbit: Math.PI * 2 + DEFAULT_GLOBE_IDLE_PARAMETERS.sunOrbit },
+        durationMs: MOTION_DURATIONS_MS.globeDayNightCycle,
+        ease: MOTION_EASINGS.linear,
+        position: 0,
+      },
+    ]);
   }
 
   stop(): void {
-    this.timeline?.kill();
-    this.timeline = null;
+    this.motion?.cancel();
+    this.motion = null;
   }
 
   get running(): boolean {
-    return this.timeline !== null;
+    return this.motion !== null;
   }
 }
