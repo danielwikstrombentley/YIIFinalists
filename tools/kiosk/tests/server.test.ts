@@ -81,6 +81,15 @@ describe('kiosk server', () => {
     expect(body.errors.length).toBeGreaterThan(0);
   });
 
+  it('returns 400 for a malformed percent-encoded path instead of crashing the server', async () => {
+    const response = await fetch(`${baseUrl}/%ZZ`);
+    expect(response.status).toBe(400);
+
+    // The server must still be alive and answering afterward (no unhandled-rejection crash).
+    const followUp = await fetch(`${baseUrl}/`);
+    expect(followUp.status).toBe(200);
+  });
+
   it('WS round-trip: a message sent by one client is relayed to another', async () => {
     const address = kiosk.server.address() as AddressInfo;
     const wsUrl = `ws://127.0.0.1:${address.port}/ws`;

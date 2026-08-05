@@ -100,6 +100,46 @@ describe('Validation (boundary rule 1)', () => {
   });
 });
 
+describe('Content-position validation (boundary rule 1, content.select)', () => {
+  it('rejects content.select when no active project has been set (validator sees a null projectId)', () => {
+    const onAccepted = vi.fn();
+    const onRejected = vi.fn();
+    const hasContentPosition = vi.fn((projectId: string | null) => projectId === 'proj-1');
+    const boundary = new InputBoundary({
+      onAccepted,
+      onRejected,
+      releaseValidator: { hasCategory: () => true, hasProject: () => true, hasContentPosition },
+    });
+
+    boundary.handle(envelope({ type: 'content.select', payload: { position: 1 } }));
+    expect(onAccepted).not.toHaveBeenCalled();
+    expect(hasContentPosition).toHaveBeenCalledWith(null, 1);
+    expect(onRejected).toHaveBeenCalledWith('unknown-ref', expect.anything());
+  });
+
+  it('validates content.select position against the active project once setActiveProject is called', () => {
+    const onAccepted = vi.fn();
+    const onRejected = vi.fn();
+    const hasContentPosition = vi.fn(
+      (_projectId: string | null, position: number) => position === 1,
+    );
+    const boundary = new InputBoundary({
+      onAccepted,
+      onRejected,
+      releaseValidator: { hasCategory: () => true, hasProject: () => true, hasContentPosition },
+    });
+    boundary.setActiveProject('proj-1');
+
+    boundary.handle(envelope({ type: 'content.select', payload: { position: 1 } }));
+    expect(onAccepted).toHaveBeenCalledTimes(1);
+    expect(hasContentPosition).toHaveBeenCalledWith('proj-1', 1);
+
+    boundary.handle(envelope({ type: 'content.select', payload: { position: 2 } }));
+    expect(onAccepted).toHaveBeenCalledTimes(1);
+    expect(onRejected).toHaveBeenCalledWith('unknown-ref', expect.anything());
+  });
+});
+
 describe('Priority gate (boundary rule 3)', () => {
   it('lets a higher-priority action pass during an exclusive window', () => {
     const onAccepted = vi.fn();

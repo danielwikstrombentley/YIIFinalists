@@ -112,6 +112,18 @@ export class ContentLoader {
     return project;
   }
 
+  /**
+   * Synchronously peeks an already-cached project (populated by a prior `loadProject()` call).
+   * Used by the input boundary's release validator to check `content.select` position validity
+   * without an async call; returns undefined until that project has been loaded at least once.
+   */
+  getCachedProject(projectId: string): Project | undefined {
+    if (!this.cachedRelease) return undefined;
+    const category = this.cachedRelease.categories.find((c) => c.projectIds.includes(projectId));
+    const cacheKey = `${category?.id ?? 'unknown'}:${projectId}`;
+    return this.cache.get<Project>(cacheKey);
+  }
+
   /** R14 preload policy: evict decoded data for every category except the active one. */
   onCategoryChange(categoryId: string): void {
     this.cache.evictExceptCategory(categoryId);

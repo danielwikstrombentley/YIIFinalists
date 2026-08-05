@@ -3,22 +3,46 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Category, ChannelsFile, Manifest, Project } from '@yii/content-schema';
 import {
-  categorySchema,
+  categoriesFileSchema,
   channelsFileSchema,
   manifestSchema,
   projectSchema,
 } from '@yii/content-schema';
 
-// Sample release seed generator (T018): produces a schema-valid release (2 categories x 3
-// projects per quickstart.md Setup) for local dev servers and every runtime test suite. Output is
-// generated on demand (`pnpm --filter content-pipeline seed:sample`), not committed — see
-// .gitignore.
+// Sample release seed generator (T018): produces a schema-valid release (12 categories x 3
+// projects — the exact shape `categoriesFileSchema`/`releaseSchema` require, matching FR-001)
+// for local dev servers and every runtime test suite. Output is generated on demand
+// (`pnpm --filter content-pipeline seed:sample`), not committed — see .gitignore.
 
-export const SAMPLE_CATEGORY_COUNT = 2;
+export const SAMPLE_CATEGORY_COUNT = 12;
 export const SAMPLE_PROJECTS_PER_CATEGORY = 3;
 export const SAMPLE_RELEASE_VERSION = '0.1.0-sample';
 
-const SAMPLE_CATEGORY_NAMES = ['Climate Resilience', 'Digital Inclusion'];
+const SAMPLE_CATEGORY_NAMES = [
+  'Climate Resilience',
+  'Digital Inclusion',
+  'Health Equity',
+  'Education Access',
+  'Water Security',
+  'Renewable Energy',
+  'Circular Economy',
+  'Urban Mobility',
+  'Biodiversity Conservation',
+  'Food Security',
+  'Disaster Resilience',
+  'Gender Equality',
+];
+
+/** Deterministic placeholder coordinates, kept within lat ∈ [-90,90] / lon ∈ [-180,180] for all
+ * 12 categories × 3 projects (the naive `-10 + categoryIndex * 20` formula this replaced went
+ * out of range past 6 categories). */
+function sampleLat(categoryIndex: number): number {
+  return -55 + categoryIndex * 10;
+}
+
+function sampleLon(categoryIndex: number, projectIndex: number): number {
+  return -170 + categoryIndex * 25 + projectIndex * 8;
+}
 
 function buildSampleProject(categoryIndex: number, projectIndex: number): Project {
   const categoryId = `cat-${categoryIndex + 1}`;
@@ -30,11 +54,15 @@ function buildSampleProject(categoryIndex: number, projectIndex: number): Projec
     country: 'Sampleland',
     location: 'Sample City',
     categoryId,
-    marker: { lat: -10 + categoryIndex * 20, lon: -20 + projectIndex * 20 },
+    marker: { lat: sampleLat(categoryIndex), lon: sampleLon(categoryIndex, projectIndex) },
     geographicFraming: {
       scopeType: 'city',
       landingCamera: {
-        destination: { lat: -10 + categoryIndex * 20, lon: -20 + projectIndex * 20, height: 400 },
+        destination: {
+          lat: sampleLat(categoryIndex),
+          lon: sampleLon(categoryIndex, projectIndex),
+          height: 400,
+        },
         orientation: { heading: 0, pitch: -30, roll: 0 },
         range: 800,
       },
@@ -148,9 +176,10 @@ export async function generateSampleRelease(
   const releaseDir = join(outputDir, 'releases', SAMPLE_RELEASE_VERSION);
 
   const manifest = manifestSchema.parse(buildSampleManifest());
-  // Per-category validation, not the 12-count `categoriesFileSchema` (QR-005 is a *production*
-  // release invariant; quickstart.md deliberately sizes this dev/test sample at 2 categories).
-  const categories = buildSampleCategories().map((category) => categorySchema.parse(category));
+  // Validated against the real production `categoriesFileSchema` (exact-12 invariant, QR-005) —
+  // this is the identical schema apps/experience's ContentLoader.revalidateCategories() checks,
+  // so passing here guarantees the generated sample actually loads at runtime.
+  const categories = categoriesFileSchema.parse(buildSampleCategories());
   const channels = channelsFileSchema.parse(buildSampleChannels());
 
   const projects: Project[] = [];

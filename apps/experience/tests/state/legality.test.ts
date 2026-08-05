@@ -123,3 +123,67 @@ describe('Experience machine legality (@xstate/graph exhaustive traversal)', () 
     actor.stop();
   });
 });
+
+describe('Reverse-handover category-switch does not strand the machine (PH2 review round 1, finding #3)', () => {
+  it('a second category.select mid-reverse-handover still completes on the original completion token, landing on the latest category', () => {
+    const actor = createActor(experienceMachine).start();
+    actor.send({ type: 'internal.assetsVerified' });
+    actor.send({ type: 'category.select', payload: { categoryId: 'cat-1' } });
+    actor.send({ type: 'preview.hover', payload: { projectId: 'proj-1' } });
+    actor.send({ type: 'project.select', payload: {} });
+    const generationAtProjectHandover = actor.getSnapshot().context.generation;
+    actor.send({
+      type: 'internal.handoverToProjectComplete',
+      generation: generationAtProjectHandover,
+    });
+    actor.send({ type: 'content.select', payload: { position: 1 } });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('contentPlaying');
+
+    actor.send({ type: 'category.select', payload: { categoryId: 'cat-2' } });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('transitionToPreview');
+    const generationAtHandover = actor.getSnapshot().context.generation;
+
+    // A second category.select while already mid-reverse-handover must NOT invalidate the
+    // in-flight completion token (this exact sequence stranded the machine before the fix).
+    actor.send({ type: 'category.select', payload: { categoryId: 'cat-3' } });
+    expect(actor.getSnapshot().context.generation).toBe(generationAtHandover);
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('transitionToPreview');
+
+    actor.send({
+      type: 'internal.handoverToPreviewComplete',
+      generation: generationAtHandover,
+    });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('categoryActive.preview');
+    // Lands on the LAST category requested mid-handover, not the first.
+    expect(actor.getSnapshot().context.activeCategoryId).toBe('cat-3');
+
+    actor.stop();
+  });
+
+  it('a stale (pre-interruption) completion token is still correctly ignored', () => {
+    const actor = createActor(experienceMachine).start();
+    actor.send({ type: 'internal.assetsVerified' });
+    actor.send({ type: 'category.select', payload: { categoryId: 'cat-1' } });
+    actor.send({ type: 'preview.hover', payload: { projectId: 'proj-1' } });
+    actor.send({ type: 'project.select', payload: {} });
+    const generationAtProjectHandover = actor.getSnapshot().context.generation;
+    actor.send({
+      type: 'internal.handoverToProjectComplete',
+      generation: generationAtProjectHandover,
+    });
+    actor.send({ type: 'content.select', payload: { position: 1 } });
+
+    actor.send({ type: 'category.select', payload: { categoryId: 'cat-2' } });
+    const staleGeneration = actor.getSnapshot().context.generation;
+
+    // Something else bumps generation before the handover completes (e.g. an operator reset) —
+    // the old completion token must still be rejected as stale.
+    actor.send({ type: 'operator.reset', payload: {} });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('idle');
+
+    actor.send({ type: 'internal.handoverToPreviewComplete', generation: staleGeneration });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('idle'); // unaffected by the stale event
+
+    actor.stop();
+  });
+});

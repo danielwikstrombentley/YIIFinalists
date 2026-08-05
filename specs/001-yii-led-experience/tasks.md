@@ -325,7 +325,7 @@ kiosk — the boundaries every story builds on.
   - Tests: loader unit tests: valid load, each refusal path, fallback chain, limit enforcement (fixtures from T007).
   - Accept: consumer obligations of [contracts/content-package.md](./contracts/content-package.md) fully implemented.
 
-- [R] T018 [P] Implement sample release seed generator (2 categories × 3 projects, staging channel) in apps/content-pipeline/src/seed/sample.ts
+- [R] T018 [P] Implement sample release seed generator (12 categories × 3 projects, staging channel) in apps/content-pipeline/src/seed/sample.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: `seed:sample` command producing a schema-valid release directory (manifest, categories, projects with markers/framing/options/sequences, placeholder media/voiceover assets, validation-report) + `channels.json` pointing staging at it. Used by dev servers and every runtime test suite.
   - Files: `apps/content-pipeline/src/seed/sample.ts`, `apps/content-pipeline/assets/sample/*`

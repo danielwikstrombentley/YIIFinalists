@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  categorySchema,
+  categoriesFileSchema,
   channelsFileSchema,
   manifestSchema,
   projectSchema,
@@ -30,7 +30,7 @@ describe('generateSampleRelease', () => {
     await rm(outputDir, { recursive: true, force: true });
   });
 
-  it('produces 2 categories x 3 projects per quickstart.md Setup', async () => {
+  it('produces 12 categories x 3 projects (the production categoriesFileSchema shape, FR-001)', async () => {
     const result = await generateSampleRelease({ outputDir });
     expect(result.categories).toHaveLength(SAMPLE_CATEGORY_COUNT);
     expect(result.projects).toHaveLength(SAMPLE_CATEGORY_COUNT * SAMPLE_PROJECTS_PER_CATEGORY);
@@ -53,7 +53,7 @@ describe('generateSampleRelease', () => {
     expect(manifestSchema.safeParse(raw).success).toBe(true);
   });
 
-  it('writes a schema-valid categories.json with exactly 2 categories x 3 project refs', async () => {
+  it('writes a categories.json that satisfies the real production categoriesFileSchema', async () => {
     await generateSampleRelease({ outputDir });
     const raw = JSON.parse(
       await readFile(
@@ -61,13 +61,12 @@ describe('generateSampleRelease', () => {
         'utf8',
       ),
     );
-    // categoriesFileSchema requires exactly 12 (production shape, QR-005) — the sample
-    // intentionally has only 2 (quickstart.md), so re-validate each category individually.
-    expect(Array.isArray(raw)).toBe(true);
+    // This is the identical shared-package schema apps/experience's ContentLoader validates
+    // incoming categories.json against — passing here is the guarantee that the seed is actually
+    // loadable by the real runtime (PH2 review round 1 finding #1: a 2-category sample failed
+    // this schema, which requires exactly 12, and the quickstart never reached idle).
+    expect(categoriesFileSchema.safeParse(raw).success).toBe(true);
     expect(raw).toHaveLength(SAMPLE_CATEGORY_COUNT);
-    for (const category of raw as unknown[]) {
-      expect(categorySchema.safeParse(category).success).toBe(true);
-    }
     for (const category of raw as unknown[]) {
       expect((category as { projectIds: unknown[] }).projectIds).toHaveLength(
         SAMPLE_PROJECTS_PER_CATEGORY,

@@ -107,7 +107,16 @@ export const beginContentPlaying = assign<
   };
 });
 
-/** Requests a category switch from a landed/playing state — applied once the reverse handover completes. */
+/**
+ * Requests a category switch from a landed/playing state, or updates the pending target while a
+ * reverse handover is already in flight — applied once that handover completes
+ * (`completeTransitionToPreview`). Deliberately does NOT bump `generation`: this action never
+ * starts a new async operation itself (the transitions that pair it with
+ * `beginTransitionToPreview` get their generation bump from that action instead), so an in-flight
+ * handover's completion token must stay valid across repeated `category.select` presses (PH2
+ * review round 1 finding #3 — bumping generation here stranded the machine in
+ * `transitionToPreview` forever once a second category.select arrived mid-handover).
+ */
 export const requestCategorySwitch = assign<
   ExperienceContext,
   ExperienceEvent,
@@ -117,7 +126,6 @@ export const requestCategorySwitch = assign<
 >(({ context, event }) => ({
   pendingCategoryId:
     event.type === 'category.select' ? event.payload.categoryId : context.pendingCategoryId,
-  generation: nextGeneration(context.generation),
 }));
 
 export const beginTransitionToPreview = assign<

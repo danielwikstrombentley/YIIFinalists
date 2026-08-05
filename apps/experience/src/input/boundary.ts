@@ -40,6 +40,7 @@ export class InputBoundary {
   private readonly hoverOrdering = new HoverOrdering();
   private readonly connectionMonitor = new ConnectionMonitor();
   private readonly releaseValidator: ReleaseRefValidator;
+  private activeProjectId: string | null = null;
 
   constructor(options: InputBoundaryOptions) {
     this.options = options;
@@ -104,6 +105,15 @@ export class InputBoundary {
     this.hoverOrdering.reset();
   }
 
+  /**
+   * Tracks the machine's currently selected/landed project (Principle I keeps the machine as the
+   * single source of truth; the boundary just mirrors it) so a bare `content.select { position }`
+   * — whose payload carries no projectId of its own — can be checked against the right project.
+   */
+  setActiveProject(projectId: string | null): void {
+    this.activeProjectId = projectId;
+  }
+
   private passesRefValidation(envelope: { type: string; payload: unknown }): boolean {
     if (envelope.type === 'category.select') {
       const { categoryId } = envelope.payload as { categoryId: string };
@@ -114,6 +124,10 @@ export class InputBoundary {
       if (payload.projectId) {
         return this.releaseValidator.hasProject(payload.projectId);
       }
+    }
+    if (envelope.type === 'content.select') {
+      const { position } = envelope.payload as { position: number };
+      return this.releaseValidator.hasContentPosition(this.activeProjectId, position);
     }
     return true;
   }

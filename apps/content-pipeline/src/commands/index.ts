@@ -61,7 +61,7 @@ export const commands: CliCommand[] = [
   {
     name: 'seed:sample',
     description:
-      'Generate a schema-valid sample release (2 categories x 3 projects) for local dev/tests (T018).',
+      'Generate a schema-valid sample release (12 categories x 3 projects) for local dev/tests (T018).',
     run: async (args: string[]): Promise<void> => {
       const outputFlagIndex = args.indexOf('--output');
       const outputDir = outputFlagIndex !== -1 ? args[outputFlagIndex + 1] : undefined;

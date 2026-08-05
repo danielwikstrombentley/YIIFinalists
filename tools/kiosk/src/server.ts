@@ -31,7 +31,13 @@ function contentTypeFor(path: string): string {
 
 /** Prevents `..`-style traversal outside `root` regardless of the request path. */
 function safeJoin(root: string, requestPath: string): string | null {
-  const decoded = decodeURIComponent(requestPath.split('?')[0] ?? '');
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(requestPath.split('?')[0] ?? '');
+  } catch {
+    // Malformed percent-encoding (e.g. `/%ZZ`) — treat exactly like any other invalid path.
+    return null;
+  }
   const resolved = normalize(join(root, decoded));
   if (resolved !== root && !resolved.startsWith(root + sep)) {
     return null;
@@ -81,7 +87,15 @@ export function createKioskServer(config: KioskConfig = loadKioskConfig()) {
   const wsInputBridge = new WsInputBridge();
 
   const server = createServer((req, res) => {
-    void handleRequest(req, res);
+    handleRequest(req, res).catch((error) => {
+      // Defense-in-depth backstop: every known failure path inside handleRequest() already
+      // resolves safely (safeJoin/serveStatic/telemetry all catch their own errors) but an
+      // unhandled rejection here would otherwise risk crashing the sidecar (Principle IV).
+      console.error('[kiosk] unhandled request error', error);
+      if (!res.headersSent) {
+        res.writeHead(500).end('Internal error');
+      }
+    });
   });
 
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {

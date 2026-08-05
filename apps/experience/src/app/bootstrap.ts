@@ -4,6 +4,7 @@ import { InputBoundary } from '../input/boundary.js';
 import type { Transport } from '../input/transports/transport.js';
 import { SimulatorTransport } from '../input/transports/simulator.js';
 import { WebSocketTransport } from '../input/transports/websocket.js';
+import { createReleaseRefValidator } from '../input/validate.js';
 import type { ExperienceEvent } from '../state/types.js';
 
 // Boot sequence (T020): load+revalidate the release, start the input boundary + transports,
@@ -13,7 +14,7 @@ import type { ExperienceEvent } from '../state/types.js';
 // recovering fallback path").
 
 export interface BootstrapDeps {
-  loader: Pick<ContentLoader, 'load'>;
+  loader: Pick<ContentLoader, 'load' | 'loadProject' | 'getCachedProject'>;
   boundary: InputBoundary;
   transports: readonly Transport[];
   send: (event: ExperienceEvent) => void;
@@ -69,6 +70,13 @@ export function createRuntimeDependencies(options: RuntimeDependenciesOptions): 
     },
     onRejected: (reason, raw) => console.debug('[input] rejected', reason, raw),
     onConnectionStatus: (status) => console.debug('[input] connection', status),
+    // Real release-backed validation (PH2 review round 1 finding #2) — reads through to the
+    // loader at call time, so it safely rejects every ref (fail-closed) until `loader.load()`
+    // resolves, then validates against the live release with no further wiring needed.
+    releaseValidator: createReleaseRefValidator(
+      () => loader.activeRelease,
+      (projectId) => loader.getCachedProject(projectId),
+    ),
   });
 
   const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
