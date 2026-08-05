@@ -55,6 +55,10 @@ const EARTH_RADIUS = 5;
 const CLOUD_RADIUS = 5.025;
 
 export interface GlobeVisualTuning {
+  /** Seconds per full Earth revolution; lower values rotate faster. */
+  globeRotationCycleSeconds: number;
+  /** Seconds per full day/night lighting revolution. */
+  sunOrbitCycleSeconds: number;
   dayExposure: number;
   daySaturation: number;
   dayContrast: number;
@@ -82,6 +86,8 @@ export interface GlobeVisualTuning {
 
 /** Centralized first-pass values for iterative LED-wall visual review. */
 export const DEFAULT_GLOBE_VISUAL_TUNING: Readonly<GlobeVisualTuning> = {
+  globeRotationCycleSeconds: 120,
+  sunOrbitCycleSeconds: 180,
   dayExposure: 0.74,
   daySaturation: 0.76,
   dayContrast: 0.92,
@@ -214,7 +220,10 @@ export class GlobeScene {
     this.visualTuning = { ...DEFAULT_GLOBE_VISUAL_TUNING, ...options.visualTuning };
     this.cloudTimeSeconds =
       positiveFraction(this.idleParameters.cloudPhase) * this.visualTuning.cloudCycleSeconds;
-    this.idleLoop = new GlobeIdleLoop(this.idleParameters);
+    this.idleLoop = new GlobeIdleLoop(this.idleParameters, {
+      rotationCycleSeconds: this.visualTuning.globeRotationCycleSeconds,
+      sunOrbitCycleSeconds: this.visualTuning.sunOrbitCycleSeconds,
+    });
 
     this.scene = new Scene();
     this.scene.background = new Color('#020714');

@@ -6,7 +6,7 @@
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Visual pass 5 implemented; awaiting human review of the brighter saturated-blue halo.
+**Status:** Visual pass 6 implemented; continuous rotation and editable cycle speeds awaiting review.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -52,6 +52,18 @@ The Three.js renderer now explicitly uses:
 
 Day/night grading remains shader-local so daylight, emissive city lights, clouds, atmosphere, and
 markers do not all receive the same corrective transform.
+
+### Continuous globe and solar motion
+
+The Earth and day/night light each run on an independent repeating GSAP timeline. Both use the
+application's existing GSAP ticker and create no additional `requestAnimationFrame` loop.
+
+- `globeRotationCycleSeconds` controls seconds per full Earth revolution.
+- `sunOrbitCycleSeconds` controls seconds per full day/night-light revolution.
+- `cloudCycleSeconds` separately controls the shader weather time-lapse.
+- Lower cycle values are faster; higher values are slower.
+- Each periodic destination is calculated as its current angle plus $2\pi$, so stopping and later
+  restarting from an arbitrary angle remains seamless.
 
 ### Earth surface
 
@@ -124,6 +136,8 @@ Defaults live in `DEFAULT_GLOBE_VISUAL_TUNING` in
 
 | Control | Current value | Purpose |
 |---|---:|---|
+| `globeRotationCycleSeconds` | `120` | Seconds per continuous Earth revolution. |
+| `sunOrbitCycleSeconds` | `180` | Seconds per continuous day/night revolution. |
 | `dayExposure` | `0.74` | Reduces day-map energy before tone mapping. |
 | `daySaturation` | `0.76` | Pulls back vivid source-map colour. |
 | `dayContrast` | `0.92` | Softens source-map contrast around a linear `0.18` pivot. |
@@ -342,6 +356,39 @@ Validation completed for pass 5:
 - custom brightness and saturation behavior covered by the focused globe-scene suite: 6/6 passed;
 - experience typecheck and production build passed;
 - real-browser WebGL shader regression: 1/1 passed.
+
+**Human verdict:** halo accepted with no further correction requested; opened continuous rotation
+and editable speed controls as the final feedback item.
+
+### Pass 6 — 2026-08-05
+
+Feedback: expose globe rotation speed variables and fix rotation becoming static after a fixed
+amount of time.
+
+Root cause: Earth rotation and the solar orbit shared one repeating 180-second timeline. The Earth
+tween completed at 120 seconds and therefore held its final angle for the remaining 60 seconds of
+every shared cycle.
+
+Pass 6 fixes this structurally:
+
+- Earth rotation and solar orbit now use separate infinitely repeating timelines, so neither can
+  inherit a hold from the other's duration;
+- `globeRotationCycleSeconds: 120` and `sunOrbitCycleSeconds: 180` are centralized in
+  `DEFAULT_GLOBE_VISUAL_TUNING` beside the existing `cloudCycleSeconds` control;
+- each timeline contains only its own property and linear easing;
+- start remains idempotent, stop cancels both handles, and restart targets the current angle plus a
+  full revolution rather than assuming an angle of zero;
+- obsolete hard-coded globe/day-night duration entries were removed from shared motion tokens.
+
+Validation completed for pass 6:
+
+- focused idle-loop and scene tests: 7/7 passed;
+- live development runtime exposes independent 120-second and 180-second repeating timelines;
+- deterministic timeline sampling verified active Earth rotation at 110, 119, 121, 150, 239, and
+  241 seconds, including the interval that previously held static from 120–180 seconds;
+- experience typecheck and production build passed;
+- Playwright extended-idle scenario: 1/1 passed;
+- no console or page errors on hard reload.
 
 **Human verdict:** pending.
 

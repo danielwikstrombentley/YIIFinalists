@@ -6,8 +6,6 @@ export const MOTION_DURATIONS_MS = {
   previewRetarget: 400,
   handover: 1800,
   beatDefault: 600,
-  globeIdleOrbit: 120_000,
-  globeDayNightCycle: 180_000,
 } as const;
 
 export const MOTION_EASINGS = {

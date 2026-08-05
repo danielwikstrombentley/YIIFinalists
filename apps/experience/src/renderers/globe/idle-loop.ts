@@ -3,7 +3,7 @@ import {
   type CancellableMotion,
   type LoopingMotionDriver,
 } from '../../orchestration/gsap-motion.js';
-import { MOTION_DURATIONS_MS, MOTION_EASINGS } from '../../orchestration/motion-tokens.js';
+import { MOTION_EASINGS } from '../../orchestration/motion-tokens.js';
 
 // Values are tweened by GSAP, while the adapter's registration with the application-owned ticker
 // renders the scene. This module never creates a requestAnimationFrame loop of its own.
@@ -20,38 +20,57 @@ export const DEFAULT_GLOBE_IDLE_PARAMETERS: GlobeIdleParameters = {
   sunOrbit: 0.55,
 };
 
+export interface GlobeIdleLoopOptions {
+  rotationCycleSeconds: number;
+  sunOrbitCycleSeconds: number;
+  motionDriver?: LoopingMotionDriver;
+}
+
 export class GlobeIdleLoop {
-  private motion: CancellableMotion | null = null;
+  private rotationMotion: CancellableMotion | null = null;
+  private sunMotion: CancellableMotion | null = null;
+  private readonly motionDriver: LoopingMotionDriver;
 
   constructor(
     private readonly parameters: GlobeIdleParameters,
-    private readonly motionDriver: LoopingMotionDriver = gsapLoopingMotionDriver,
-  ) {}
+    private readonly options: GlobeIdleLoopOptions,
+  ) {
+    this.motionDriver = options.motionDriver ?? gsapLoopingMotionDriver;
+  }
 
   start(): void {
-    if (this.motion) return;
+    if (this.running) return;
 
-    this.motion = this.motionDriver.loop(this.parameters, [
+    const rotationMotion = this.motionDriver.loop(this.parameters, [
       {
-        destination: { rotationY: Math.PI * 2 },
-        durationMs: MOTION_DURATIONS_MS.globeIdleOrbit,
+        destination: { rotationY: this.parameters.rotationY + Math.PI * 2 },
+        durationMs: Math.max(this.options.rotationCycleSeconds, 0.001) * 1000,
         ease: MOTION_EASINGS.linear,
-      },
-      {
-        destination: { sunOrbit: Math.PI * 2 + DEFAULT_GLOBE_IDLE_PARAMETERS.sunOrbit },
-        durationMs: MOTION_DURATIONS_MS.globeDayNightCycle,
-        ease: MOTION_EASINGS.linear,
-        position: 0,
       },
     ]);
+    try {
+      this.sunMotion = this.motionDriver.loop(this.parameters, [
+        {
+          destination: { sunOrbit: this.parameters.sunOrbit + Math.PI * 2 },
+          durationMs: Math.max(this.options.sunOrbitCycleSeconds, 0.001) * 1000,
+          ease: MOTION_EASINGS.linear,
+        },
+      ]);
+      this.rotationMotion = rotationMotion;
+    } catch (error) {
+      rotationMotion.cancel();
+      throw error;
+    }
   }
 
   stop(): void {
-    this.motion?.cancel();
-    this.motion = null;
+    this.rotationMotion?.cancel();
+    this.sunMotion?.cancel();
+    this.rotationMotion = null;
+    this.sunMotion = null;
   }
 
   get running(): boolean {
-    return this.motion !== null;
+    return this.rotationMotion !== null || this.sunMotion !== null;
   }
 }
