@@ -211,7 +211,9 @@ export class GlobeScene {
   private readonly idleParameters: GlobeIdleParameters;
   private readonly idleLoop: GlobeIdleLoop;
   private readonly ownedResources: GlobeResource[] = [];
+  private readonly previewSunDirection = new Vector3();
   private cloudTimeSeconds: number;
+  private previewDaylight = false;
   private disposed = false;
 
   constructor(options: GlobeSceneOptions = {}) {
@@ -357,6 +359,23 @@ export class GlobeScene {
     this.syncVisualState();
   }
 
+  /**
+   * Locks daylight to the camera-facing preview hemisphere. The adapter refreshes this direction
+   * from the moving camera during a finalist retarget, so the location being presented stays in
+   * day mode without creating another motion or render loop.
+   */
+  setPreviewDaylightDirection(direction: Vector3): void {
+    if (this.disposed || direction.lengthSq() === 0) return;
+    this.previewSunDirection.copy(direction).normalize();
+    this.previewDaylight = true;
+  }
+
+  /** Restores the continuous solar orbit used by the idle presentation. */
+  clearPreviewDaylight(): void {
+    if (this.disposed) return;
+    this.previewDaylight = false;
+  }
+
   /** Advances shader time from the adapter's one shared ticker; this creates no timer of its own. */
   advance(deltaSeconds: number): void {
     if (this.disposed || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
@@ -406,6 +425,10 @@ export class GlobeScene {
     return this.idleLoop.running;
   }
 
+  get previewDaylightActive(): boolean {
+    return this.previewDaylight;
+  }
+
   get isDisposed(): boolean {
     return this.disposed;
   }
@@ -420,6 +443,10 @@ export class GlobeScene {
     this.cloudUniforms.uCloudTime.value = this.cloudTimeSeconds;
 
     const sunDirection = this.earthUniforms.uSunDirection.value;
+    if (this.previewDaylight) {
+      sunDirection.copy(this.previewSunDirection);
+      return;
+    }
     sunDirection
       .set(Math.cos(this.idleParameters.sunOrbit), 0.22, Math.sin(this.idleParameters.sunOrbit))
       .normalize();

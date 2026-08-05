@@ -3,6 +3,7 @@ import {
   NormalBlending,
   SRGBColorSpace,
   Texture,
+  Vector3,
   type TextureLoader,
   type WebGLRenderer,
 } from 'three';
@@ -148,6 +149,30 @@ describe('GlobeScene', () => {
     expect(globe.earthUniforms.uSunDirection.value.length()).toBeCloseTo(1);
     expect(globe.cloudUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
     expect(globe.atmosphereUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
+
+    globe.dispose();
+  });
+
+  it('front-lights a previewed hemisphere and restores the idle solar orbit afterwards', () => {
+    const globe = new GlobeScene();
+    const renderer = createRenderer();
+    const previewDirection = new Vector3(-2, 1, 4).normalize();
+
+    globe.setPreviewDaylightDirection(previewDirection);
+    globe.render(renderer);
+
+    expect(globe.previewDaylightActive).toBe(true);
+    expect(globe.earthUniforms.uSunDirection.value.angleTo(previewDirection)).toBeLessThan(0.0001);
+    expect(globe.cloudUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
+    expect(globe.atmosphereUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
+
+    globe.clearPreviewDaylight();
+    globe.setIdleParameters({ sunOrbit: Math.PI / 2 });
+    globe.render(renderer);
+
+    const idleDirection = new Vector3(0, 0.22, 1).normalize();
+    expect(globe.previewDaylightActive).toBe(false);
+    expect(globe.earthUniforms.uSunDirection.value.angleTo(idleDirection)).toBeLessThan(0.0001);
 
     globe.dispose();
   });

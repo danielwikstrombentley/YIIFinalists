@@ -115,6 +115,33 @@ describe('GlobeRendererAdapter', () => {
     handle.cancel();
 
     expect(adapter.emphasizedProjectId).toBeNull();
+    expect(adapter.scene.previewDaylightActive).toBe(false);
+    adapter.dispose();
+    ticker.stop();
+  });
+
+  it('keeps the camera-facing finalist hemisphere in daylight during preview', () => {
+    const ticker = new Ticker();
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      rendererFactory: () => createRenderer(),
+    });
+    const stage = document.createElement('div');
+
+    adapter.start(stage);
+    adapter.previewProject(PROJECTS[1]!);
+    gsap.ticker.tick();
+
+    const cameraDirection = adapter.cameraRig.camera.position.clone().normalize();
+    expect(adapter.scene.previewDaylightActive).toBe(true);
+    expect(adapter.scene.earthUniforms.uSunDirection.value.angleTo(cameraDirection)).toBeLessThan(
+      0.0001,
+    );
+
+    adapter.enterIdle();
+    expect(adapter.scene.previewDaylightActive).toBe(false);
+
     adapter.dispose();
     ticker.stop();
   });

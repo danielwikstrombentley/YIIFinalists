@@ -169,6 +169,7 @@ export class GlobeRendererAdapter {
     const operation = ++this.idleOperation;
     this.markers.setCategoryFilter(null);
     this.markers.setPreviewProject(null);
+    this.scene.clearPreviewDaylight();
     this.scene.startIdleLoop();
     this.syncTestAttributes();
     return once(() => {
@@ -197,11 +198,14 @@ export class GlobeRendererAdapter {
     const operation = ++this.previewOperation;
     this.markers.setPreviewProject(project.id);
     const cameraHandle = this.cameraRig.previewProject(project);
+    this.scene.setPreviewDaylightDirection(this.cameraRig.camera.position);
     this.syncTestAttributes();
     return once(() => {
       if (this.disposed || this.previewOperation !== operation) return;
       cameraHandle.cancel();
       this.markers.setPreviewProject(null);
+      this.scene.clearPreviewDaylight();
+      this.syncTestAttributes();
     });
   }
 
@@ -254,6 +258,9 @@ export class GlobeRendererAdapter {
     if (!this.active || this.disposed) return;
     this.markers.advance(deltaSeconds);
     this.scene.advance(deltaSeconds);
+    if (this.scene.previewDaylightActive) {
+      this.scene.setPreviewDaylightDirection(this.cameraRig.camera.position);
+    }
     this.scene.render(this.renderer);
     this.renderedFrame += 1;
     this.syncTestAttributes();
@@ -267,6 +274,9 @@ export class GlobeRendererAdapter {
       : 'settled';
     this.canvas.dataset.queuedTargets = '0';
     this.canvas.dataset.idleLoop = this.scene.idleLoopRunning ? 'running' : 'stopped';
+    this.canvas.dataset.previewDaylight = this.scene.previewDaylightActive
+      ? 'camera-facing'
+      : 'idle';
     this.canvas.dataset.idleFrame = String(this.renderedFrame);
   }
 

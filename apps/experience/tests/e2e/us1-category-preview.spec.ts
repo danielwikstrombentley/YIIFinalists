@@ -102,6 +102,10 @@ test.describe('US1: category and cinematic globe preview', () => {
     await expect(metadata).toHaveAttribute('data-project-id', 'cat-1-proj-2');
     await expect(metadata).toContainText('Sample Project 1.2');
     await expect(page.getByTestId('globe-renderer')).toHaveAttribute('data-camera-level', 'space');
+    await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+      'data-preview-daylight',
+      'camera-facing',
+    );
     await expect(
       page.locator('[data-testid="globe-marker"][data-project-id="cat-1-proj-2"]'),
     ).toHaveAttribute('data-emphasized', 'true');

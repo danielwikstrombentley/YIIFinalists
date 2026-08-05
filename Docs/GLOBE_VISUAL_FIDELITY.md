@@ -1,12 +1,15 @@
 # Globe visual fidelity workstream
 
-**Branch:** `feature/globe-visual-fidelity`
+**Branch:** `feature/globe-visual-fidelity` (Passes 1–6, merged)
+
+**Follow-up branch:** `feature/globe-preview-daylight-focus` (Pass 7)
 
 **Started:** 2026-08-05
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Final visual result accepted; approved for merge to `main`.
+**Status:** Pass 6 merged; Pass 7 daylight-focused preview behavior is implemented and awaiting
+visual approval.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -397,6 +400,34 @@ Final pre-merge verification passed on 2026-08-05: root `pnpm run verify` comple
 lint, formatting, 207 unit tests with 4 intentional skips, and all workspace builds; the complete
 Playwright suite passed 6/6.
 
+### Pass 7 — 2026-08-05
+
+Feedback: when the preview camera spins to a finalist, that part of the world must be in day mode
+rather than occasionally arriving on the night side.
+
+The preview now uses a camera-facing daylight override:
+
+- `GlobeRendererAdapter` updates the shared sun direction from the active preview camera on every
+  existing ticker render; the hemisphere facing the selected finalist is therefore front-lit
+  throughout a camera retarget.
+- `GlobeScene` keeps the override in the same `uSunDirection` object shared by Earth, clouds, and
+  atmosphere, preserving coherent surface, cloud, and halo lighting without a second timer or
+  render loop.
+- Cancelling a preview or returning to idle clears the override and resumes the existing continuous
+  idle solar orbit.
+
+Validation completed:
+
+- red-first scene, adapter, and browser assertions failed before the implementation and pass after;
+- focused renderer tests: 12/12 passed;
+- focused real-browser wheel-preview test: 1/1 passed;
+- hard-reloaded development browser: category entry and an explicit `preview.hover` retarget both
+  kept the displayed finalist hemisphere brightly sunlit, with no console or page errors.
+- full local verification passed (including 135 experience unit tests, 4 intentional skips, and a
+  production build); the full Playwright suite passed 6/6.
+
+**Human verdict:** pending visual approval.
+
 For the next round, append:
 
 - screenshots/viewing condition;
@@ -410,7 +441,7 @@ For the next round, append:
 
 Use this minimal prompt in a future chat:
 
-> Continue the globe visual-fidelity work on branch `feature/globe-visual-fidelity`. Read
+> Continue the globe visual-fidelity work on branch `feature/globe-preview-daylight-focus`. Read
 > `Docs/GLOBE_VISUAL_FIDELITY.md` first, inspect the current diff/status, preserve its rendering
 > invariants, and append this feedback round to that document. Do not add the work to the feature
 > specs or task registry.
