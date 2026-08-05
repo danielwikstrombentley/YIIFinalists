@@ -36,7 +36,11 @@ async function injectAction(page: Page, type: string, payload: unknown): Promise
 }
 
 async function stateHistory(page: Page): Promise<string[]> {
-  return page.evaluate(() => e2eRuntime().stateHistory().map((state) => JSON.stringify(state)));
+  return page.evaluate(() =>
+    e2eRuntime()
+      .stateHistory()
+      .map((state) => JSON.stringify(state)),
+  );
 }
 
 test.describe('US1: category and cinematic globe preview', () => {
@@ -48,13 +52,8 @@ test.describe('US1: category and cinematic globe preview', () => {
     await injectAction(page, 'category.select', { categoryId: 'cat-1' });
 
     const stage = page.locator('#stage');
-    await expect(stage).toHaveAttribute(
-      'data-machine-state',
-      '{"categoryActive":"preview"}',
-    );
-    await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(
-      3,
-    );
+    await expect(stage).toHaveAttribute('data-machine-state', '{"categoryActive":"preview"}');
+    await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(3);
     await expect(page.getByTestId('preview-metadata')).toBeVisible();
     await expect(page.getByTestId('preview-metadata')).toHaveAttribute(
       'data-project-id',
@@ -70,7 +69,10 @@ test.describe('US1: category and cinematic globe preview', () => {
       page.locator('[data-testid="globe-marker"][data-project-id="cat-1-proj-1"]'),
     ).toHaveAttribute('data-emphasized', 'true');
 
-    expect((await stateHistory(page)).slice(-2)).toEqual(['"idle"', '{"categoryActive":"preview"}']);
+    expect((await stateHistory(page)).slice(-2)).toEqual([
+      '"idle"',
+      '{"categoryActive":"preview"}',
+    ]);
   });
 
   test('US1 scenario 2: wheel navigation reframes at space level and updates metadata without flicker', async ({
@@ -130,13 +132,9 @@ test.describe('US1: category and cinematic globe preview', () => {
     const globe = page.getByTestId('globe-renderer');
     await expect(globe).toHaveAttribute('data-idle-loop', 'running');
     const initialFrame = await globe.getAttribute('data-idle-frame');
-    await expect
-      .poll(() => globe.getAttribute('data-idle-frame'))
-      .not.toBe(initialFrame);
+    await expect.poll(() => globe.getAttribute('data-idle-frame')).not.toBe(initialFrame);
 
-    await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(
-      36,
-    );
+    await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(36);
     await expect(page.getByTestId('preview-metadata')).toHaveCount(0);
     await expect(page.locator('#stage')).toHaveText('');
     await expect(page.locator('[data-testid="public-instructions"]')).toHaveCount(0);

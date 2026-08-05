@@ -82,9 +82,7 @@ describe('US1 category selection (FR-005, FR-007)', () => {
     expect(snapshot.context.activeCategoryId).toBe('cat-2');
     expect(snapshot.context.previewedProjectId).toBe('cat-2-proj-1');
     expect(observedPreviewIds).not.toContain(null);
-    expect(new Set(observedPreviewIds)).toEqual(
-      new Set(['cat-1-proj-1', 'cat-2-proj-1']),
-    );
+    expect(new Set(observedPreviewIds)).toEqual(new Set(['cat-1-proj-1', 'cat-2-proj-1']));
 
     subscription.unsubscribe();
     actor.stop();
