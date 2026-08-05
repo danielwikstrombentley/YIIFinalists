@@ -17,6 +17,9 @@ uniform sampler2D uCloudMap;
 uniform float uHasCloudMap;
 uniform float uCloudTime;
 uniform float uCloudCycleSeconds;
+uniform float uCloudDriftStrength;
+uniform float uCloudWarpStrength;
+uniform float uCloudEvolutionStrength;
 uniform float uCloudOpacity;
 uniform vec3 uSunDirection;
 varying vec3 vWorldNormal;
@@ -33,26 +36,45 @@ float globeLuminance(vec3 color) {
 vec2 advectedCloudUv(vec2 uv, float flow) {
   float latitude = (uv.y - 0.5) * PI;
   float phase = flow * TWO_PI;
-  float zonalWind = 0.018 * (0.68 + 0.32 * cos(latitude * 2.0));
-  vec2 deformation = vec2(
-    sin(uv.y * 31.0 + uv.x * 5.0 + phase) * 0.0034
-      + sin(uv.y * 13.0 - phase * 0.73) * 0.0016,
-    sin(uv.x * 23.0 - uv.y * 7.0 - phase * 0.81) * 0.0022
-      + sin(latitude * 6.0 + phase * 0.57) * 0.0012
+  float zonalWind = 0.58 + 0.42 * cos(latitude * 2.0);
+  vec2 deformationSignal = vec2(
+    sin(uv.y * 31.0 + uv.x * 5.0 + phase * 1.31) * 0.68
+      + sin(uv.y * 13.0 - phase * 0.77) * 0.32,
+    sin(uv.x * 23.0 - uv.y * 7.0 - phase * 1.13) * 0.7
+      + sin(latitude * 6.0 + phase * 0.61) * 0.3
   );
   vec2 advected = uv + vec2(
-    flow * zonalWind,
-    flow * sin(latitude * 5.0) * 0.0025
-  ) + deformation;
+    flow * uCloudDriftStrength * zonalWind,
+    flow * sin(latitude * 5.0) * uCloudDriftStrength * 0.12
+  ) + deformationSignal * uCloudWarpStrength;
   return vec2(fract(advected.x), clamp(advected.y, 0.002, 0.998));
 }
 
-float cloudCoverageAt(vec2 uv) {
+float cloudEvolutionField(vec2 uv, float flow) {
+  float phase = flow * TWO_PI;
+  float broadCells = sin(
+    uv.x * TWO_PI * 5.0 + sin(uv.y * TWO_PI * 3.0) * 0.8 + phase * 1.17
+  );
+  float crossingCells = sin(
+    uv.y * TWO_PI * 8.0 - uv.x * TWO_PI * 2.0 - phase * 0.91
+  );
+  return broadCells * 0.58 + crossingCells * 0.42;
+}
+
+float cloudCoverageAt(vec2 uv, float flow) {
   float photographedLuminance = globeLuminance(texture2D(uCloudMap, uv).rgb);
-  float photographedClouds = pow(smoothstep(0.08, 0.78, photographedLuminance), 1.2);
+  float edgeEvolution = cloudEvolutionField(uv, flow) * uCloudEvolutionStrength;
+  float photographedClouds = pow(
+    smoothstep(
+      0.08 + edgeEvolution,
+      0.78 + edgeEvolution * 0.42,
+      photographedLuminance
+    ),
+    1.16
+  );
   float proceduralClouds = smoothstep(
-    0.42,
-    0.76,
+    0.42 + edgeEvolution,
+    0.76 + edgeEvolution * 0.42,
     0.5 + 0.28 * sin(uv.x * TWO_PI * 7.0) + 0.22 * sin(uv.y * TWO_PI * 5.0)
   );
   return mix(proceduralClouds, photographedClouds, uHasCloudMap);
@@ -61,9 +83,9 @@ float cloudCoverageAt(vec2 uv) {
 float advectedCloudCoverage(vec2 uv) {
   float cycle = max(uCloudCycleSeconds, 1.0);
   float phase = fract(uCloudTime / cycle);
-  float forwardSample = cloudCoverageAt(advectedCloudUv(uv, phase));
-  float wrappedSample = cloudCoverageAt(advectedCloudUv(uv, phase - 1.0));
-  float wrapBlend = smoothstep(0.15, 0.85, phase);
+  float forwardSample = cloudCoverageAt(advectedCloudUv(uv, phase), phase);
+  float wrappedSample = cloudCoverageAt(advectedCloudUv(uv, phase - 1.0), phase - 1.0);
+  float wrapBlend = smoothstep(0.12, 0.88, phase);
   return mix(forwardSample, wrappedSample, wrapBlend);
 }
 

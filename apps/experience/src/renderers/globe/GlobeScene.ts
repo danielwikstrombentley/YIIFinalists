@@ -63,6 +63,9 @@ export interface GlobeVisualTuning {
   cloudOpacity: number;
   cloudShadowStrength: number;
   cloudCycleSeconds: number;
+  cloudDriftStrength: number;
+  cloudWarpStrength: number;
+  cloudEvolutionStrength: number;
   atmosphereRadius: number;
   atmosphereIntensity: number;
 }
@@ -74,9 +77,12 @@ export const DEFAULT_GLOBE_VISUAL_TUNING: Readonly<GlobeVisualTuning> = {
   dayContrast: 0.92,
   nightIntensity: 1.62,
   nightSaturation: 1.2,
-  cloudOpacity: 0.48,
+  cloudOpacity: 0.54,
   cloudShadowStrength: 0.18,
-  cloudCycleSeconds: 240,
+  cloudCycleSeconds: 64,
+  cloudDriftStrength: 0.05,
+  cloudWarpStrength: 0.023,
+  cloudEvolutionStrength: 0.12,
   atmosphereRadius: 5.075,
   atmosphereIntensity: 0.68,
 };
@@ -147,6 +153,9 @@ export class GlobeScene {
     uHasCloudMap: { value: number };
     uCloudTime: { value: number };
     uCloudCycleSeconds: { value: number };
+    uCloudDriftStrength: { value: number };
+    uCloudWarpStrength: { value: number };
+    uCloudEvolutionStrength: { value: number };
     uCloudShadowStrength: { value: number };
     uDayExposure: { value: number };
     uDaySaturation: { value: number };
@@ -160,6 +169,9 @@ export class GlobeScene {
     uHasCloudMap: { value: number };
     uCloudTime: { value: number };
     uCloudCycleSeconds: { value: number };
+    uCloudDriftStrength: { value: number };
+    uCloudWarpStrength: { value: number };
+    uCloudEvolutionStrength: { value: number };
     uCloudOpacity: { value: number };
   };
   readonly atmosphereUniforms: {
@@ -209,6 +221,9 @@ export class GlobeScene {
     const hasCloudMapUniform = { value: 0 };
     const cloudTimeUniform = { value: this.cloudTimeSeconds };
     const cloudCycleUniform = { value: this.visualTuning.cloudCycleSeconds };
+    const cloudDriftUniform = { value: this.visualTuning.cloudDriftStrength };
+    const cloudWarpUniform = { value: this.visualTuning.cloudWarpStrength };
+    const cloudEvolutionUniform = { value: this.visualTuning.cloudEvolutionStrength };
 
     this.earthUniforms = {
       uSunDirection: sunDirectionUniform,
@@ -222,6 +237,9 @@ export class GlobeScene {
       uHasCloudMap: hasCloudMapUniform,
       uCloudTime: cloudTimeUniform,
       uCloudCycleSeconds: cloudCycleUniform,
+      uCloudDriftStrength: cloudDriftUniform,
+      uCloudWarpStrength: cloudWarpUniform,
+      uCloudEvolutionStrength: cloudEvolutionUniform,
       uCloudShadowStrength: { value: this.visualTuning.cloudShadowStrength },
       uDayExposure: { value: this.visualTuning.dayExposure },
       uDaySaturation: { value: this.visualTuning.daySaturation },
@@ -245,6 +263,9 @@ export class GlobeScene {
       uHasCloudMap: hasCloudMapUniform,
       uCloudTime: cloudTimeUniform,
       uCloudCycleSeconds: cloudCycleUniform,
+      uCloudDriftStrength: cloudDriftUniform,
+      uCloudWarpStrength: cloudWarpUniform,
+      uCloudEvolutionStrength: cloudEvolutionUniform,
       uCloudOpacity: { value: this.visualTuning.cloudOpacity },
     };
     this.cloudMaterial = new ShaderMaterial({

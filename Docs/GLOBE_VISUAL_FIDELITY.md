@@ -6,7 +6,7 @@
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Visual pass 1 implemented; awaiting iterative human review.
+**Status:** Visual pass 2 implemented; awaiting human review of amplified cloud evolution.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -40,7 +40,7 @@ Preserve these constraints during every tuning round:
 - A hard browser reload is required after shader/default-geometry edits. The app-lifetime globe
   instance can survive Vite hot replacement, making an HMR-only screenshot misleading.
 
-## 3. Visual pass 1 implementation
+## 3. Current implementation
 
 ### Display colour pipeline
 
@@ -76,9 +76,10 @@ the Earth shadow shader use the same inexpensive, seamless deformation:
 
 - latitude-dependent zonal drift;
 - two low-frequency analytic domain warps;
+- time-varying edge erosion so cloud banks locally grow and dissipate instead of only translating;
 - two phase-offset cloud-map samples;
 - a smooth crossfade whose start and end both resolve to flow offset zero, avoiding a loop jump;
-- a 240-second default evolution cycle;
+- a 64-second default time-lapse evolution cycle;
 - sun-aware day/night colour and opacity;
 - restrained limb and forward scattering.
 
@@ -105,7 +106,7 @@ The former additive Fresnel glow was replaced with a thin-shell scattering appro
 
 ### Bloom decision
 
-No bloom pass is active in pass 1. City lights are selectively lifted in the Earth shader first.
+No bloom pass is active. City lights are selectively lifted in the Earth shader first.
 Only add high-threshold, low-strength bloom if review on the target display shows that lights are
 still too small. If added, `GlobeRendererAdapter` must own composer rendering, resizing, targets,
 and disposal; daylight, clouds, polar ice, atmosphere, and markers must remain below threshold.
@@ -116,16 +117,19 @@ Defaults live in `DEFAULT_GLOBE_VISUAL_TUNING` in
 [GlobeScene.ts](../apps/experience/src/renderers/globe/GlobeScene.ts). Pass overrides through
 `GlobeSceneOptions.visualTuning`; do not scatter new magic numbers through application wiring.
 
-| Control | Pass 1 value | Purpose |
+| Control | Current value | Purpose |
 |---|---:|---|
 | `dayExposure` | `0.74` | Reduces day-map energy before tone mapping. |
 | `daySaturation` | `0.76` | Pulls back vivid source-map colour. |
 | `dayContrast` | `0.92` | Softens source-map contrast around a linear `0.18` pivot. |
 | `nightIntensity` | `1.62` | Selective city-light lift. |
 | `nightSaturation` | `1.20` | Improves warm/cool light separation. |
-| `cloudOpacity` | `0.48` | Maximum sunlit cloud opacity. |
+| `cloudOpacity` | `0.54` | Maximum sunlit cloud opacity. |
 | `cloudShadowStrength` | `0.18` | Maximum spatial day-side shadow attenuation. |
-| `cloudCycleSeconds` | `240` | Seamless deformation cycle duration. |
+| `cloudCycleSeconds` | `64` | Seamless time-lapse deformation cycle duration. |
+| `cloudDriftStrength` | `0.05` | Maximum differential zonal travel in UV space. |
+| `cloudWarpStrength` | `0.023` | Local non-rigid displacement amplitude. |
+| `cloudEvolutionStrength` | `0.12` | Local edge growth and dissipation amplitude. |
 | `atmosphereRadius` | `5.075` | Thin shell around radius-5 Earth. |
 | `atmosphereIntensity` | `0.68` | Shared scattering colour/opacity scale. |
 
@@ -154,7 +158,7 @@ surface-specific tuning above before changing global exposure.
 - [US1 browser test](../apps/experience/tests/e2e/us1-category-preview.spec.ts): fails on real
   Three.js/WebGL shader compilation errors.
 
-Project-marker styling and placement are unchanged by pass 1 and should be treated as a separate
+Project-marker styling and placement are unchanged by this workstream and should be treated as a separate
 scope unless feedback explicitly brings them into this workstream.
 
 ## 6. Validation protocol
@@ -209,6 +213,40 @@ Validation completed on 2026-08-05:
 - Playwright: 6/6 passed, including the new real-WebGL shader compilation regression;
 - root `pnpm run verify`: passed (typecheck, lint, formatting, 206 unit tests with 4 intentional
   skips, and all workspace builds).
+
+**Human verdict:** day/night/atmosphere not re-opened; cloud deformation was too subtle to see in
+normal playback.
+
+### Pass 2 — 2026-08-05
+
+Feedback: “maybe its too subtle but I dont see any cloud deforming”. Fixed-camera comparison
+confirmed that the first implementation moved cloud edges by only a few pixels over ordinary
+observation intervals while the globe's own rotation visually dominated the motion.
+
+Pass 2 keeps the cloud shell locked to the Earth but makes the weather time-lapse legible by:
+
+- shortening the seamless cycle from 240 to 64 seconds;
+- increasing latitude-dependent drift and local two-axis domain warping;
+- adding a separate animated erosion field that changes cloud-bank boundaries, so the result is a
+  real silhouette morph rather than just translated texture coordinates;
+- increasing maximum sunlit opacity from `0.48` to `0.54`;
+- sharing all three new controls and the exact same coverage calculation with the Earth shader, so
+  cloud shadows continue to match the visible shapes.
+
+During tuning, a fixed globe/camera/sun eight-second screenshot comparison was used to isolate
+weather motion from globe rotation. An intermediate conservative candidate changed 3.71% of frame
+pixels above the comparison threshold; the selected pass-2 values changed 5.90%. This metric is a
+regression aid rather than an artistic target—the final judgment remains human observation.
+
+Validation completed for pass 2:
+
+- hard-reloaded development runtime: no console warning, page error, or shader compilation error;
+- fixed-camera start/end review: Atlantic cloud banks visibly translate at different rates, bend,
+  and change their silhouettes over eight seconds while continents remain fixed;
+- Earth and cloud shader coverage helpers verified byte-identical;
+- experience typecheck and production build passed;
+- focused globe-scene unit tests: 6/6 passed;
+- real-browser WebGL shader regression: 1/1 passed.
 
 **Human verdict:** pending.
 

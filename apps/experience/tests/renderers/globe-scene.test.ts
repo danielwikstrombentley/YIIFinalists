@@ -51,6 +51,9 @@ describe('GlobeScene', () => {
         dayExposure: 0.76,
         nightSaturation: 1.3,
         cloudOpacity: 0.41,
+        cloudDriftStrength: 0.044,
+        cloudWarpStrength: 0.019,
+        cloudEvolutionStrength: 0.1,
         atmosphereIntensity: 0.7,
       },
     });
@@ -58,6 +61,14 @@ describe('GlobeScene', () => {
     expect(globe.earthUniforms.uDayExposure.value).toBe(0.76);
     expect(globe.earthUniforms.uNightSaturation.value).toBe(1.3);
     expect(globe.cloudUniforms.uCloudOpacity.value).toBe(0.41);
+    expect(globe.cloudUniforms.uCloudDriftStrength.value).toBe(0.044);
+    expect(globe.cloudUniforms.uCloudWarpStrength.value).toBe(0.019);
+    expect(globe.cloudUniforms.uCloudEvolutionStrength.value).toBe(0.1);
+    expect(globe.earthUniforms.uCloudDriftStrength).toBe(globe.cloudUniforms.uCloudDriftStrength);
+    expect(globe.earthUniforms.uCloudWarpStrength).toBe(globe.cloudUniforms.uCloudWarpStrength);
+    expect(globe.earthUniforms.uCloudEvolutionStrength).toBe(
+      globe.cloudUniforms.uCloudEvolutionStrength,
+    );
     expect(globe.atmosphereUniforms.uAtmosphereIntensity.value).toBe(0.7);
 
     globe.dispose();
