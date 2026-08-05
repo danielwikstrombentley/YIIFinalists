@@ -362,12 +362,12 @@ markers, auto-previews first finalist; wheel moves preview with smooth space-lev
 finalists; verify marker filtering, auto first-preview, metadata display, continuous space-level
 presentation (spec US1).
 **Phase branch**: `phase/001-ph3-us1-globe-preview` · **Depends on**: PH2
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: — · Implementer model(s): agent:GPT-5.6 Terra (OpenAI) · Review model: — · Verdict: —`
 
 ### Verification for US1 (red-first) ⚠️
 
-- [ ] T021 [P] [US1] Author failing Playwright E2E spec for US1 journeys in apps/experience/tests/e2e/us1-category-preview.spec.ts *(red-first)*
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T021-us1-e2e` · PR — · Blockers —
+- [~] T021 [P] [US1] Author failing Playwright E2E spec for US1 journeys in apps/experience/tests/e2e/us1-category-preview.spec.ts *(red-first)*
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Encode US1 acceptance scenarios 1–4 via SimulatorTransport: category select → route-through-idle + 3 markers + first-project preview with name/organisation/country; wheel next → space-level reframe, metadata updates without flicker; rapid wheel burst → final preview matches last signal, no queued destinations; extended idle → loop continues, no instructional UI (DOM assertion: zero public text besides approved overlays).
   - Files: `apps/experience/tests/e2e/us1-category-preview.spec.ts`
   - Deps: T020 (harness boots app)
