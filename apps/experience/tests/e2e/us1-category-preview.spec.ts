@@ -101,6 +101,7 @@ test.describe('US1: category and cinematic globe preview', () => {
     await page.keyboard.press('0');
     await expect(stage).toHaveAttribute('data-machine-state', '"idle"');
     await expect(page.getByTestId('preview-metadata')).toHaveCount(0);
+    await expect(page.getByTestId('globe-renderer')).toHaveAttribute('data-idle-loop', 'running');
   });
 
   test('US1 scenario 2: wheel navigation reframes at space level and updates metadata without flicker', async ({

@@ -4,6 +4,8 @@
 
 export const MOTION_DURATIONS_MS = {
   previewRetarget: 400,
+  categoryPreviewEntry: 1200,
+  idleReturn: 1200,
   handover: 1800,
   beatDefault: 600,
 } as const;

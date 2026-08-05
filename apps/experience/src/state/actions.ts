@@ -113,7 +113,7 @@ export function activateGlobeCategoryPreview({ context }: { context: ExperienceC
 
   const categoryHandle = globe.setCategoryFilter(categoryId);
   context.cleanup.register('globe-category', () => categoryHandle.cancel());
-  const previewHandle = globe.previewProject(projectId);
+  const previewHandle = globe.previewCategoryProject(projectId);
   context.cleanup.register('globe-preview', () => previewHandle.cancel());
 }
 

@@ -30,6 +30,16 @@ export interface OrbitParameters {
   focusZ: number;
 }
 
+/** Original whole-globe composition restored whenever the experience re-enters idle. */
+export const DEFAULT_IDLE_ORBIT_PARAMETERS: Readonly<OrbitParameters> = {
+  azimuth: 0.4,
+  elevation: 0.12,
+  distance: DEFAULT_PREVIEW_DISTANCE,
+  focusX: 0,
+  focusY: 0,
+  focusZ: 0,
+};
+
 export interface PreviewHandle {
   cancel(): void;
 }
@@ -70,6 +80,17 @@ function destinationFor(project: GlobePreviewProject, current: OrbitParameters):
   };
 }
 
+function matchesOrbit(left: OrbitParameters, right: OrbitParameters): boolean {
+  return (
+    left.azimuth === right.azimuth &&
+    left.elevation === right.elevation &&
+    left.distance === right.distance &&
+    left.focusX === right.focusX &&
+    left.focusY === right.focusY &&
+    left.focusZ === right.focusZ
+  );
+}
+
 /**
  * Orbit-parameter preview camera. It drives a Three camera only from the application-owned GSAP
  * motion adapter, so new hover events cancel/retarget one live tween rather than queuing flights.
@@ -79,14 +100,7 @@ export class GlobeCameraRig {
   readonly focusPoint = new Vector3();
 
   private readonly motionDriver: RetargetMotionDriver;
-  private readonly parameters: OrbitParameters = {
-    azimuth: 0.4,
-    elevation: 0.12,
-    distance: DEFAULT_PREVIEW_DISTANCE,
-    focusX: 0,
-    focusY: 0,
-    focusZ: 0,
-  };
+  private readonly parameters: OrbitParameters = { ...DEFAULT_IDLE_ORBIT_PARAMETERS };
   private activeMotion: CancellableMotion | null = null;
   private activeGeneration: number | null = null;
   private generation = 0;
@@ -101,7 +115,7 @@ export class GlobeCameraRig {
 
   previewProject(
     project: GlobePreviewProject,
-    options: { onComplete?: () => void } = {},
+    options: { onComplete?: () => void; durationMs?: number } = {},
   ): PreviewHandle {
     if (this.disposed) return { cancel: () => {} };
 
@@ -109,8 +123,9 @@ export class GlobeCameraRig {
     const generation = ++this.generation;
     const destination = destinationFor(project, this.parameters);
     let settled = false;
+    this.activeGeneration = generation;
     const motion = this.motionDriver.retarget(this.parameters, destination, {
-      durationMs: MOTION_DURATIONS_MS.previewRetarget,
+      durationMs: options.durationMs ?? MOTION_DURATIONS_MS.previewRetarget,
       ease: MOTION_EASINGS.gentle,
       onUpdate: () => this.syncCamera(),
       onComplete: () => {
@@ -132,9 +147,59 @@ export class GlobeCameraRig {
 
     // A custom driver used in a unit test can finish synchronously; do not resurrect a completed
     // motion after its completion callback has cleared the active slot.
-    if (!settled && generation === this.generation) {
+    if (!settled && this.activeGeneration === generation) {
       this.activeMotion = motion;
-      this.activeGeneration = generation;
+    }
+
+    let cancelled = false;
+    return {
+      cancel: () => {
+        if (cancelled) return;
+        cancelled = true;
+        if (this.activeGeneration !== generation) return;
+        this.cancelActiveMotion();
+        this.generation += 1;
+      },
+    };
+  }
+
+  /** Smoothly restores the original whole-globe camera composition for idle presentation. */
+  returnToIdle(): PreviewHandle {
+    if (this.disposed) return { cancel: () => {} };
+
+    this.cancelActiveMotion();
+    const generation = ++this.generation;
+    const destination = { ...DEFAULT_IDLE_ORBIT_PARAMETERS };
+    if (matchesOrbit(this.parameters, destination)) {
+      this.syncCamera();
+      this.settledProjectId = null;
+      return { cancel: () => {} };
+    }
+
+    let settled = false;
+    this.activeGeneration = generation;
+    const motion = this.motionDriver.retarget(this.parameters, destination, {
+      durationMs: MOTION_DURATIONS_MS.idleReturn,
+      ease: MOTION_EASINGS.gentle,
+      onUpdate: () => this.syncCamera(),
+      onComplete: () => {
+        if (
+          this.disposed ||
+          generation !== this.generation ||
+          this.activeGeneration !== generation
+        ) {
+          return;
+        }
+        settled = true;
+        this.syncCamera();
+        this.activeMotion = null;
+        this.activeGeneration = null;
+        this.settledProjectId = null;
+      },
+    });
+
+    if (!settled && this.activeGeneration === generation) {
+      this.activeMotion = motion;
     }
 
     let cancelled = false;

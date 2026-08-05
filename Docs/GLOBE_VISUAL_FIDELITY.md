@@ -2,14 +2,14 @@
 
 **Branch:** `feature/globe-visual-fidelity` (Passes 1–6, merged)
 
-**Follow-up branch:** `feature/globe-preview-daylight-focus` (Pass 7)
+**Follow-up branch:** `feature/globe-preview-daylight-focus` (Passes 7–8)
 
 **Started:** 2026-08-05
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Pass 6 merged; Pass 7 daylight-focused preview behavior is implemented and awaiting
-visual approval.
+**Status:** Pass 7 accepted; Pass 8 idle-axis restoration and preview pacing are implemented and
+awaiting visual approval.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -141,6 +141,7 @@ Defaults live in `DEFAULT_GLOBE_VISUAL_TUNING` in
 |---|---:|---|
 | `globeRotationCycleSeconds` | `120` | Seconds per continuous Earth revolution. |
 | `sunOrbitCycleSeconds` | `180` | Seconds per continuous day/night revolution. |
+| `previewDaylightTransitionSeconds` | `1.2` | Seconds for preview daylight to reach approximately 95% of a new target. |
 | `dayExposure` | `0.74` | Reduces day-map energy before tone mapping. |
 | `daySaturation` | `0.76` | Pulls back vivid source-map colour. |
 | `dayContrast` | `0.92` | Softens source-map contrast around a linear `0.18` pivot. |
@@ -177,8 +178,8 @@ surface-specific tuning above before changing global exposure.
   sun-aware scattering.
 - [idle-loop.ts](../apps/experience/src/renderers/globe/idle-loop.ts): globe and sun GSAP motion only;
   rigid cloud-orbit tween removed.
-- [motion-tokens.ts](../apps/experience/src/orchestration/motion-tokens.ts): obsolete cloud-orbit
-  duration removed.
+- [motion-tokens.ts](../apps/experience/src/orchestration/motion-tokens.ts): category-entry and
+  idle-return pacing alongside the existing motion language.
 - Renderer unit tests: uniform sharing, tuning, shell radius/blending, frame-delta cloud movement,
   colour pipeline, and cleanup.
 - [US1 browser test](../apps/experience/tests/e2e/us1-category-preview.spec.ts): fails on real
@@ -425,6 +426,38 @@ Validation completed:
   kept the displayed finalist hemisphere brightly sunlit, with no console or page errors.
 - full local verification passed (including 135 experience unit tests, 4 intentional skips, and a
   production build); the full Playwright suite passed 6/6.
+
+**Human verdict:** accepted; idle-axis restoration, slower category entry, and a blended solar
+transition were requested next.
+
+### Pass 8 — 2026-08-05
+
+Feedback: returning from a finalist left the Earth on the preview's axis rather than the original
+idle composition; category entry was too quick; daylight jumped straight to the target rather than
+transitioning with the camera.
+
+The return and preview paths now coordinate through the existing motion/ticker ownership:
+
+- idle entry restores the closest equivalent of the original globe root axis and the original
+  whole-globe camera orbit over 1.2 seconds, then resumes the continuous idle loop;
+- category entry uses a dedicated 1.2-second camera duration, while ordinary wheel retargets keep
+  the responsive 400 ms duration;
+- the shared Earth/cloud/atmosphere sun vector now uses a quaternion slerp toward the moving
+  preview camera direction, reaching approximately 95% of its target over 1.2 seconds rather than
+  snapping to daylight;
+- cancelling a preview preserves the current solar bearing long enough for the idle return to
+  blend it back to the original idle phase.
+
+Validation completed:
+
+- red-first scene and camera-rig tests failed before implementation and pass after;
+- focused scene, camera-rig, and adapter tests: 18/18 passed;
+- focused real-browser keyboard return test: 1/1 passed, including waiting for the restored idle
+  loop;
+- hard-reloaded development browser: category entry visibly took the slower path, and `0` returned
+  from a finalist to a reset idle composition with no console or page errors.
+- full local verification passed (including 139 experience unit tests, 4 intentional skips, and a
+  production build); the complete Playwright suite passed 7/7.
 
 **Human verdict:** pending visual approval.
 
