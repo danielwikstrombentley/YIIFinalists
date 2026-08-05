@@ -41,6 +41,7 @@ export class InputBoundary {
   private readonly connectionMonitor = new ConnectionMonitor();
   private readonly releaseValidator: ReleaseRefValidator;
   private activeProjectId: string | null = null;
+  private activeCategoryId: string | null = null;
 
   constructor(options: InputBoundaryOptions) {
     this.options = options;
@@ -114,6 +115,15 @@ export class InputBoundary {
     this.activeProjectId = projectId;
   }
 
+  /**
+   * Tracks the machine's currently active category so an explicit `preview.hover { projectId }`
+   * ref can be validated as belonging to that category, not merely existing anywhere in the
+   * release (PH2 round 2 finding #1 — a project from another category was previously accepted).
+   */
+  setActiveCategory(categoryId: string | null): void {
+    this.activeCategoryId = categoryId;
+  }
+
   private passesRefValidation(envelope: { type: string; payload: unknown }): boolean {
     if (envelope.type === 'category.select') {
       const { categoryId } = envelope.payload as { categoryId: string };
@@ -122,7 +132,7 @@ export class InputBoundary {
     if (envelope.type === 'preview.hover') {
       const payload = envelope.payload as { projectId?: string };
       if (payload.projectId) {
-        return this.releaseValidator.hasProject(payload.projectId);
+        return this.releaseValidator.hasProject(this.activeCategoryId, payload.projectId);
       }
     }
     if (envelope.type === 'content.select') {

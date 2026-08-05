@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -30,10 +31,20 @@ export function MachineProvider({ children, actor: injectedActor }: MachineProvi
   // `useState`'s lazy initializer runs exactly once and never touches a ref during render (unlike
   // the classic `if (!ref.current)` lazy-init pattern) — the setter is intentionally unused.
   const [actor] = useState<ExperienceActor>(() => injectedActor ?? createActor(experienceMachine));
+  const hasStarted = useRef(false);
 
   useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
     actor.start();
-    return () => actor.stop();
+    // Deliberately no cleanup/`actor.stop()` here: this provider is mounted once for the whole
+    // app's lifetime (there is no real scenario where it unmounts while the page keeps running),
+    // and once an XState actor is stopped it can never be restarted — `.start()` after `.stop()`
+    // silently leaves it in `status: 'stopped'` and its `.subscribe()` callbacks never fire again
+    // (confirmed directly against xstate@5), which is exactly what made React StrictMode's dev-only
+    // mount→cleanup→remount probe permanently strand the app at its initial snapshot. Guarding
+    // `.start()` with `hasStarted` (mirroring BootOrchestrator's own `hasBooted` guard) makes this
+    // effect safe under that probe without ever calling `.stop()` on a still-live app.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- actor identity is stable for the component's lifetime
   }, []);
 

@@ -140,6 +140,51 @@ describe('Content-position validation (boundary rule 1, content.select)', () => 
   });
 });
 
+describe('Category-scoped project validation (boundary rule 1, preview.hover, PH2 round 2 finding #1)', () => {
+  it('passes the active category (null by default) through to hasProject for an explicit preview.hover projectId', () => {
+    const onAccepted = vi.fn();
+    const onRejected = vi.fn();
+    const hasProject = vi.fn((categoryId: string | null, projectId: string) =>
+      Boolean(categoryId && projectId === 'cat1-a'),
+    );
+    const boundary = new InputBoundary({
+      onAccepted,
+      onRejected,
+      releaseValidator: { hasCategory: () => true, hasProject, hasContentPosition: () => true },
+    });
+
+    boundary.handle(envelope({ type: 'preview.hover', payload: { projectId: 'cat1-a' } }));
+    expect(hasProject).toHaveBeenCalledWith(null, 'cat1-a');
+    expect(onAccepted).not.toHaveBeenCalled();
+    expect(onRejected).toHaveBeenCalledWith('unknown-ref', expect.anything());
+  });
+
+  it('rejects a project that belongs to a different category than the active one', () => {
+    const onAccepted = vi.fn();
+    const onRejected = vi.fn();
+    const hasProject = vi.fn(
+      (categoryId: string | null, projectId: string) =>
+        categoryId === 'cat-1' && projectId === 'cat1-a',
+    );
+    const boundary = new InputBoundary({
+      onAccepted,
+      onRejected,
+      releaseValidator: { hasCategory: () => true, hasProject, hasContentPosition: () => true },
+    });
+    boundary.setActiveCategory('cat-2');
+
+    // "cat1-a" is a real project, but not in the active category ("cat-2") — rejected.
+    boundary.handle(envelope({ type: 'preview.hover', payload: { projectId: 'cat1-a' } }));
+    expect(hasProject).toHaveBeenCalledWith('cat-2', 'cat1-a');
+    expect(onAccepted).not.toHaveBeenCalled();
+    expect(onRejected).toHaveBeenCalledWith('unknown-ref', expect.anything());
+
+    boundary.setActiveCategory('cat-1');
+    boundary.handle(envelope({ type: 'preview.hover', payload: { projectId: 'cat1-a' } }));
+    expect(onAccepted).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Priority gate (boundary rule 3)', () => {
   it('lets a higher-priority action pass during an exclusive window', () => {
     const onAccepted = vi.fn();

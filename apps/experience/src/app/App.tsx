@@ -13,6 +13,7 @@ function BootOrchestrator() {
   const hasBooted = useRef(false);
   const depsRef = useRef<BootstrapDeps | null>(null);
   const lastProjectIdRef = useRef<string | null>(null);
+  const lastCategoryIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (hasBooted.current) return;
@@ -25,13 +26,21 @@ function BootOrchestrator() {
 
   useEffect(() => {
     // Keeps the input boundary's release validator in sync with the machine's own idea of "the
-    // active project" (Principle I: the machine stays the single source of truth; the boundary
-    // just mirrors it to validate `content.select { position }`, whose payload carries no
-    // projectId of its own) and warms the loader's project cache so `hasContentPosition` has data
-    // to check (PH2 review round 1 finding #2).
+    // active category/project" (Principle I: the machine stays the single source of truth; the
+    // boundary just mirrors it) so `preview.hover { projectId }` can be checked against the active
+    // category's own projects (PH2 round 2 finding #1 — a project from another category was
+    // previously accepted) and `content.select { position }` against the active project (round 1
+    // finding #2); also warms the loader's project cache so `hasContentPosition` has data to check.
     const subscription = actor.subscribe((snapshot) => {
       const deps = depsRef.current;
       if (!deps) return;
+
+      const categoryId = snapshot.context.activeCategoryId;
+      if (categoryId !== lastCategoryIdRef.current) {
+        lastCategoryIdRef.current = categoryId;
+        deps.boundary.setActiveCategory(categoryId);
+      }
+
       const projectId = snapshot.context.selectedProjectId;
       if (projectId === lastProjectIdRef.current) return;
       lastProjectIdRef.current = projectId;

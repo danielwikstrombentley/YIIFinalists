@@ -6,7 +6,8 @@
 
 export interface ReleaseRefValidator {
   hasCategory(categoryId: string): boolean;
-  hasProject(projectId: string): boolean;
+  /** `categoryId` is the machine's currently active category; null means none is active yet. */
+  hasProject(categoryId: string | null, projectId: string): boolean;
   /** `projectId` is null when the input boundary has no active project set yet. */
   hasContentPosition(projectId: string | null, position: number): boolean;
 }
@@ -42,11 +43,10 @@ export function createReleaseRefValidator(
     hasCategory(categoryId) {
       return getRelease()?.categories.some((category) => category.id === categoryId) ?? false;
     },
-    hasProject(projectId) {
-      return (
-        getRelease()?.categories.some((category) => category.projectIds.includes(projectId)) ??
-        false
-      );
+    hasProject(categoryId, projectId) {
+      if (categoryId === null) return false;
+      const category = getRelease()?.categories.find((c) => c.id === categoryId);
+      return category?.projectIds.includes(projectId) ?? false;
     },
     hasContentPosition(projectId, position) {
       if (projectId === null) return false;

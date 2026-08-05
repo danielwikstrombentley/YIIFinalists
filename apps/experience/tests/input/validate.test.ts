@@ -23,19 +23,34 @@ describe('createReleaseRefValidator', () => {
       () => undefined,
     );
     expect(validator.hasCategory('cat-1')).toBe(false);
-    expect(validator.hasProject('cat1-a')).toBe(false);
+    expect(validator.hasProject('cat-1', 'cat1-a')).toBe(false);
     expect(validator.hasContentPosition('cat1-a', 1)).toBe(false);
   });
 
-  it('accepts known category/project ids and rejects unknown ones once a release is loaded', () => {
+  it('accepts known category ids and rejects unknown ones once a release is loaded', () => {
     const validator = createReleaseRefValidator(
       () => RELEASE,
       () => undefined,
     );
     expect(validator.hasCategory('cat-1')).toBe(true);
     expect(validator.hasCategory('does-not-exist')).toBe(false);
-    expect(validator.hasProject('cat2-a')).toBe(true);
-    expect(validator.hasProject('does-not-exist')).toBe(false);
+  });
+
+  it('scopes hasProject to the given active category (PH2 round 2 finding #1)', () => {
+    const validator = createReleaseRefValidator(
+      () => RELEASE,
+      () => undefined,
+    );
+    expect(validator.hasProject('cat-1', 'cat1-a')).toBe(true);
+    expect(validator.hasProject('cat-2', 'cat2-a')).toBe(true);
+    // A project that belongs to a DIFFERENT category than the one currently active is rejected,
+    // even though it's a real project somewhere in the release.
+    expect(validator.hasProject('cat-1', 'cat2-a')).toBe(false);
+    expect(validator.hasProject('cat-2', 'cat1-a')).toBe(false);
+    // No active category at all (null) — always rejected.
+    expect(validator.hasProject(null, 'cat1-a')).toBe(false);
+    // Unknown project within a real, active category.
+    expect(validator.hasProject('cat-1', 'does-not-exist')).toBe(false);
   });
 
   it('checks content positions against the cached project, rejecting an uncached or mismatched project', () => {
@@ -53,7 +68,7 @@ describe('createReleaseRefValidator', () => {
 describe('PERMISSIVE_RELEASE_VALIDATOR', () => {
   it('accepts every ref (documented escape hatch for tests/call sites that opt out)', () => {
     expect(PERMISSIVE_RELEASE_VALIDATOR.hasCategory('anything')).toBe(true);
-    expect(PERMISSIVE_RELEASE_VALIDATOR.hasProject('anything')).toBe(true);
+    expect(PERMISSIVE_RELEASE_VALIDATOR.hasProject('any-category', 'anything')).toBe(true);
     expect(PERMISSIVE_RELEASE_VALIDATOR.hasContentPosition('anything', 1)).toBe(true);
   });
 });

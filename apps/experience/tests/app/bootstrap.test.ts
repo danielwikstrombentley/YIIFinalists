@@ -193,4 +193,52 @@ describe('createRuntimeDependencies(): release-ref validation', () => {
       { type: 'category.select', payload: { categoryId: 'cat-1' } },
     ]);
   });
+
+  it('rejects a preview.hover project from another category, and accepts one in the active category (round 2 finding #1)', async () => {
+    const events: ExperienceEvent[] = [];
+    const deps = createRuntimeDependencies({
+      send: (event) => events.push(event),
+      contentLoaderOptions: {
+        fetchJson: fakeFetchJson({
+          '/content/channels.json': {
+            staging: '1.0.0',
+            production: null,
+            frozen: false,
+            history: [],
+          },
+          '/content/releases/1.0.0/manifest.json': VALID_MANIFEST,
+          '/content/releases/1.0.0/categories.json': VALID_CATEGORIES,
+        }),
+      },
+    });
+
+    await bootstrap({ ...deps, transports: [] });
+    deps.boundary.handle(categorySelectEnvelope('cat-1'));
+    deps.boundary.setActiveCategory('cat-1'); // mirrors what App.tsx's BootOrchestrator does
+
+    function hoverEnvelope(projectId: string) {
+      return {
+        v: 1,
+        type: 'preview.hover',
+        payload: { projectId },
+        source: 'console',
+        sentAt: new Date().toISOString(),
+      };
+    }
+
+    // "cat2-a" is a real project, but in cat-2, not the active cat-1 — rejected.
+    deps.boundary.handle(hoverEnvelope('cat2-a'));
+    expect(events).toEqual([
+      { type: 'internal.assetsVerified' },
+      { type: 'category.select', payload: { categoryId: 'cat-1' } },
+    ]);
+
+    // "cat1-a" is in the active category — accepted.
+    deps.boundary.handle(hoverEnvelope('cat1-a'));
+    expect(events).toEqual([
+      { type: 'internal.assetsVerified' },
+      { type: 'category.select', payload: { categoryId: 'cat-1' } },
+      { type: 'preview.hover', payload: { projectId: 'cat1-a' } },
+    ]);
+  });
 });
