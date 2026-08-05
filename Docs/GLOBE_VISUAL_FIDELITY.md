@@ -141,7 +141,7 @@ Defaults live in `DEFAULT_GLOBE_VISUAL_TUNING` in
 |---|---:|---|
 | `globeRotationCycleSeconds` | `120` | Seconds per continuous Earth revolution. |
 | `sunOrbitCycleSeconds` | `180` | Seconds per continuous day/night revolution. |
-| `previewDaylightTransitionSeconds` | `1.2` | Seconds for preview daylight to reach approximately 95% of a new target. |
+| `previewDaylightTransitionSeconds` | `4.2` | Seconds for preview daylight to reach approximately 95% of a new target. |
 | `dayExposure` | `0.74` | Reduces day-map energy before tone mapping. |
 | `daySaturation` | `0.76` | Pulls back vivid source-map colour. |
 | `dayContrast` | `0.92` | Softens source-map contrast around a linear `0.18` pivot. |
@@ -443,7 +443,7 @@ The return and preview paths now coordinate through the existing motion/ticker o
 - category entry uses a dedicated 1.2-second camera duration, while ordinary wheel retargets keep
   the responsive 400 ms duration;
 - the shared Earth/cloud/atmosphere sun vector now uses a quaternion slerp toward the moving
-  preview camera direction, reaching approximately 95% of its target over 1.2 seconds rather than
+  preview camera direction, reaching approximately 95% of its target over 4.2 seconds rather than
   snapping to daylight;
 - cancelling a preview preserves the current solar bearing long enough for the idle return to
   blend it back to the original idle phase.
