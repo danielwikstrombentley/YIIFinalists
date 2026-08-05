@@ -990,13 +990,13 @@ plan-recorded N/A rationale — currently none).
   - Tests: unit: supplied-2K profile names all four local maps, maps use correct colour-space roles, texture resources dispose idempotently; manual dev visual check confirms realistic day/night/cloud output.
   - Accept: the renderer uses only local browser-supported assets, visibly replaces the procedural Earth fallback when assets load, remains within the R14 512 MB texture budget, and preserves graceful procedural fallback if an asset cannot load.
 
-- [~] T079 Add a development-only `1` keyboard shortcut that injects a random category selection through the simulator transport
+- [~] T079 Add development-only `1` and `0` keyboard shortcuts that inject semantic navigation through the simulator transport
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T079-keyboard-category-shortcut` · PR — · Blockers —
-  - Do: Bind a non-repeating, unmodified `1` keypress only in the Vite development build. After the release has loaded, choose a category from its validated IDs and inject `category.select` through `SimulatorTransport`; never send an event directly to the XState actor or expose the control on the public stage.
+  - Do: Bind non-repeating, unmodified `1` and `0` keypresses only in the Vite development build. After the release has loaded, choose a category from its validated IDs and inject `category.select` for `1`; inject `nav.idle` for `0`. Never send an event directly to the XState actor or expose controls on the public stage.
   - Files: `apps/experience/src/app/App.tsx`, `apps/experience/tests/app/App.test.tsx`
   - Deps: T028
-  - Tests: React integration test fixes the random choice and verifies the `1` shortcut reaches `categoryActive.preview` with the selected category's first project.
-  - Accept: pressing `1` during local development enters a valid, randomly selected category through the normal input-validation path; production builds and editable text targets remain unaffected.
+  - Tests: React integration tests fix the random choice and verify that `1` reaches `categoryActive.preview` with the selected category's first project and that `0` returns it to idle.
+  - Accept: pressing `1` during local development enters a valid, randomly selected category and pressing `0` returns to idle through the normal input-validation path; production builds and editable text targets remain unaffected.
 
 ---
 
