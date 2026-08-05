@@ -38,6 +38,25 @@ async function stateHistory(page: Page): Promise<string[]> {
 }
 
 test.describe('US1: category and cinematic globe preview', () => {
+  test('the cinematic globe shaders compile without WebGL program errors', async ({ page }) => {
+    const shaderErrors: string[] = [];
+    page.on('console', (message) => {
+      if (
+        message.type() === 'error' &&
+        /THREE\.WebGLProgram|Shader Error|shader is not compiled/i.test(message.text())
+      ) {
+        shaderErrors.push(message.text());
+      }
+    });
+
+    await openIdleStage(page);
+    const globe = page.getByTestId('globe-renderer');
+    const initialFrame = await globe.getAttribute('data-idle-frame');
+    await expect.poll(() => globe.getAttribute('data-idle-frame')).not.toBe(initialFrame);
+
+    expect(shaderErrors).toEqual([]);
+  });
+
   test('US1 scenario 1: category selection routes through idle and previews the first finalist', async ({
     page,
   }) => {
