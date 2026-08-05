@@ -1,5 +1,6 @@
 import type { SemanticAction } from '@yii/semantic-actions';
 import type { CleanupRegistry } from './cleanup-registry.js';
+import type { ExperienceRuntime } from './runtime.js';
 
 // `connection.status` is diagnostics-only and must never reach the machine (contracts/
 // semantic-input.md boundary rule 6) — excluded from the event union at the type level too.
@@ -10,6 +11,10 @@ export type ContentOptionPosition = 1 | 2 | 3 | 4 | 5;
 /** Internal, adapter-originated events (handover/sequence completion, failures, recovery). */
 export type InternalEvent =
   | { type: 'internal.assetsVerified' }
+  | {
+      type: 'internal.releaseLoaded';
+      categories: readonly { id: string; projectIds: readonly string[] }[];
+    }
   | { type: 'internal.handoverToProjectComplete'; generation: number }
   | { type: 'internal.handoverToPreviewComplete'; generation: number }
   | { type: 'internal.sequenceComplete'; generation: number }
@@ -23,6 +28,8 @@ export type ExperienceEvent = MachineBoundSemanticAction | InternalEvent;
  * voiceover at all times, enforced by shape (single nullable refs, never collections).
  */
 export interface ExperienceContext {
+  /** Validated category ordering, used to make the first category project the active preview. */
+  categoryProjectIds: Readonly<Record<string, readonly string[]>>;
   activeCategoryId: string | null;
   /** Set when a category switch is requested while landed/playing; applied on reverse-handover completion. */
   pendingCategoryId: string | null;
@@ -36,9 +43,12 @@ export interface ExperienceContext {
   lastError: { atState: string; reason: string } | null;
   /** Adapter-handle registry (renderer/orchestrator handles are stubbed until PH3+). */
   cleanup: CleanupRegistry;
+  /** Runtime adapter registry populated by the app shell only after release revalidation. */
+  runtime: ExperienceRuntime;
 }
 
-export const INITIAL_CONTEXT: Omit<ExperienceContext, 'cleanup'> = {
+export const INITIAL_CONTEXT: Omit<ExperienceContext, 'cleanup' | 'runtime'> = {
+  categoryProjectIds: {},
   activeCategoryId: null,
   pendingCategoryId: null,
   previewedProjectId: null,

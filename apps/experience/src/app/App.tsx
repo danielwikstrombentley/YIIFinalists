@@ -1,12 +1,31 @@
 import { useEffect, useRef } from 'react';
 import { bootstrap, createRuntimeDependencies, type BootstrapDeps } from './bootstrap.js';
+import { createGlobePresentation } from './globe-presentation.js';
 import { MachineProvider, useMachineActor } from './MachineProvider.js';
+import { SimulatorTransport } from '../input/transports/simulator.js';
 import { StageMount } from './StageMount.js';
 
 // App shell (T020): kiosk bootstrap + machine provider + public stage + operator overlay mount
 // point. The public surface renders zero menus/instructions/errors (Principle VI) regardless of
 // boot outcome — failures route through the machine's own `recovering` state, never a thrown
 // React error or visible message.
+
+interface E2eRuntimeBridge {
+  simulator: {
+    injectAction(type: string, payload: unknown): void;
+  };
+  stateHistory(): unknown[];
+}
+
+declare global {
+  interface Window {
+    __YII_E2E__?: E2eRuntimeBridge;
+  }
+}
+
+function isE2eRun(): boolean {
+  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('e2e');
+}
 
 function BootOrchestrator() {
   const actor = useMachineActor();
@@ -20,7 +39,16 @@ function BootOrchestrator() {
     hasBooted.current = true;
     const deps = createRuntimeDependencies({ send: (event) => actor.send(event) });
     depsRef.current = deps;
-    void bootstrap(deps);
+    if (isE2eRun()) {
+      exposeE2eBridge(actor, deps);
+    }
+    void bootstrap({
+      ...deps,
+      onReleaseLoaded: async () => {
+        const projects = await deps.loader.loadAllProjects();
+        actor.getSnapshot().context.runtime.setGlobe(createGlobePresentation(projects));
+      },
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- boot must run exactly once
   }, []);
 
@@ -56,6 +84,33 @@ function BootOrchestrator() {
   }, [actor]);
 
   return null;
+}
+
+function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: BootstrapDeps): void {
+  const simulator = deps.transports.find(
+    (transport): transport is SimulatorTransport => transport instanceof SimulatorTransport,
+  );
+  if (!simulator) return;
+
+  const history: unknown[] = [];
+  let previous = '';
+  const record = (value: unknown): void => {
+    const serialized = JSON.stringify(value);
+    if (serialized === previous) return;
+    previous = serialized;
+    history.push(value);
+  };
+  record(actor.getSnapshot().value);
+  actor.subscribe((snapshot) => record(snapshot.value));
+
+  window.__YII_E2E__ = {
+    simulator: {
+      injectAction(type, payload) {
+        simulator.injectAction(type, payload);
+      },
+    },
+    stateHistory: () => [...history],
+  };
 }
 
 export default function App() {

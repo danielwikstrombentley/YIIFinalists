@@ -11,14 +11,6 @@ interface E2eRuntime {
   stateHistory(): unknown[];
 }
 
-function e2eRuntime(): E2eRuntime {
-  const runtime = (window as Window & { __YII_E2E__?: E2eRuntime }).__YII_E2E__;
-  if (!runtime) {
-    throw new Error('US1 E2E runtime bridge is unavailable.');
-  }
-  return runtime;
-}
-
 async function openIdleStage(page: Page): Promise<void> {
   await page.goto('/?e2e=1');
   const stage = page.locator('#stage');
@@ -29,18 +21,20 @@ async function openIdleStage(page: Page): Promise<void> {
 async function injectAction(page: Page, type: string, payload: unknown): Promise<void> {
   await page.evaluate(
     ({ actionType, actionPayload }) => {
-      e2eRuntime().simulator.injectAction(actionType, actionPayload);
+      const runtime = (window as Window & { __YII_E2E__?: E2eRuntime }).__YII_E2E__;
+      if (!runtime) throw new Error('US1 E2E runtime bridge is unavailable.');
+      runtime.simulator.injectAction(actionType, actionPayload);
     },
     { actionType: type, actionPayload: payload },
   );
 }
 
 async function stateHistory(page: Page): Promise<string[]> {
-  return page.evaluate(() =>
-    e2eRuntime()
-      .stateHistory()
-      .map((state) => JSON.stringify(state)),
-  );
+  return page.evaluate(() => {
+    const runtime = (window as Window & { __YII_E2E__?: E2eRuntime }).__YII_E2E__;
+    if (!runtime) throw new Error('US1 E2E runtime bridge is unavailable.');
+    return runtime.stateHistory().map((state) => JSON.stringify(state));
+  });
 }
 
 test.describe('US1: category and cinematic globe preview', () => {
@@ -101,7 +95,9 @@ test.describe('US1: category and cinematic globe preview', () => {
     await injectAction(page, 'category.select', { categoryId: 'cat-1' });
 
     await page.evaluate(() => {
-      const simulator = e2eRuntime().simulator;
+      const runtime = (window as Window & { __YII_E2E__?: E2eRuntime }).__YII_E2E__;
+      if (!runtime) throw new Error('US1 E2E runtime bridge is unavailable.');
+      const { simulator } = runtime;
       simulator.injectAction('preview.hover', { projectId: 'cat-1-proj-2' });
       simulator.injectAction('preview.hover', { projectId: 'cat-1-proj-1' });
       simulator.injectAction('preview.hover', { projectId: 'cat-1-proj-3' });

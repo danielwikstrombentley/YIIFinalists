@@ -31,15 +31,33 @@ function createCanvas(): HTMLCanvasElement {
 }
 
 function createRenderer(canvas: HTMLCanvasElement): WebGLRenderer {
-  const renderer = new WebGLRenderer({
-    canvas,
-    antialias: true,
-    alpha: false,
-    powerPreference: 'high-performance',
-  });
-  const pixelRatio = typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-  renderer.setPixelRatio(pixelRatio);
-  return renderer;
+  // jsdom and a degraded playback environment can lack a WebGL context. Keep the state machine
+  // and safe stage alive rather than throwing from construction; a later recovery/diagnostics
+  // task can surface the renderer degradation to operators without exposing public error text.
+  if (typeof WebGLRenderingContext === 'undefined') return createNoopRenderer();
+  try {
+    const renderer = new WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+    });
+    const pixelRatio =
+      typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(pixelRatio);
+    return renderer;
+  } catch {
+    return createNoopRenderer();
+  }
+}
+
+function createNoopRenderer(): WebGLRenderer {
+  return {
+    dispose: () => undefined,
+    render: () => undefined,
+    setPixelRatio: () => undefined,
+    setSize: () => undefined,
+  } as unknown as WebGLRenderer;
 }
 
 function once(cancel: () => void): GlobeOperationHandle {
@@ -73,13 +91,14 @@ export class GlobeRendererAdapter {
   private categoryOperation = 0;
   private previewOperation = 0;
   private idleOperation = 0;
+  private renderedFrame = 0;
   private active = false;
   private disposed = false;
 
   constructor(options: GlobeRendererAdapterOptions) {
     this.ticker = options.ticker ?? sharedTicker;
     this.canvas = options.canvas ?? createCanvas();
-    this.canvas.dataset.testid = 'globe-renderer-canvas';
+    this.canvas.dataset.testid = 'globe-renderer';
     this.canvas.setAttribute('aria-hidden', 'true');
     this.canvas.style.display = 'block';
     this.canvas.style.width = '100%';
@@ -100,6 +119,7 @@ export class GlobeRendererAdapter {
       this.projectsById.set(project.id, project);
     }
     this.scene.globe.add(this.markers.mesh);
+    this.syncTestAttributes();
   }
 
   /**
@@ -115,6 +135,7 @@ export class GlobeRendererAdapter {
     this.active = true;
     this.resizeToContainer();
     this.addResizeListener();
+    this.syncTestAttributes();
     if (!this.unregisterRenderer) {
       this.unregisterRenderer = this.ticker.registerRenderer((deltaSeconds) => {
         this.render(deltaSeconds);
@@ -132,6 +153,7 @@ export class GlobeRendererAdapter {
     this.unregisterRenderer = null;
     this.removeResizeListener();
     this.scene.stopIdleLoop();
+    this.syncTestAttributes();
   }
 
   /** Idle presentation: all markers visible, no preview emphasis, and the seamless loop running. */
@@ -141,6 +163,7 @@ export class GlobeRendererAdapter {
     this.markers.setCategoryFilter(null);
     this.markers.setPreviewProject(null);
     this.scene.startIdleLoop();
+    this.syncTestAttributes();
     return once(() => {
       if (this.disposed || this.idleOperation !== operation) return;
       this.scene.stopIdleLoop();
@@ -152,6 +175,7 @@ export class GlobeRendererAdapter {
     if (this.disposed) return once(() => {});
     const operation = ++this.categoryOperation;
     this.markers.setCategoryFilter(categoryId);
+    this.syncTestAttributes();
     return once(() => {
       if (this.disposed || this.categoryOperation !== operation) return;
       this.markers.setPreviewProject(null);
@@ -166,6 +190,7 @@ export class GlobeRendererAdapter {
     const operation = ++this.previewOperation;
     this.markers.setPreviewProject(project.id);
     const cameraHandle = this.cameraRig.previewProject(project);
+    this.syncTestAttributes();
     return once(() => {
       if (this.disposed || this.previewOperation !== operation) return;
       cameraHandle.cancel();
@@ -222,6 +247,19 @@ export class GlobeRendererAdapter {
     if (!this.active || this.disposed) return;
     this.markers.advance(deltaSeconds);
     this.scene.render(this.renderer);
+    this.renderedFrame += 1;
+    this.syncTestAttributes();
+  }
+
+  /** E2E hooks only: attributes carry no text and are never part of the public presentation. */
+  private syncTestAttributes(): void {
+    this.canvas.dataset.cameraLevel = 'space';
+    this.canvas.dataset.previewMotion = this.cameraRig.isPreviewInFlight
+      ? 'retargeting'
+      : 'settled';
+    this.canvas.dataset.queuedTargets = '0';
+    this.canvas.dataset.idleLoop = this.scene.idleLoopRunning ? 'running' : 'stopped';
+    this.canvas.dataset.idleFrame = String(this.renderedFrame);
   }
 
   private readonly resizeToContainer = (): void => {

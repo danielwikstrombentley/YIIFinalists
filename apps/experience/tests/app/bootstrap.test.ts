@@ -24,9 +24,16 @@ function createFakeTransport(): Transport {
   };
 }
 
-/** Fills in the loadProject/getCachedProject members BootstrapDeps['loader'] requires alongside load. */
+/** Fills in the ContentLoader members BootstrapDeps requires alongside `load()`. */
 function fakeLoader(load: BootstrapDeps['loader']['load']): BootstrapDeps['loader'] {
-  return { load, loadProject: vi.fn(), getCachedProject: vi.fn() };
+  return { load, loadAllProjects: vi.fn(), loadProject: vi.fn(), getCachedProject: vi.fn() };
+}
+
+function releaseLoaded(categories: readonly { id: string; projectIds: readonly string[] }[] = []) {
+  return {
+    type: 'internal.releaseLoaded' as const,
+    categories: categories.map(({ id, projectIds }) => ({ id, projectIds })),
+  };
 }
 
 describe('bootstrap(): seeded release -> boot -> idle', () => {
@@ -43,7 +50,7 @@ describe('bootstrap(): seeded release -> boot -> idle', () => {
 
     await bootstrap(deps);
 
-    expect(events).toEqual([{ type: 'internal.assetsVerified' }]);
+    expect(events).toEqual([releaseLoaded(), { type: 'internal.assetsVerified' }]);
   });
 
   it('connects every transport and wires its messages into the input boundary', async () => {
@@ -114,7 +121,7 @@ describe('bootstrap(): boot failure -> recovering fallback path', () => {
     };
 
     await expect(bootstrap(deps)).resolves.toBeUndefined();
-    expect(events).toEqual([{ type: 'internal.assetsVerified' }]);
+    expect(events).toEqual([releaseLoaded(), { type: 'internal.assetsVerified' }]);
   });
 });
 
@@ -182,13 +189,14 @@ describe('createRuntimeDependencies(): release-ref validation', () => {
     });
 
     await bootstrap({ ...deps, transports: [] });
-    expect(events).toEqual([{ type: 'internal.assetsVerified' }]);
+    expect(events).toEqual([releaseLoaded(VALID_CATEGORIES), { type: 'internal.assetsVerified' }]);
 
     deps.boundary.handle(categorySelectEnvelope('does-not-exist'));
-    expect(events).toEqual([{ type: 'internal.assetsVerified' }]); // rejected: no new event
+    expect(events).toEqual([releaseLoaded(VALID_CATEGORIES), { type: 'internal.assetsVerified' }]); // rejected: no new event
 
     deps.boundary.handle(categorySelectEnvelope('cat-1'));
     expect(events).toEqual([
+      releaseLoaded(VALID_CATEGORIES),
       { type: 'internal.assetsVerified' },
       { type: 'category.select', payload: { categoryId: 'cat-1' } },
     ]);
@@ -229,6 +237,7 @@ describe('createRuntimeDependencies(): release-ref validation', () => {
     // "cat2-a" is a real project, but in cat-2, not the active cat-1 — rejected.
     deps.boundary.handle(hoverEnvelope('cat2-a'));
     expect(events).toEqual([
+      releaseLoaded(VALID_CATEGORIES),
       { type: 'internal.assetsVerified' },
       { type: 'category.select', payload: { categoryId: 'cat-1' } },
     ]);
@@ -236,6 +245,7 @@ describe('createRuntimeDependencies(): release-ref validation', () => {
     // "cat1-a" is in the active category — accepted.
     deps.boundary.handle(hoverEnvelope('cat1-a'));
     expect(events).toEqual([
+      releaseLoaded(VALID_CATEGORIES),
       { type: 'internal.assetsVerified' },
       { type: 'category.select', payload: { categoryId: 'cat-1' } },
       { type: 'preview.hover', payload: { projectId: 'cat1-a' } },

@@ -10,12 +10,15 @@ export default defineConfig({
   forbidOnly: true,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'pnpm run preview',
-    url: 'http://localhost:4173',
+    // Run the real Vite + kiosk sidecar development stack rather than `vite preview`: it serves
+    // the seeded local content through the dev proxy and exercises React StrictMode as operators
+    // do during development (the preview-only setup could not cover either boundary).
+    command: 'pnpm --filter content-pipeline seed:sample && pnpm run dev',
+    url: 'http://localhost:5173',
     reuseExistingServer: true,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

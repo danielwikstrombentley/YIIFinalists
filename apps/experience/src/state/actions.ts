@@ -29,6 +29,22 @@ export const resetToIdle = assign<
   generation: nextGeneration(context.generation),
 }));
 
+/** Records validated category ordering at the machine boundary (the source for FR-005 first preview). */
+export const registerReleaseCategories = assign<
+  ExperienceContext,
+  ExperienceEvent,
+  undefined,
+  ExperienceEvent,
+  never
+>(({ event }) => {
+  if (event.type !== 'internal.releaseLoaded') return {};
+  return {
+    categoryProjectIds: Object.fromEntries(
+      event.categories.map((category) => [category.id, [...category.projectIds]]),
+    ),
+  };
+});
+
 export const enterCategoryPreview = assign<
   ExperienceContext,
   ExperienceEvent,
@@ -40,10 +56,15 @@ export const enterCategoryPreview = assign<
     event.type === 'category.select'
       ? event.payload.categoryId
       : (context.pendingCategoryId ?? context.activeCategoryId);
+  const firstProjectId = categoryId ? (context.categoryProjectIds[categoryId]?.[0] ?? null) : null;
   return {
     activeCategoryId: categoryId ?? null,
     pendingCategoryId: null,
-    previewedProjectId: null,
+    previewedProjectId: firstProjectId,
+    selectedProjectId: null,
+    activeContentPosition: null,
+    activeSequenceId: null,
+    activeVoiceoverId: null,
     generation: nextGeneration(context.generation),
   };
 });
@@ -54,17 +75,56 @@ export const retargetPreview = assign<
   undefined,
   ExperienceEvent,
   never
->(({ event }) => {
+>(({ context, event }) => {
   if (event.type !== 'preview.hover') return {};
-  // The `direction` form (next/prev) is resolved against the active category's ordered project
-  // list upstream (app shell / content loader) before reaching the machine — the machine only
-  // ever sees a concrete `projectId` here. `direction` payloads are accepted as a documented
-  // no-op at this layer so the contract's full action set is still legally receivable.
   if ('projectId' in event.payload) {
-    return { previewedProjectId: event.payload.projectId };
+    const categoryProjects = context.activeCategoryId
+      ? (context.categoryProjectIds[context.activeCategoryId] ?? [])
+      : [];
+    return categoryProjects.includes(event.payload.projectId)
+      ? { previewedProjectId: event.payload.projectId }
+      : {};
   }
-  return {};
+  const categoryProjects = context.activeCategoryId
+    ? (context.categoryProjectIds[context.activeCategoryId] ?? [])
+    : [];
+  if (categoryProjects.length === 0) return {};
+
+  const currentIndex = Math.max(0, categoryProjects.indexOf(context.previewedProjectId ?? ''));
+  const offset = event.payload.direction === 'next' ? 1 : -1;
+  const nextIndex = (currentIndex + offset + categoryProjects.length) % categoryProjects.length;
+  return { previewedProjectId: categoryProjects[nextIndex] ?? context.previewedProjectId };
 });
+
+/** State-entry adapter wiring for idle: all markers visible and the seamless globe loop active. */
+export function activateGlobeIdle({ context }: { context: ExperienceContext }): void {
+  const globe = context.runtime.globe?.adapter;
+  if (!globe) return;
+  const handle = globe.enterIdle();
+  context.cleanup.register('globe-idle', () => handle.cancel());
+}
+
+/** State-entry adapter wiring for category preview: filter to three markers and auto-preview first. */
+export function activateGlobeCategoryPreview({ context }: { context: ExperienceContext }): void {
+  const globe = context.runtime.globe?.adapter;
+  const categoryId = context.activeCategoryId;
+  const projectId = context.previewedProjectId;
+  if (!globe || !categoryId || !projectId) return;
+
+  const categoryHandle = globe.setCategoryFilter(categoryId);
+  context.cleanup.register('globe-category', () => categoryHandle.cancel());
+  const previewHandle = globe.previewProject(projectId);
+  context.cleanup.register('globe-preview', () => previewHandle.cancel());
+}
+
+/** Retargets the live globe camera after a valid hover action without queuing obsolete destinations. */
+export function activateGlobePreviewRetarget({ context }: { context: ExperienceContext }): void {
+  const globe = context.runtime.globe?.adapter;
+  const projectId = context.previewedProjectId;
+  if (!globe || !projectId) return;
+  const handle = globe.previewProject(projectId);
+  context.cleanup.register('globe-preview', () => handle.cancel());
+}
 
 export const beginTransitionToProject = assign<
   ExperienceContext,
@@ -146,10 +206,13 @@ export const completeTransitionToPreview = assign<
   never
 >(({ context }) => {
   const switchingCategory = context.pendingCategoryId !== null;
+  const categoryId = switchingCategory ? context.pendingCategoryId : context.activeCategoryId;
   return {
-    activeCategoryId: switchingCategory ? context.pendingCategoryId : context.activeCategoryId,
+    activeCategoryId: categoryId,
     pendingCategoryId: null,
-    previewedProjectId: switchingCategory ? null : context.previewedProjectId,
+    previewedProjectId: switchingCategory
+      ? (context.categoryProjectIds[categoryId ?? '']?.[0] ?? null)
+      : context.previewedProjectId,
     selectedProjectId: null,
     activeContentPosition: null,
     activeSequenceId: null,
