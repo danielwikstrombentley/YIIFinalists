@@ -39,7 +39,7 @@ describe('GlobeScene', () => {
     expect(globe.scene.getObjectByName('atmosphere')).toBeDefined();
     expect(globe.textureProfile.estimatedGpuBytes).toBeLessThanOrEqual(GLOBE_TEXTURE_BUDGET_BYTES);
     expect(globe.textureProfile.fallback).toBeNull();
-    expect(globe.atmosphere.geometry.parameters.radius).toBe(5.075);
+    expect(globe.atmosphere.geometry.parameters.radius).toBe(5.12);
     expect(globe.atmosphereMaterial.blending).toBe(NormalBlending);
 
     globe.dispose();
@@ -54,7 +54,8 @@ describe('GlobeScene', () => {
         cloudDriftStrength: 0.044,
         cloudWarpStrength: 0.019,
         cloudEvolutionStrength: 0.1,
-        atmosphereIntensity: 0.7,
+        atmosphereHaloThickness: 0.09,
+        atmosphereHaloStrength: 0.7,
       },
     });
 
@@ -69,7 +70,9 @@ describe('GlobeScene', () => {
     expect(globe.earthUniforms.uCloudEvolutionStrength).toBe(
       globe.cloudUniforms.uCloudEvolutionStrength,
     );
-    expect(globe.atmosphereUniforms.uAtmosphereIntensity.value).toBe(0.7);
+    expect(globe.atmosphere.geometry.parameters.radius).toBe(5.09);
+    expect(globe.atmosphereUniforms.uAtmosphereRadius.value).toBe(5.09);
+    expect(globe.atmosphereUniforms.uHaloStrength.value).toBe(0.7);
 
     globe.dispose();
   });

@@ -66,8 +66,10 @@ export interface GlobeVisualTuning {
   cloudDriftStrength: number;
   cloudWarpStrength: number;
   cloudEvolutionStrength: number;
-  atmosphereRadius: number;
-  atmosphereIntensity: number;
+  /** Halo width in globe scene units; Earth radius is 5. */
+  atmosphereHaloThickness: number;
+  /** Single brightness/opacity multiplier for quick visual iteration. */
+  atmosphereHaloStrength: number;
 }
 
 /** Centralized first-pass values for iterative LED-wall visual review. */
@@ -83,8 +85,8 @@ export const DEFAULT_GLOBE_VISUAL_TUNING: Readonly<GlobeVisualTuning> = {
   cloudDriftStrength: 0.05,
   cloudWarpStrength: 0.023,
   cloudEvolutionStrength: 0.12,
-  atmosphereRadius: 5.075,
-  atmosphereIntensity: 0.68,
+  atmosphereHaloThickness: 0.12,
+  atmosphereHaloStrength: 1.25,
 };
 
 export interface GlobeSceneOptions {
@@ -180,7 +182,7 @@ export class GlobeScene {
     uSunsetColor: { value: Color };
     uPlanetRadius: { value: number };
     uAtmosphereRadius: { value: number };
-    uAtmosphereIntensity: { value: number };
+    uHaloStrength: { value: number };
   };
   readonly textureProfile: GlobeTextureProfile;
   readonly visualTuning: GlobeVisualTuning;
@@ -280,13 +282,15 @@ export class GlobeScene {
     this.cloudLayer.name = 'cloud-layer';
     this.globe.add(this.cloudLayer);
 
+    const atmosphereRadius =
+      EARTH_RADIUS + Math.max(0.001, this.visualTuning.atmosphereHaloThickness);
     this.atmosphereUniforms = {
       uSunDirection: sunDirectionUniform,
       uRayleighColor: { value: new Color('#4d88bd') },
       uSunsetColor: { value: new Color('#e47b58') },
       uPlanetRadius: { value: EARTH_RADIUS },
-      uAtmosphereRadius: { value: this.visualTuning.atmosphereRadius },
-      uAtmosphereIntensity: { value: this.visualTuning.atmosphereIntensity },
+      uAtmosphereRadius: { value: atmosphereRadius },
+      uHaloStrength: { value: this.visualTuning.atmosphereHaloStrength },
     };
     this.atmosphereMaterial = new ShaderMaterial({
       uniforms: this.atmosphereUniforms,
@@ -296,7 +300,7 @@ export class GlobeScene {
       depthWrite: false,
       side: BackSide,
     });
-    const atmosphereGeometry = new SphereGeometry(this.visualTuning.atmosphereRadius, 96, 64);
+    const atmosphereGeometry = new SphereGeometry(atmosphereRadius, 96, 64);
     this.atmosphere = new Mesh(atmosphereGeometry, this.atmosphereMaterial);
     this.atmosphere.name = 'atmosphere';
     this.globe.add(this.atmosphere);

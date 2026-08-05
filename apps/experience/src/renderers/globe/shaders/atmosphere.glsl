@@ -19,7 +19,7 @@ uniform vec3 uRayleighColor;
 uniform vec3 uSunsetColor;
 uniform float uPlanetRadius;
 uniform float uAtmosphereRadius;
-uniform float uAtmosphereIntensity;
+uniform float uHaloStrength;
 varying vec3 vWorldNormal;
 varying vec3 vWorldPosition;
 varying vec3 vWorldCenter;
@@ -71,12 +71,12 @@ void main() {
 
   vec3 scatteringColor = uRayleighColor * rayleighPhase * (0.18 + 0.82 * daylight);
   scatteringColor += uSunsetColor * twilight * (0.34 + forwardMie * 0.22);
-  scatteringColor *= uAtmosphereIntensity * 0.72;
+  scatteringColor *= uHaloStrength * 0.9;
 
   float alpha = opticalDensity
-    * (0.012 + daylight * 0.14 + twilight * 0.09)
-    * uAtmosphereIntensity;
-  alpha = clamp(alpha, 0.0, 0.20);
+    * (0.028 + daylight * 0.22 + twilight * 0.13)
+    * uHaloStrength;
+  alpha = clamp(alpha, 0.0, 0.36);
   if (alpha < 0.001) discard;
 
   gl_FragColor = vec4(scatteringColor, alpha);

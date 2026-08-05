@@ -6,7 +6,7 @@
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Visual pass 2 implemented; awaiting human review of amplified cloud evolution.
+**Status:** Visual pass 3 implemented; awaiting human review of the stronger atmospheric halo.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -94,14 +94,15 @@ identical. Shared TypeScript uniform objects prevent their time/map inputs from 
 
 The former additive Fresnel glow was replaced with a thin-shell scattering approximation:
 
-- outer radius `5.075`, down from `5.22`;
+- editable halo thickness `0.12`, producing outer radius `5.12` around the radius-5 Earth;
 - camera-ray/sphere intersections determine atmospheric path length;
 - density falls to zero at the shell's outer silhouette;
 - the Earth intersection limits the path on surface-crossing rays;
 - Rayleigh-like blue scattering is directional to the shared sun;
 - a small Mie-like forward term and terminator warmth are included;
 - normal alpha blending replaces unrestricted additive blending;
-- alpha is bounded to `0.20`;
+- one `atmosphereHaloStrength` value scales both scattering colour and opacity;
+- alpha is bounded to `0.36` as a safety ceiling;
 - the atmosphere uses the renderer's tone-mapping and output-colour stages.
 
 ### Bloom decision
@@ -130,8 +131,8 @@ Defaults live in `DEFAULT_GLOBE_VISUAL_TUNING` in
 | `cloudDriftStrength` | `0.05` | Maximum differential zonal travel in UV space. |
 | `cloudWarpStrength` | `0.023` | Local non-rigid displacement amplitude. |
 | `cloudEvolutionStrength` | `0.12` | Local edge growth and dissipation amplitude. |
-| `atmosphereRadius` | `5.075` | Thin shell around radius-5 Earth. |
-| `atmosphereIntensity` | `0.68` | Shared scattering colour/opacity scale. |
+| `atmosphereHaloThickness` | `0.12` | Halo width added to the radius-5 Earth. |
+| `atmosphereHaloStrength` | `1.25` | Main editable halo brightness/opacity control. |
 
 Renderer exposure remains `1.0` in
 [GlobeRendererAdapter.ts](../apps/experience/src/renderers/globe/GlobeRendererAdapter.ts). Prefer
@@ -246,6 +247,34 @@ Validation completed for pass 2:
 - Earth and cloud shader coverage helpers verified byte-identical;
 - experience typecheck and production build passed;
 - focused globe-scene unit tests: 6/6 passed;
+- real-browser WebGL shader regression: 1/1 passed.
+
+**Human verdict:** accepted (“ok great”); atmospheric halo opened as the next feedback item.
+
+### Pass 3 — 2026-08-05
+
+Feedback: the atmospheric halo was not visible enough and needed a simple tuning variable.
+
+The former absolute-radius and generically named intensity controls were replaced by two explicit
+values in `DEFAULT_GLOBE_VISUAL_TUNING`:
+
+- `atmosphereHaloStrength` is the primary artistic control. Raise or lower this one value to change
+  scattering colour and opacity together; the selected default is `1.25`, up from the former
+  intensity of `0.68`.
+- `atmosphereHaloThickness` controls only silhouette width in scene units; the selected `0.12`
+  produces radius `5.12`, up from `5.075`.
+
+The scattering alpha curve was also lifted while retaining sun direction, outward falloff, bounded
+opacity, and normal blending. Daylight now has a clearly readable blue limb, the terminator has a
+warmer narrow edge, and the night side retains only restrained airglow rather than a uniform neon
+ring.
+
+Validation completed for pass 3:
+
+- hard-reloaded daylight and night/terminator checkpoints: halo visible with no shader, console, or
+  page errors;
+- custom strength and thickness behavior covered by the focused globe-scene suite: 6/6 passed;
+- experience typecheck and production build passed;
 - real-browser WebGL shader regression: 1/1 passed.
 
 **Human verdict:** pending.
