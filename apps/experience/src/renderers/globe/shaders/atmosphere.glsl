@@ -20,6 +20,7 @@ uniform vec3 uSunsetColor;
 uniform float uPlanetRadius;
 uniform float uAtmosphereRadius;
 uniform float uHaloStrength;
+uniform float uHaloSoftness;
 varying vec3 vWorldNormal;
 varying vec3 vWorldPosition;
 varying vec3 vWorldCenter;
@@ -56,7 +57,8 @@ void main() {
     0.0001
   ));
   float normalizedPath = clamp(pathLength / maximumLimbPath, 0.0, 1.0);
-  float opticalDensity = 1.0 - exp(-normalizedPath * 2.4);
+  float softenedPath = pow(normalizedPath, max(uHaloSoftness, 0.2));
+  float opticalDensity = 1.0 - exp(-softenedPath * 2.6);
 
   float closestDistance = clamp(-dot(rayOrigin, rayDirection), pathStart, pathEnd);
   vec3 radialDirection = normalize(rayOrigin + rayDirection * closestDistance);
@@ -70,7 +72,7 @@ void main() {
   float forwardMie = min(miePhase(scatteringCosine, 0.72), 2.2);
 
   vec3 scatteringColor = uRayleighColor * rayleighPhase * (0.18 + 0.82 * daylight);
-  scatteringColor += uSunsetColor * twilight * (0.34 + forwardMie * 0.22);
+  scatteringColor += uSunsetColor * twilight * (0.12 + forwardMie * 0.08);
   scatteringColor *= uHaloStrength * 0.9;
 
   float alpha = opticalDensity

@@ -39,7 +39,7 @@ describe('GlobeScene', () => {
     expect(globe.scene.getObjectByName('atmosphere')).toBeDefined();
     expect(globe.textureProfile.estimatedGpuBytes).toBeLessThanOrEqual(GLOBE_TEXTURE_BUDGET_BYTES);
     expect(globe.textureProfile.fallback).toBeNull();
-    expect(globe.atmosphere.geometry.parameters.radius).toBe(5.12);
+    expect(globe.atmosphere.geometry.parameters.radius).toBe(5.18);
     expect(globe.atmosphereMaterial.blending).toBe(NormalBlending);
 
     globe.dispose();
@@ -56,6 +56,8 @@ describe('GlobeScene', () => {
         cloudEvolutionStrength: 0.1,
         atmosphereHaloThickness: 0.09,
         atmosphereHaloStrength: 0.7,
+        atmosphereHaloSoftness: 2.1,
+        atmosphereHaloColor: '#77ccff',
       },
     });
 
@@ -73,6 +75,8 @@ describe('GlobeScene', () => {
     expect(globe.atmosphere.geometry.parameters.radius).toBe(5.09);
     expect(globe.atmosphereUniforms.uAtmosphereRadius.value).toBe(5.09);
     expect(globe.atmosphereUniforms.uHaloStrength.value).toBe(0.7);
+    expect(globe.atmosphereUniforms.uHaloSoftness.value).toBe(2.1);
+    expect(globe.atmosphereUniforms.uRayleighColor.value.getHexString()).toBe('77ccff');
 
     globe.dispose();
   });

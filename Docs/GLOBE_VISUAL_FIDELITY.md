@@ -6,7 +6,7 @@
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Visual pass 3 implemented; awaiting human review of the stronger atmospheric halo.
+**Status:** Visual pass 4 implemented; awaiting human review of the diffused light-blue halo.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -94,7 +94,7 @@ identical. Shared TypeScript uniform objects prevent their time/map inputs from 
 
 The former additive Fresnel glow was replaced with a thin-shell scattering approximation:
 
-- editable halo thickness `0.12`, producing outer radius `5.12` around the radius-5 Earth;
+- editable halo thickness `0.18`, producing outer radius `5.18` around the radius-5 Earth;
 - camera-ray/sphere intersections determine atmospheric path length;
 - density falls to zero at the shell's outer silhouette;
 - the Earth intersection limits the path on surface-crossing rays;
@@ -102,6 +102,8 @@ The former additive Fresnel glow was replaced with a thin-shell scattering appro
 - a small Mie-like forward term and terminator warmth are included;
 - normal alpha blending replaces unrestricted additive blending;
 - one `atmosphereHaloStrength` value scales both scattering colour and opacity;
+- `atmosphereHaloSoftness` shapes a gradual path-density fade toward the outer circumference;
+- `atmosphereHaloColor` exposes the dominant daylight scattering hue;
 - alpha is bounded to `0.36` as a safety ceiling;
 - the atmosphere uses the renderer's tone-mapping and output-colour stages.
 
@@ -131,8 +133,10 @@ Defaults live in `DEFAULT_GLOBE_VISUAL_TUNING` in
 | `cloudDriftStrength` | `0.05` | Maximum differential zonal travel in UV space. |
 | `cloudWarpStrength` | `0.023` | Local non-rigid displacement amplitude. |
 | `cloudEvolutionStrength` | `0.12` | Local edge growth and dissipation amplitude. |
-| `atmosphereHaloThickness` | `0.12` | Halo width added to the radius-5 Earth. |
-| `atmosphereHaloStrength` | `1.25` | Main editable halo brightness/opacity control. |
+| `atmosphereHaloThickness` | `0.18` | Halo width added to the radius-5 Earth. |
+| `atmosphereHaloStrength` | `1.35` | Main editable halo brightness/opacity control. |
+| `atmosphereHaloSoftness` | `1.75` | Outer-edge diffusion exponent; higher is softer. |
+| `atmosphereHaloColor` | `#63c7ff` | Dominant vibrant light-blue scattering hue. |
 
 Renderer exposure remains `1.0` in
 [GlobeRendererAdapter.ts](../apps/experience/src/renderers/globe/GlobeRendererAdapter.ts). Prefer
@@ -274,6 +278,37 @@ Validation completed for pass 3:
 - hard-reloaded daylight and night/terminator checkpoints: halo visible with no shader, console, or
   page errors;
 - custom strength and thickness behavior covered by the focused globe-scene suite: 6/6 passed;
+- experience typecheck and production build passed;
+- real-browser WebGL shader regression: 1/1 passed.
+
+**Human verdict:** strength accepted as visible, but the result read as a normal ring; requested a
+blur-like outer fade and a more vibrant light-blue hue.
+
+### Pass 4 — 2026-08-05
+
+Feedback: the halo needed to diffuse toward its outer circumference “sort of like a blur” and use a
+lighter, more vibrant blue.
+
+Pass 4 implements the softness analytically in the existing atmosphere shader rather than adding a
+full-screen blur pass:
+
+- the normalized atmospheric path length is raised to the editable `atmosphereHaloSoftness`
+  exponent before density is calculated, strongly reducing opacity near the outer edge while
+  retaining a readable inner limb;
+- shell thickness increased from `0.12` to `0.18`, giving the gradient enough screen-space width to
+  read as diffusion rather than a hard line;
+- the daylight scattering colour moved from muted `#4d88bd` to vibrant light blue `#63c7ff` and is
+  now editable through `atmosphereHaloColor`;
+- strength increased slightly from `1.25` to `1.35` to compensate for energy removed by the softer
+  outer falloff;
+- warm terminator-scattering contribution was reduced so blue remains dominant.
+
+Validation completed for pass 4:
+
+- hard-reloaded daylight and night checkpoints: broad smooth outer fade and light-blue dominant
+  hue, with no shader, console, or page errors;
+- custom softness, colour, strength, and thickness behavior covered by the focused globe-scene
+  suite: 6/6 passed;
 - experience typecheck and production build passed;
 - real-browser WebGL shader regression: 1/1 passed.
 

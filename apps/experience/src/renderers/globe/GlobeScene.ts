@@ -70,6 +70,10 @@ export interface GlobeVisualTuning {
   atmosphereHaloThickness: number;
   /** Single brightness/opacity multiplier for quick visual iteration. */
   atmosphereHaloStrength: number;
+  /** Exponent controlling outer-edge diffusion; larger values produce a softer fade. */
+  atmosphereHaloSoftness: number;
+  /** Dominant daylight scattering hue. */
+  atmosphereHaloColor: string;
 }
 
 /** Centralized first-pass values for iterative LED-wall visual review. */
@@ -85,8 +89,10 @@ export const DEFAULT_GLOBE_VISUAL_TUNING: Readonly<GlobeVisualTuning> = {
   cloudDriftStrength: 0.05,
   cloudWarpStrength: 0.023,
   cloudEvolutionStrength: 0.12,
-  atmosphereHaloThickness: 0.12,
-  atmosphereHaloStrength: 1.25,
+  atmosphereHaloThickness: 0.18,
+  atmosphereHaloStrength: 1.35,
+  atmosphereHaloSoftness: 1.75,
+  atmosphereHaloColor: '#63c7ff',
 };
 
 export interface GlobeSceneOptions {
@@ -183,6 +189,7 @@ export class GlobeScene {
     uPlanetRadius: { value: number };
     uAtmosphereRadius: { value: number };
     uHaloStrength: { value: number };
+    uHaloSoftness: { value: number };
   };
   readonly textureProfile: GlobeTextureProfile;
   readonly visualTuning: GlobeVisualTuning;
@@ -286,11 +293,12 @@ export class GlobeScene {
       EARTH_RADIUS + Math.max(0.001, this.visualTuning.atmosphereHaloThickness);
     this.atmosphereUniforms = {
       uSunDirection: sunDirectionUniform,
-      uRayleighColor: { value: new Color('#4d88bd') },
+      uRayleighColor: { value: new Color(this.visualTuning.atmosphereHaloColor) },
       uSunsetColor: { value: new Color('#e47b58') },
       uPlanetRadius: { value: EARTH_RADIUS },
       uAtmosphereRadius: { value: atmosphereRadius },
       uHaloStrength: { value: this.visualTuning.atmosphereHaloStrength },
+      uHaloSoftness: { value: this.visualTuning.atmosphereHaloSoftness },
     };
     this.atmosphereMaterial = new ShaderMaterial({
       uniforms: this.atmosphereUniforms,
