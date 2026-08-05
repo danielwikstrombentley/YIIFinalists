@@ -392,8 +392,8 @@ presentation (spec US1).
   - Tests: unit: scene builds/disposes leak-free (renderer info assertions); visual check procedure noted for T071.
   - Accept: FR-004 idle presentation complete: seamless indefinite loop, no starts/stops/degraded angles.
 
-- [ ] T024 [P] [US1] Build the 36-marker system with category filtering and emphasis in apps/experience/src/renderers/globe/markers.ts
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T024-globe-markers` · PR — · Blockers —
+- [~] T024 [P] [US1] Build the 36-marker system with category filtering and emphasis in apps/experience/src/renderers/globe/markers.ts
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Instanced markers from release data (lat/lon + MarkerSpec); show-all (idle) vs category-filtered (3 visible) modes with animated hide/show; destination-marker emphasis for preview; marker data fully content-driven (QR-005).
   - Files: `apps/experience/src/renderers/globe/markers.ts`
   - Deps: T023, T017
