@@ -374,8 +374,8 @@ presentation (spec US1).
   - Tests: this task IS the test artifact; red until T028.
   - Accept: grep-tag `US1` per quickstart Scenario 1; all 4 scenarios asserted.
 
-- [ ] T022 [P] [US1] Author failing state tests for category routing, re-entry, and auto-first-preview in apps/experience/tests/state/category-selection.test.ts *(red-first)*
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T022-us1-state-tests` · PR — · Blockers —
+- [~] T022 [P] [US1] Author failing state tests for category routing, re-entry, and auto-first-preview in apps/experience/tests/state/category-selection.test.ts *(red-first)*
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Machine-level tests: `category.select` from idle/preview routes through idle and lands in `categoryActive.preview` with first project previewed (FR-005); same-category deliberate re-press (>1 s) restarts the journey; hover updates previewed ref; exactly one previewed project at all times.
   - Files: `apps/experience/tests/state/category-selection.test.ts`
   - Deps: T011
