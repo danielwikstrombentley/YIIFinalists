@@ -982,8 +982,8 @@ plan-recorded N/A rationale — currently none).
     dependency-graph level, not just AST pattern matching; the "runtime-computed specifier" class
     remains the only documented, industry-standard residual limitation.
 
-- [~] T078 [P] Wire the supplied local 2K day, night, cloud, and normal globe textures into the cinematic globe renderer
-  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T078-wire-globe-textures` · PR — · Blockers —
+- [x] T078 [P] Wire the supplied local 2K day, night, cloud, and normal globe textures into the cinematic globe renderer
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `feature/globe-visual-fidelity` · PR #4 · Blockers —
   - Do: Add a resolution-accurate local texture profile; convert the browser-incompatible TIFF normal map to a browser-loadable derivative; sample the day/night maps through the sun blend, use the cloud map on the animated cloud layer, and use the normal map for subtle surface lighting. Keep the procedural rendering path as an offline-safe fallback, preserve the single shared ticker, configure colour spaces correctly, and dispose all texture resources with the globe scene.
   - Files: `apps/experience/public/textures/*`, `.gitattributes`, `apps/experience/src/renderers/globe/{textures.ts,GlobeScene.ts,shaders/earth.glsl,shaders/clouds.glsl}`, `apps/experience/tests/renderers/globe-scene.test.ts`
   - Deps: T023, T026
