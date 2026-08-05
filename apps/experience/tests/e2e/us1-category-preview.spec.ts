@@ -88,6 +88,21 @@ test.describe('US1: category and cinematic globe preview', () => {
     ]);
   });
 
+  test('development keyboard shortcuts select a category and return to idle through the simulator', async ({
+    page,
+  }) => {
+    await openIdleStage(page);
+
+    await page.keyboard.press('1');
+    const stage = page.locator('#stage');
+    await expect(stage).toHaveAttribute('data-machine-state', '{"categoryActive":"preview"}');
+    await expect(page.getByTestId('preview-metadata')).toBeVisible();
+
+    await page.keyboard.press('0');
+    await expect(stage).toHaveAttribute('data-machine-state', '"idle"');
+    await expect(page.getByTestId('preview-metadata')).toHaveCount(0);
+  });
+
   test('US1 scenario 2: wheel navigation reframes at space level and updates metadata without flicker', async ({
     page,
   }) => {

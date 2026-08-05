@@ -75,7 +75,6 @@ function BootOrchestrator() {
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (
-        event.key !== '1' ||
         event.repeat ||
         event.altKey ||
         event.ctrlKey ||
@@ -85,6 +84,15 @@ function BootOrchestrator() {
       ) {
         return;
       }
+
+      if (event.key === '0') {
+        if (categoryIdsRef.current.length === 0) return;
+        event.preventDefault();
+        simulator.injectAction('nav.idle', {});
+        return;
+      }
+
+      if (event.key !== '1') return;
 
       const categoryIds = categoryIdsRef.current;
       const categoryId = categoryIds[Math.floor(Math.random() * categoryIds.length)];

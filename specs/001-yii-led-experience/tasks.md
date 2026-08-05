@@ -995,7 +995,7 @@ plan-recorded N/A rationale — currently none).
   - Do: Bind non-repeating, unmodified `1` and `0` keypresses only in the Vite development build. After the release has loaded, choose a category from its validated IDs and inject `category.select` for `1`; inject `nav.idle` for `0`. Never send an event directly to the XState actor or expose controls on the public stage.
   - Files: `apps/experience/src/app/App.tsx`, `apps/experience/tests/app/App.test.tsx`
   - Deps: T028
-  - Tests: React integration tests fix the random choice and verify that `1` reaches `categoryActive.preview` with the selected category's first project and that `0` returns it to idle.
+  - Tests: React and Playwright integration tests verify that `1` reaches `categoryActive.preview` with the selected category's first project and that `0` returns it to idle.
   - Accept: pressing `1` during local development enters a valid, randomly selected category and pressing `0` returns to idle through the normal input-validation path; production builds and editable text targets remain unaffected.
 
 ---

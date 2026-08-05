@@ -165,7 +165,28 @@ describe('App shell: boot -> idle', () => {
     );
   });
 
-  it('leaves the development 1 shortcut available to editable text targets', async () => {
+  it('routes the development 0 shortcut through the simulator back to idle', async () => {
+    const { container } = await act(async () => render(<App />));
+    const stage = container.querySelector('#stage');
+
+    await waitFor(() => {
+      expect(stage?.getAttribute('data-machine-state')).toBe('"idle"');
+    });
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => {
+      expect(stage?.getAttribute('data-machine-state')).toBe('{"categoryActive":"preview"}');
+    });
+
+    fireEvent.keyDown(window, { key: '0' });
+    await waitFor(() => {
+      expect(stage?.getAttribute('data-machine-state')).toBe('"idle"');
+    });
+    expect(container.querySelector('[data-testid="preview-metadata"]')).toBeNull();
+  });
+
+  it('leaves the development shortcuts available to editable text targets', async () => {
     const { container } = await act(async () => render(<App />));
     const stage = container.querySelector('#stage');
     const input = document.createElement('input');
@@ -178,6 +199,16 @@ describe('App shell: boot -> idle', () => {
     fireEvent.keyDown(input, { key: '1' });
 
     expect(stage).toHaveAttribute('data-machine-state', '"idle"');
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => {
+      expect(stage?.getAttribute('data-machine-state')).toBe('{"categoryActive":"preview"}');
+    });
+
+    fireEvent.keyDown(input, { key: '0' });
+
+    expect(stage).toHaveAttribute('data-machine-state', '{"categoryActive":"preview"}');
     input.remove();
   });
 });
