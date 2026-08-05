@@ -366,7 +366,7 @@ presentation (spec US1).
 
 ### Verification for US1 (red-first) ⚠️
 
-- [R] T021 [P] [US1] Author failing Playwright E2E spec for US1 journeys in apps/experience/tests/e2e/us1-category-preview.spec.ts *(red-first)*
+- [x] T021 [P] [US1] Author failing Playwright E2E spec for US1 journeys in apps/experience/tests/e2e/us1-category-preview.spec.ts *(red-first)*
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Encode US1 acceptance scenarios 1–4 via SimulatorTransport: category select → route-through-idle + 3 markers + first-project preview with name/organisation/country; wheel next → space-level reframe, metadata updates without flicker; rapid wheel burst → final preview matches last signal, no queued destinations; extended idle → loop continues, no instructional UI (DOM assertion: zero public text besides approved overlays).
   - Files: `apps/experience/tests/e2e/us1-category-preview.spec.ts`
@@ -374,7 +374,7 @@ presentation (spec US1).
   - Tests: this task IS the test artifact; red until T028.
   - Accept: grep-tag `US1` per quickstart Scenario 1; all 4 scenarios asserted.
 
-- [R] T022 [P] [US1] Author failing state tests for category routing, re-entry, and auto-first-preview in apps/experience/tests/state/category-selection.test.ts *(red-first)*
+- [x] T022 [P] [US1] Author failing state tests for category routing, re-entry, and auto-first-preview in apps/experience/tests/state/category-selection.test.ts *(red-first)*
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Machine-level tests: `category.select` from idle/preview routes through idle and lands in `categoryActive.preview` with first project previewed (FR-005); same-category deliberate re-press (>1 s) restarts the journey; hover updates previewed ref; exactly one previewed project at all times.
   - Files: `apps/experience/tests/state/category-selection.test.ts`
@@ -384,7 +384,7 @@ presentation (spec US1).
 
 ### Implementation for US1
 
-- [R] T023 [P] [US1] Build the cinematic globe scene (day/night blend, cloud layer, atmosphere, seamless idle loop) in apps/experience/src/renderers/globe/GlobeScene.ts
+- [x] T023 [P] [US1] Build the cinematic globe scene (day/night blend, cloud layer, atmosphere, seamless idle loop) in apps/experience/src/renderers/globe/GlobeScene.ts
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Three.js scene per research R3: earth with day/night blending via sun uniform, animated cloud layer, atmospheric rim shader; idle loop driven by GSAP-tweened parameters through the orchestrator's ticker (no own RAF); texture set within R14 GPU budget (≤512 MB, mip-capped variants as fallback quality level).
   - Files: `apps/experience/src/renderers/globe/{GlobeScene.ts,shaders/atmosphere.glsl,shaders/earth.glsl,textures.ts,idle-loop.ts}`, `apps/experience/public/textures/*`
@@ -392,7 +392,7 @@ presentation (spec US1).
   - Tests: unit: scene builds/disposes leak-free (renderer info assertions); visual check procedure noted for T071.
   - Accept: FR-004 idle presentation complete: seamless indefinite loop, no starts/stops/degraded angles.
 
-- [R] T024 [P] [US1] Build the 36-marker system with category filtering and emphasis in apps/experience/src/renderers/globe/markers.ts
+- [x] T024 [P] [US1] Build the 36-marker system with category filtering and emphasis in apps/experience/src/renderers/globe/markers.ts
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Instanced markers from release data (lat/lon + MarkerSpec); show-all (idle) vs category-filtered (3 visible) modes with animated hide/show; destination-marker emphasis for preview; marker data fully content-driven (QR-005).
   - Files: `apps/experience/src/renderers/globe/markers.ts`
@@ -400,7 +400,7 @@ presentation (spec US1).
   - Tests: unit: filter transitions leave exactly the category's 3 visible; emphasis applied to previewed marker only.
   - Accept: markers configurable purely from package data; no per-project code.
 
-- [R] T025 [US1] Build the camera rig with cancel/retarget preview movement in apps/experience/src/renderers/globe/camera-rig.ts
+- [x] T025 [US1] Build the camera rig with cancel/retarget preview movement in apps/experience/src/renderers/globe/camera-rig.ts
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Orbit-parameter camera rig (angles, framing offsets) animated exclusively by GSAP tween retargets through the orchestrator — a new hover retargets the live tween, never queues; space-level framing constraints (Earth whole/near-whole, no surface zoom — FR-006); exposes `previewProject(projectRef)` returning a cancellable handle.
   - Files: `apps/experience/src/renderers/globe/camera-rig.ts`
@@ -408,7 +408,7 @@ presentation (spec US1).
   - Tests: unit: rapid retarget sequence ends at last target with no intermediate completions delivered; cancellation idempotent.
   - Accept: FR-006 retarget semantics native to the design (research R3).
 
-- [R] T026 [US1] Implement GlobeRendererAdapter (adapter contract, ticker registration, resource ownership/dispose) in apps/experience/src/renderers/globe/GlobeRendererAdapter.ts
+- [x] T026 [US1] Implement GlobeRendererAdapter (adapter contract, ticker registration, resource ownership/dispose) in apps/experience/src/renderers/globe/GlobeRendererAdapter.ts
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Adapter facade over scene/markers/rig: `start/stop/dispose/setCategoryFilter/previewProject/enterIdle`; registers render callback with the single ticker only while active; owns and disposes all GPU/DOM resources; all operations return cancellable handles for the machine's cleanup registry.
   - Files: `apps/experience/src/renderers/globe/GlobeRendererAdapter.ts`
@@ -416,7 +416,7 @@ presentation (spec US1).
   - Tests: integration: start/stop/dispose cycles leak-free; render callback count stable across cycles.
   - Accept: resource-ownership map entry added next to adapter (plan §Architecture); repeated dispose is a no-op.
 
-- [R] T027 [P] [US1] Build the preview metadata overlay (name/organisation/country) with design tokens in apps/experience/src/ui/PreviewMetadata.tsx
+- [x] T027 [P] [US1] Build the preview metadata overlay (name/organisation/country) with design tokens in apps/experience/src/ui/PreviewMetadata.tsx
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Large-format overlay component driven by machine snapshot; flicker-free updates (keyed transitions, no unmount flash); typography/contrast via central design tokens (QR-006: large readable type, non-colour-dependent hierarchy, no rapid flashing); zero menu/instruction elements.
   - Files: `apps/experience/src/ui/{PreviewMetadata.tsx,tokens.css}`
@@ -424,7 +424,7 @@ presentation (spec US1).
   - Tests: RTL unit: updates without remount; renders nothing outside categoryActive states.
   - Accept: FR-006 metadata-without-flicker + QR-006 token basis established for all later overlays.
 
-- [R] T028 [US1] Wire machine states idle + categoryActive.preview to globe adapter and overlay (route-through-idle, re-entry, hover) in apps/experience/src/state/machine.ts
+- [x] T028 [US1] Wire machine states idle + categoryActive.preview to globe adapter and overlay (route-through-idle, re-entry, hover) in apps/experience/src/state/machine.ts
   - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR #3 · Blockers —
   - Do: Entry/exit actions: idle → adapter.enterIdle + all markers; category.select → routed idle pass → filter + auto-preview first project; preview.hover → rig retarget; exits kill preview tweens + clear overlay (idempotent); same-category re-entry honoured after dedup window.
   - Files: `apps/experience/src/state/machine.ts`, `apps/experience/src/app/StageMount.tsx`
