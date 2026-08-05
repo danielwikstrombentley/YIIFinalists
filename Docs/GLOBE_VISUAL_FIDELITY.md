@@ -6,7 +6,7 @@
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Visual pass 6 implemented; continuous rotation and editable cycle speeds awaiting review.
+**Status:** Final visual result accepted; approved for merge to `main`.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -390,7 +390,12 @@ Validation completed for pass 6:
 - Playwright extended-idle scenario: 1/1 passed;
 - no console or page errors on hard reload.
 
-**Human verdict:** pending.
+**Human verdict:** accepted. The human requested merge to `main` and explicitly waived an
+additional agent code-review run after six iterative visual review rounds.
+
+Final pre-merge verification passed on 2026-08-05: root `pnpm run verify` completed typecheck,
+lint, formatting, 207 unit tests with 4 intentional skips, and all workspace builds; the complete
+Playwright suite passed 6/6.
 
 For the next round, append:
 
