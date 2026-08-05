@@ -424,8 +424,8 @@ presentation (spec US1).
   - Tests: RTL unit: updates without remount; renders nothing outside categoryActive states.
   - Accept: FR-006 metadata-without-flicker + QR-006 token basis established for all later overlays.
 
-- [ ] T028 [US1] Wire machine states idle + categoryActive.preview to globe adapter and overlay (route-through-idle, re-entry, hover) in apps/experience/src/state/machine.ts
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T028-us1-wiring` · PR — · Blockers —
+- [~] T028 [US1] Wire machine states idle + categoryActive.preview to globe adapter and overlay (route-through-idle, re-entry, hover) in apps/experience/src/state/machine.ts
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Entry/exit actions: idle → adapter.enterIdle + all markers; category.select → routed idle pass → filter + auto-preview first project; preview.hover → rig retarget; exits kill preview tweens + clear overlay (idempotent); same-category re-entry honoured after dedup window.
   - Files: `apps/experience/src/state/machine.ts`, `apps/experience/src/app/StageMount.tsx`
   - Deps: T022, T026, T027, T013
