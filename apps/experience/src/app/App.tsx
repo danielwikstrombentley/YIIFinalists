@@ -27,10 +27,20 @@ function isE2eRun(): boolean {
   return import.meta.env.DEV && new URLSearchParams(window.location.search).has('e2e');
 }
 
+function isEditableTextTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
+
 function BootOrchestrator() {
   const actor = useMachineActor();
   const hasBooted = useRef(false);
   const depsRef = useRef<BootstrapDeps | null>(null);
+  const categoryIdsRef = useRef<readonly string[]>([]);
   const lastProjectIdRef = useRef<string | null>(null);
   const lastCategoryIdRef = useRef<string | null>(null);
 
@@ -44,12 +54,48 @@ function BootOrchestrator() {
     }
     void bootstrap({
       ...deps,
-      onReleaseLoaded: async () => {
+      onReleaseLoaded: async (release) => {
         const projects = await deps.loader.loadAllProjects();
         actor.getSnapshot().context.runtime.setGlobe(createGlobePresentation(projects));
+        categoryIdsRef.current = release.categories.map(({ id }) => id);
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- boot must run exactly once
+  }, []);
+
+  useEffect(() => {
+    // Research R7 permits a development keyboard wrapper only when it follows the same
+    // SimulatorTransport → InputBoundary path as every other console action.
+    if (!import.meta.env.DEV) return;
+
+    const simulator = depsRef.current?.transports.find(
+      (transport): transport is SimulatorTransport => transport instanceof SimulatorTransport,
+    );
+    if (!simulator) return;
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (
+        event.key !== '1' ||
+        event.repeat ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        isEditableTextTarget(event.target)
+      ) {
+        return;
+      }
+
+      const categoryIds = categoryIdsRef.current;
+      const categoryId = categoryIds[Math.floor(Math.random() * categoryIds.length)];
+      if (!categoryId) return;
+
+      event.preventDefault();
+      simulator.injectAction('category.select', { categoryId });
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   useEffect(() => {

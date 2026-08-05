@@ -1,4 +1,4 @@
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/app/App.js';
@@ -123,6 +123,7 @@ describe('App shell: boot -> idle', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('renders the full-screen stage with zero public-facing menus/instructions/errors, and reaches idle', async () => {
@@ -142,6 +143,42 @@ describe('App shell: boot -> idle', () => {
     const overlay = container.querySelector('#operator-overlay-mount');
     expect(overlay).toBeInTheDocument();
     expect(overlay).toHaveStyle({ display: 'none' });
+  });
+
+  it('routes the development 1 shortcut through the simulator to a random category', async () => {
+    const { container } = await act(async () => render(<App />));
+    const stage = container.querySelector('#stage');
+
+    await waitFor(() => {
+      expect(stage?.getAttribute('data-machine-state')).toBe('"idle"');
+    });
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    fireEvent.keyDown(window, { key: '1' });
+
+    await waitFor(() => {
+      expect(stage?.getAttribute('data-machine-state')).toBe('{"categoryActive":"preview"}');
+    });
+    expect(container.querySelector('[data-testid="preview-metadata"]')).toHaveAttribute(
+      'data-project-id',
+      'cat1-a',
+    );
+  });
+
+  it('leaves the development 1 shortcut available to editable text targets', async () => {
+    const { container } = await act(async () => render(<App />));
+    const stage = container.querySelector('#stage');
+    const input = document.createElement('input');
+    document.body.append(input);
+
+    await waitFor(() => {
+      expect(stage?.getAttribute('data-machine-state')).toBe('"idle"');
+    });
+
+    fireEvent.keyDown(input, { key: '1' });
+
+    expect(stage).toHaveAttribute('data-machine-state', '"idle"');
+    input.remove();
   });
 });
 
