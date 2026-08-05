@@ -36,6 +36,7 @@ yarn-error.log*
 Thumbs.db
 *.swp
 *.swo
+.vscode/
 .idea/
 
 # Telemetry (local JSONL sink output, not source)

@@ -48,6 +48,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/playwright-report/**',
       '**/test-results/**',
+      '**/*.min.js',
       '**/.pnpm-store/**',
       'spec-kit/**',
     ],
