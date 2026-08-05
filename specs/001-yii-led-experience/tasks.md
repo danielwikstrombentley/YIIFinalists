@@ -416,8 +416,8 @@ presentation (spec US1).
   - Tests: integration: start/stop/dispose cycles leak-free; render callback count stable across cycles.
   - Accept: resource-ownership map entry added next to adapter (plan §Architecture); repeated dispose is a no-op.
 
-- [ ] T027 [P] [US1] Build the preview metadata overlay (name/organisation/country) with design tokens in apps/experience/src/ui/PreviewMetadata.tsx
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T027-preview-metadata` · PR — · Blockers —
+- [~] T027 [P] [US1] Build the preview metadata overlay (name/organisation/country) with design tokens in apps/experience/src/ui/PreviewMetadata.tsx
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Large-format overlay component driven by machine snapshot; flicker-free updates (keyed transitions, no unmount flash); typography/contrast via central design tokens (QR-006: large readable type, non-colour-dependent hierarchy, no rapid flashing); zero menu/instruction elements.
   - Files: `apps/experience/src/ui/{PreviewMetadata.tsx,tokens.css}`
   - Deps: T020
