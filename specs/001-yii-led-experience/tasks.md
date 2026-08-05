@@ -400,8 +400,8 @@ presentation (spec US1).
   - Tests: unit: filter transitions leave exactly the category's 3 visible; emphasis applied to previewed marker only.
   - Accept: markers configurable purely from package data; no per-project code.
 
-- [ ] T025 [US1] Build the camera rig with cancel/retarget preview movement in apps/experience/src/renderers/globe/camera-rig.ts
-  - Meta: Phase PH3 · Feature F001 · Owner — · Branch `task/001-T025-camera-rig` · PR — · Blockers —
+- [~] T025 [US1] Build the camera rig with cancel/retarget preview movement in apps/experience/src/renderers/globe/camera-rig.ts
+  - Meta: Phase PH3 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph3-us1-globe-preview` (consolidated) · PR — · Blockers —
   - Do: Orbit-parameter camera rig (angles, framing offsets) animated exclusively by GSAP tween retargets through the orchestrator — a new hover retargets the live tween, never queues; space-level framing constraints (Earth whole/near-whole, no surface zoom — FR-006); exposes `previewProject(projectRef)` returning a cancellable handle.
   - Files: `apps/experience/src/renderers/globe/camera-rig.ts`
   - Deps: T023
