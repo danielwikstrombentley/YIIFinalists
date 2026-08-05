@@ -112,6 +112,15 @@ export class ContentLoader {
     return project;
   }
 
+  /** Loads the release's complete ordered project set for content-driven globe presentation. */
+  async loadAllProjects(): Promise<Project[]> {
+    if (!this.cachedRelease) {
+      throw new ContentLoadError('loadAllProjects() called before load()');
+    }
+    const projectIds = this.cachedRelease.categories.flatMap((category) => category.projectIds);
+    return Promise.all(projectIds.map((projectId) => this.loadProject(projectId)));
+  }
+
   /**
    * Synchronously peeks an already-cached project (populated by a prior `loadProject()` call).
    * Used by the input boundary's release validator to check `content.select` position validity

@@ -31,6 +31,72 @@ const VALID_CATEGORIES = Array.from({ length: 12 }, (_, i) => ({
   projectIds: [`cat${i + 1}-a`, `cat${i + 1}-b`, `cat${i + 1}-c`],
 }));
 
+function validProject(projectId: string) {
+  const match = /^cat(\d+)-([abc])$/.exec(projectId);
+  if (!match) throw new Error(`Unexpected fixture project id: ${projectId}`);
+  const categoryNumber = Number(match[1]);
+  const projectNumber = (match[2]?.charCodeAt(0) ?? 97) - 96;
+
+  return {
+    id: projectId,
+    name: `Sample Project ${categoryNumber}.${projectNumber}`,
+    organisation: 'Sample Organisation',
+    country: 'Sampleland',
+    location: 'Sample City',
+    categoryId: `cat-${categoryNumber}`,
+    marker: { lat: -55 + categoryNumber * 8, lon: -170 + categoryNumber * 20 + projectNumber },
+    geographicFraming: {
+      scopeType: 'city',
+      landingCamera: {
+        destination: {
+          lat: -55 + categoryNumber * 8,
+          lon: -170 + categoryNumber * 20,
+          height: 400,
+        },
+        orientation: { heading: 0, pitch: -30, roll: 0 },
+        range: 800,
+      },
+      previewEmphasis: { markerScale: 1.2 },
+      tileTier: 'safe-composition',
+      canvasTreatment: { darken: 0.15 },
+    },
+    contentOptions: [
+      {
+        position: 1,
+        title: 'Overview',
+        formats: ['overview-hero'],
+        sequence: {
+          openingState: { id: 'opening', elements: [{ target: 'hero', properties: { level: 0 } }] },
+          timebase: 'timeline',
+          syncToleranceMs: 200,
+          beats: [{ type: 'text', startTime: 0, duration: 4000, target: 'hero' }],
+          finalFrame: { id: 'final', elements: [{ target: 'hero', properties: { level: 1 } }] },
+          interruptionExit: 'fade-out',
+        },
+        displayText: [{ type: 'paragraph', text: 'Fixture overview.' }],
+        voiceover: {
+          file: `projects/${projectId}/voiceover/overview.opus`,
+          scriptVersion: 'fixture-v1',
+          voiceId: 'fixture-voice',
+          durationMs: 4000,
+          captionText: [{ type: 'paragraph', text: 'Fixture caption.' }],
+        },
+        mediaRefs: [
+          {
+            id: 'hero-image',
+            kind: 'image',
+            file: `projects/${projectId}/media/hero.jpg`,
+            rights: { holder: 'Fixture Organisation', status: 'approved' },
+            aiGenerated: false,
+          },
+        ],
+        available: true,
+      },
+    ],
+    inactivePositions: [2, 3, 4, 5],
+  };
+}
+
 describe('App shell: boot -> idle', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -45,6 +111,10 @@ describe('App shell: boot -> idle', () => {
         }
         if (url.endsWith('/content/releases/1.0.0/categories.json')) {
           return jsonResponse(VALID_CATEGORIES);
+        }
+        const projectMatch = /\/projects\/([^/]+)\/project\.json$/.exec(url);
+        if (projectMatch?.[1]) {
+          return jsonResponse(validProject(projectMatch[1]));
         }
         return new Response('not found', { status: 404 });
       }),
@@ -113,6 +183,10 @@ describe('App shell under React.StrictMode: still boots to idle', () => {
         }
         if (url.endsWith('/content/releases/1.0.0/categories.json')) {
           return jsonResponse(VALID_CATEGORIES);
+        }
+        const projectMatch = /\/projects\/([^/]+)\/project\.json$/.exec(url);
+        if (projectMatch?.[1]) {
+          return jsonResponse(validProject(projectMatch[1]));
         }
         return new Response('not found', { status: 404 });
       }),

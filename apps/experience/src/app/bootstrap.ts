@@ -14,11 +14,13 @@ import type { ExperienceEvent } from '../state/types.js';
 // recovering fallback path").
 
 export interface BootstrapDeps {
-  loader: Pick<ContentLoader, 'load' | 'loadProject' | 'getCachedProject'>;
+  loader: Pick<ContentLoader, 'load' | 'loadAllProjects' | 'loadProject' | 'getCachedProject'>;
   boundary: InputBoundary;
   transports: readonly Transport[];
   send: (event: ExperienceEvent) => void;
   onBootError?: (error: unknown) => void;
+  /** Completes renderer-specific release preparation before the machine is allowed to enter idle. */
+  onReleaseLoaded?: (release: Awaited<ReturnType<ContentLoader['load']>>) => Promise<void> | void;
 }
 
 export async function bootstrap(deps: BootstrapDeps): Promise<void> {
@@ -35,7 +37,15 @@ export async function bootstrap(deps: BootstrapDeps): Promise<void> {
   }
 
   try {
-    await deps.loader.load();
+    const release = await deps.loader.load();
+    deps.send({
+      type: 'internal.releaseLoaded',
+      categories: release.categories.map((category) => ({
+        id: category.id,
+        projectIds: category.projectIds,
+      })),
+    });
+    await deps.onReleaseLoaded?.(release);
     deps.send({ type: 'internal.assetsVerified' });
   } catch (error) {
     deps.onBootError?.(error);

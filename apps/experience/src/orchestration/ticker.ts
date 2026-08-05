@@ -6,13 +6,14 @@ import gsap from 'gsap';
 // handover window. `start()`/`stop()` are idempotent — repeated calls never create more than one
 // underlying `gsap.ticker` registration.
 
-export type RenderCallback = () => void;
+export type RenderCallback = (deltaSeconds: number) => void;
 
 export class Ticker {
   private readonly renderers = new Set<RenderCallback>();
   private started = false;
-  private readonly tick = (): void => {
-    for (const render of this.renderers) render();
+  private readonly tick = (_time: number, deltaTime: number): void => {
+    const deltaSeconds = Math.max(0, deltaTime) / 1000;
+    for (const render of this.renderers) render(deltaSeconds);
   };
 
   start(): void {

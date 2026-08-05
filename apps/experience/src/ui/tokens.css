@@ -1,0 +1,82 @@
+:root {
+  --yii-colour-ink: #f7fbff;
+  --yii-colour-ink-muted: #bdd4eb;
+  --yii-colour-accent: #7fc5ff;
+  --yii-colour-scrim: rgb(2 7 20 / 64%);
+  --yii-font-display: Inter, Avenir Next, Helvetica Neue, Arial, sans-serif;
+  --yii-preview-name-size: clamp(2.5rem, 5.7vw, 7rem);
+  --yii-preview-detail-size: clamp(1rem, 1.65vw, 2.1rem);
+  --yii-preview-gutter: clamp(1.5rem, 5vw, 7rem);
+  --yii-motion-overlay-enter: 480ms;
+  --yii-motion-overlay-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.yii-preview-metadata {
+  position: fixed;
+  z-index: 2;
+  right: var(--yii-preview-gutter);
+  bottom: var(--yii-preview-gutter);
+  max-width: min(68vw, 68rem);
+  pointer-events: none;
+  color: var(--yii-colour-ink);
+  font-family: var(--yii-font-display);
+  text-align: right;
+}
+
+.yii-preview-metadata__content {
+  border-right: 0.35rem solid var(--yii-colour-accent);
+  padding: 0.4rem 1.35rem 0.45rem 0;
+  background: linear-gradient(90deg, transparent, var(--yii-colour-scrim));
+  animation: yii-preview-metadata-enter var(--yii-motion-overlay-enter)
+    var(--yii-motion-overlay-ease) both;
+}
+
+.yii-preview-metadata__name,
+.yii-preview-metadata__organisation,
+.yii-preview-metadata__country {
+  margin: 0;
+}
+
+.yii-preview-metadata__name {
+  max-width: 22ch;
+  font-size: var(--yii-preview-name-size);
+  font-weight: 700;
+  line-height: 0.96;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.yii-preview-metadata__organisation {
+  margin-top: 0.85rem;
+  color: var(--yii-colour-ink);
+  font-size: var(--yii-preview-detail-size);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.yii-preview-metadata__country {
+  margin-top: 0.2rem;
+  color: var(--yii-colour-ink-muted);
+  font-size: calc(var(--yii-preview-detail-size) * 0.82);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@keyframes yii-preview-metadata-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(1.5rem, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yii-preview-metadata__content {
+    animation-duration: 1ms;
+  }
+}

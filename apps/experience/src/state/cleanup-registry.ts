@@ -11,6 +11,10 @@ export class CleanupRegistry {
   private readonly handles = new Map<string, CleanupHandle>();
 
   register(name: string, handle: CleanupHandle): void {
+    // Replacing a state-scoped operation (for example a rapid hover retarget) must cancel the
+    // prior handle before it becomes unreachable. This preserves the registry's single-owner
+    // model and makes repeated registrations as safe as repeated cancellation.
+    this.cancel(name);
     this.handles.set(name, handle);
   }
 

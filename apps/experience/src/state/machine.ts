@@ -1,5 +1,8 @@
 import { setup } from 'xstate';
 import {
+  activateGlobeCategoryPreview,
+  activateGlobeIdle,
+  activateGlobePreviewRetarget,
   beginContentPlaying,
   beginTransitionToPreview,
   beginTransitionToProject,
@@ -8,12 +11,14 @@ import {
   enterCategoryPreview,
   enterProjectLanding,
   enterRecovering,
+  registerReleaseCategories,
   requestCategorySwitch,
   resetToIdle,
   retargetPreview,
 } from './actions.js';
 import { createCleanupRegistry } from './cleanup-registry.js';
 import { isCurrentGeneration, outranks } from './guards.js';
+import { createExperienceRuntime } from './runtime.js';
 import { INITIAL_CONTEXT, type ExperienceContext, type ExperienceEvent } from './types.js';
 
 // Experience state machine skeleton (T011). States/transitions/destinations mirror data-model.md
@@ -41,10 +46,12 @@ export const experienceMachine = setup({
   context: () => ({
     ...INITIAL_CONTEXT,
     cleanup: createCleanupRegistry(),
+    runtime: createExperienceRuntime(),
   }),
   // Root-level handlers bubble to every state that doesn't define its own (XState event
   // bubbling): the two highest FR-019 priorities always resolve to a full reset, from anywhere.
   on: {
+    'internal.releaseLoaded': { actions: [registerReleaseCategories] },
     'operator.reset': { target: '.idle', actions: [resetToIdle] },
     'nav.idle': { target: '.idle', actions: [resetToIdle] },
     'internal.adapterFailure': { target: '.recovering', actions: [enterRecovering] },
@@ -56,12 +63,15 @@ export const experienceMachine = setup({
       },
     },
     idle: {
+      entry: [activateGlobeIdle],
+      exit: [cancelOwnedHandles],
       on: {
         'category.select': { target: 'categoryActive.preview', actions: [enterCategoryPreview] },
       },
     },
     categoryActive: {
       initial: 'preview',
+      entry: [activateGlobeCategoryPreview],
       exit: [cancelOwnedHandles],
       on: {
         'nav.back': { target: 'idle' },
@@ -69,7 +79,7 @@ export const experienceMachine = setup({
       states: {
         preview: {
           on: {
-            'preview.hover': { actions: [retargetPreview] },
+            'preview.hover': { actions: [retargetPreview, activateGlobePreviewRetarget] },
             'project.select': {
               target: '#experience.transitionToProject',
               actions: [beginTransitionToProject],
@@ -77,7 +87,7 @@ export const experienceMachine = setup({
             'category.select': {
               target: 'preview',
               reenter: true,
-              actions: [enterCategoryPreview],
+              actions: [enterCategoryPreview, activateGlobeCategoryPreview],
             },
           },
         },
