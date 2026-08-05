@@ -225,11 +225,11 @@ Manual/documented evidence artifacts land in `specs/001-yii-led-experience/evide
 **Purpose**: shared contracts, state machine, input boundary, orchestrator, content loader, dev
 kiosk — the boundaries every story builds on.
 **Phase branch**: `phase/001-ph2-foundation` · **Depends on**: PH1
-`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/2 · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: GPT-5.6 Sol (OpenAI) · Verdict: REQUEST CHANGES (round 1, 2026-08-04)`
+`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/2 · Implementer model(s): agent:Claude Sonnet 5 (Anthropic) · Review model: GPT-5.6 Sol (OpenAI) · Verdict: APPROVE (round 3, 2026-08-05)`
 
 ⚠️ No user story phase may start until this phase's PR is merged.
 
-- [R] T006 [P] Author failing contract tests for the semantic-action envelope, priorities, and dedup identity in packages/semantic-actions/tests/envelope.contract.test.ts *(red-first)*
+- [x] T006 [P] Author failing contract tests for the semantic-action envelope, priorities, and dedup identity in packages/semantic-actions/tests/envelope.contract.test.ts *(red-first)*
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated — foundational phase implemented directly on the phase branch, no separate task branch) · PR #2 · Blockers —
   - Do: Encode [contracts/semantic-input.md](./contracts/semantic-input.md) as executable tests: full action set with exact priority values (operator.reset 7 … preview.hover 1), v1 wire envelope validation, dedup key = (type, payload) identity, `connection.status` excluded from machine-bound actions, operator actions rejected from `console` source.
   - Files: `packages/semantic-actions/tests/envelope.contract.test.ts`
@@ -237,7 +237,7 @@ kiosk — the boundaries every story builds on.
   - Tests: this task IS the test artifact; MUST fail (red) before T008.
   - Accept: every table row and boundary rule 1–6 of the contract has at least one assertion; suite red until T008.
 
-- [R] T007 [P] Author failing contract tests for content-package schemas incl. every FR-036 defect class in packages/content-schema/tests/schema.contract.test.ts *(red-first)*
+- [x] T007 [P] Author failing contract tests for content-package schemas incl. every FR-036 defect class in packages/content-schema/tests/schema.contract.test.ts *(red-first)*
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Valid full-release fixture (12×3, Overview at position 1, ≤5 options, explicit inactive positions, sequences with openingState/timebase/syncTolerance/finalFrame) plus one invalid fixture per FR-036 defect class (missing Overview, >5 options, missing metadata/framing/media/voiceover/display text, broken refs, unsupported formats, invalid sequences, missing final frame, duplicate project refs, unapproved content, unverified metrics, missing rights).
   - Files: `packages/content-schema/tests/schema.contract.test.ts`, `packages/content-schema/tests/fixtures/{valid-release/,broken/*}`
@@ -245,7 +245,7 @@ kiosk — the boundaries every story builds on.
   - Tests: this task IS the test artifact; MUST fail (red) before T009.
   - Accept: one failing assertion per defect class listed in [contracts/content-package.md](./contracts/content-package.md) producer obligations.
 
-- [R] T008 [P] Implement semantic-actions package (types, priority classes, dedup identity, Zod envelope) in packages/semantic-actions/src/index.ts
+- [x] T008 [P] Implement semantic-actions package (types, priority classes, dedup identity, Zod envelope) in packages/semantic-actions/src/index.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Action type union + payload types per contract, priority table as data (FR-019 order), dedup-key derivation, v1 envelope Zod schema, source enum (`console|simulator|operator`), type guards. No transport or navigation logic.
   - Files: `packages/semantic-actions/src/{actions.ts,priorities.ts,dedup.ts,envelope.ts,index.ts}`
@@ -253,7 +253,7 @@ kiosk — the boundaries every story builds on.
   - Tests: T006 suite green; no other runtime deps introduced.
   - Accept: T006 fully green; package consumed by both apps without circular deps.
 
-- [R] T009 [P] Implement content-schema package (Zod schemas + JSON Schema export) in packages/content-schema/src/index.ts
+- [x] T009 [P] Implement content-schema package (Zod schemas + JSON Schema export) in packages/content-schema/src/index.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Zod schemas for Release/Category/Project/GeographicFraming/ContentOption/ContentSequence/Beat/MediaAsset/VoiceoverAsset/manifest/channels plus editorial records (Submission, DraftAnalysis, ProposedOption, reviewState lifecycle) per [data-model.md](./data-model.md); `schemaVersion` field; JSON Schema export script for the copilot-agent drafting driver.
   - Files: `packages/content-schema/src/{release.ts,category.ts,project.ts,framing.ts,content-option.ts,sequence.ts,media.ts,voiceover.ts,manifest.ts,channels.ts,editorial.ts,index.ts}`, `packages/content-schema/scripts/export-json-schema.ts`
@@ -261,7 +261,7 @@ kiosk — the boundaries every story builds on.
   - Tests: T007 suite green; JSON Schema export snapshot test.
   - Accept: all cross-domain invariants from data-model.md §4 expressible/enforced at parse level or documented as validator-level (deferred to T062).
 
-- [R] T010 [P] Author state-machine legality + interruption-matrix test harness in apps/experience/tests/state/legality.test.ts *(red-first)*
+- [x] T010 [P] Author state-machine legality + interruption-matrix test harness in apps/experience/tests/state/legality.test.ts *(red-first)*
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: @xstate/graph exhaustive path test asserting only the transitions tabulated in data-model.md §3 exist; interruption-matrix scaffold (every state × {operator.reset, nav.idle, nav.category, nav.back}) with expected destinations parameterised from the state table — rows for not-yet-built states marked pending, activated as phases land.
   - Files: `apps/experience/tests/state/{legality.test.ts,interruption-matrix.test.ts,state-table.fixture.ts}`
@@ -269,7 +269,7 @@ kiosk — the boundaries every story builds on.
   - Tests: this task IS the test artifact; red until T011.
   - Accept: matrix fixture mirrors the data-model destination table 1:1; illegal-transition detection proven with a seeded bad transition.
 
-- [R] T011 Implement the experience state machine skeleton (all states, guards, priority enforcement, entry/exit cleanup, generation tokens) in apps/experience/src/state/machine.ts
+- [x] T011 Implement the experience state machine skeleton (all states, guards, priority enforcement, entry/exit cleanup, generation tokens) in apps/experience/src/state/machine.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: XState v5 machine with states `boot, idle, categoryActive.preview, transitionToProject, projectLanding, contentPlaying, contentFinalHold, transitionToPreview, recovering`; context = single nullable refs (one active category/preview/selection/content/sequence/voiceover — Principle I); guard order enforcing FR-019 priorities; entry/exit actions call adapter-handle registries (adapters stubbed); generation-token util for stale-completion rejection; per-state failure destinations per data-model.md.
   - Files: `apps/experience/src/state/{machine.ts,guards.ts,actions.ts,cleanup-registry.ts,generation.ts,types.ts}`
@@ -277,7 +277,7 @@ kiosk — the boundaries every story builds on.
   - Tests: T010 legality suite green; interruption rows for boot/idle/preview active.
   - Accept: machine is the sole navigation authority; repeated cancellation idempotent (unit-asserted); no React state involved.
 
-- [R] T012 [P] Author failing input-boundary unit tests (dedup window, priority gate, validation, ordering, reconnect) in apps/experience/tests/input/boundary.test.ts *(red-first)*
+- [x] T012 [P] Author failing input-boundary unit tests (dedup window, priority gate, validation, ordering, reconnect) in apps/experience/tests/input/boundary.test.ts *(red-first)*
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Tests for: identical action within 1000 ms dropped, after 1000 ms honoured (replay/re-entry semantics); unknown ids/types rejected safely; priority gate lets higher-priority pass during exclusive windows; newer `preview.hover` supersedes unprocessed older (retarget-not-queue); operator actions only from operator/simulator source; reconnect resets dedup state; `connection.status` never reaches the machine.
   - Files: `apps/experience/tests/input/boundary.test.ts`
@@ -285,7 +285,7 @@ kiosk — the boundaries every story builds on.
   - Tests: this task IS the test artifact; red until T013.
   - Accept: covers boundary rules 1–6 of the semantic-input contract + FR-020 + SC-005 input classes.
 
-- [R] T013 Implement the input boundary (validation → 1 s dedup → priority gate → machine; connection monitor) in apps/experience/src/input/boundary.ts
+- [x] T013 Implement the input boundary (validation → 1 s dedup → priority gate → machine; connection monitor) in apps/experience/src/input/boundary.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Envelope validation against active release data (unknown category/project/position rejected + logged), 1000 ms dedup window on accepted identical actions, priority gate with exclusive-window support, per-source arrival ordering with hover supersession, connection monitor feeding diagnostics only (never state), operator-source gating.
   - Files: `apps/experience/src/input/{boundary.ts,validate.ts,dedup.ts,priority-gate.ts,ordering.ts,connection-monitor.ts}`
@@ -293,7 +293,7 @@ kiosk — the boundaries every story builds on.
   - Tests: T012 green.
   - Accept: transport-specific data never crosses this boundary (Principle III); all rejects are logged and publicly invisible.
 
-- [R] T014 [P] Implement transport adapters: WebSocketTransport + SimulatorTransport core in apps/experience/src/input/transports/websocket.ts
+- [x] T014 [P] Implement transport adapters: WebSocketTransport + SimulatorTransport core in apps/experience/src/input/transports/websocket.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Common `Transport` interface (connect/disconnect/liveness/emit); dev WebSocket adapter speaking the v1 JSON wire format (served by kiosk sidecar); in-process SimulatorTransport able to inject any action plus failure scenarios (duplicate bursts <1 s, deliberate repeats >1 s, invalid ids, unknown types, rapid hover streams, disconnect/reconnect) — headless core used by tests and later by the operator UI (T052).
   - Files: `apps/experience/src/input/transports/{transport.ts,websocket.ts,simulator.ts}`
@@ -301,7 +301,7 @@ kiosk — the boundaries every story builds on.
   - Tests: adapter unit tests: liveness reporting, wire-format mapping, simulator failure injections reach the boundary unaltered.
   - Accept: zero navigation logic in adapters; a future console transport is adding one file.
 
-- [R] T015 [P] Author failing orchestrator unit tests (idempotent cancel, replay-to-opening, progress reporting, ticker stability) in apps/experience/tests/orchestration/orchestrator.test.ts *(red-first)*
+- [x] T015 [P] Author failing orchestrator unit tests (idempotent cancel, replay-to-opening, progress reporting, ticker stability) in apps/experience/tests/orchestration/orchestrator.test.ts *(red-first)*
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Tests for `play/pause/cancel/replay/reset/seek`: repeated `cancel()` is a no-op; `replay()` restores the complete opening state via context revert; progress/completion callbacks report to a listener (never transition state directly); exactly one gsap ticker callback registered across repeated play/cancel cycles; killed timelines release references.
   - Files: `apps/experience/tests/orchestration/orchestrator.test.ts`
@@ -309,7 +309,7 @@ kiosk — the boundaries every story builds on.
   - Tests: this task IS the test artifact; red until T016.
   - Accept: Principle II cancellation/replay semantics and R6 single-ticker rule fully asserted.
 
-- [R] T016 Implement SequenceOrchestrator core (GSAP) + single-ticker ownership in apps/experience/src/orchestration/orchestrator.ts
+- [x] T016 Implement SequenceOrchestrator core (GSAP) + single-ticker ownership in apps/experience/src/orchestration/orchestrator.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: GSAP-owned orchestrator per plan §Architecture: timeline factories, `gsap.context()` scoping, `play/pause/cancel/replay/reset/seek/onProgress/onComplete`; the app's single RAF driver (`ticker.ts`) that renders whichever renderer is active (adapters register render callbacks; Cesium/Three loops disabled elsewhere); motion-token module for centrally defined durations/easings.
   - Files: `apps/experience/src/orchestration/{orchestrator.ts,ticker.ts,timeline-factory.ts,motion-tokens.ts}`
@@ -317,7 +317,7 @@ kiosk — the boundaries every story builds on.
   - Tests: T015 green.
   - Accept: no feature code creates free-standing tweens (lint rule or review checklist); GSAP confined to `orchestration/`.
 
-- [R] T017 Implement content loader: package revalidation, channel resolution, preload/reuse cache in apps/experience/src/content/loader.ts
+- [x] T017 Implement content loader: package revalidation, channel resolution, preload/reuse cache in apps/experience/src/content/loader.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Load `channels.json` → release dir; revalidate manifest + all project JSON with `packages/content-schema` (untrusted input); refuse invalid package → previous cached release → fallback idle + operator alert; package-relative asset resolution only (no arbitrary URLs); decode-once in-memory caches with eviction on category change (R14 preload policy skeleton); runtime limit enforcement (ignore >5 options, inactive positions, require Overview).
   - Files: `apps/experience/src/content/{loader.ts,revalidate.ts,channels.ts,preload.ts,cache.ts}`
@@ -325,7 +325,7 @@ kiosk — the boundaries every story builds on.
   - Tests: loader unit tests: valid load, each refusal path, fallback chain, limit enforcement (fixtures from T007).
   - Accept: consumer obligations of [contracts/content-package.md](./contracts/content-package.md) fully implemented.
 
-- [R] T018 [P] Implement sample release seed generator (12 categories × 3 projects, staging channel) in apps/content-pipeline/src/seed/sample.ts
+- [x] T018 [P] Implement sample release seed generator (12 categories × 3 projects, staging channel) in apps/content-pipeline/src/seed/sample.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: `seed:sample` command producing a schema-valid release directory (manifest, categories, projects with markers/framing/options/sequences, placeholder media/voiceover assets, validation-report) + `channels.json` pointing staging at it. Used by dev servers and every runtime test suite.
   - Files: `apps/content-pipeline/src/seed/sample.ts`, `apps/content-pipeline/assets/sample/*`
@@ -333,7 +333,7 @@ kiosk — the boundaries every story builds on.
   - Tests: seeded release passes T007's valid-fixture schema checks; loader (T017) loads it.
   - Accept: quickstart Setup step works: `pnpm --filter content-pipeline seed:sample`.
 
-- [R] T019 [P] Implement kiosk sidecar dev server (static serve, WS input endpoint, telemetry sink) in tools/kiosk/src/server.ts
+- [x] T019 [P] Implement kiosk sidecar dev server (static serve, WS input endpoint, telemetry sink) in tools/kiosk/src/server.ts
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Local HTTP server serving the built app + active release; WS endpoint bridging to WebSocketTransport; `POST /telemetry` appending batched events to `logs/telemetry-YYYY-MM-DD.jsonl` per [contracts/analytics-events.md](./contracts/analytics-events.md); env-based config (`ION_ACCESS_TOKEN`, `ION_GOOGLE_TILES_ASSET_ID` passthrough to kiosk config — never committed); README with dev usage.
   - Files: `tools/kiosk/src/{server.ts,ws-input.ts,telemetry-sink.ts,config.ts}`, `tools/kiosk/README.md`
@@ -341,7 +341,7 @@ kiosk — the boundaries every story builds on.
   - Tests: sink appends valid JSONL; malformed telemetry rejected without 5xx; WS round-trip test.
   - Accept: `pnpm --filter experience dev` serves app + sidecar per quickstart Setup.
 
-- [R] T020 Implement React app shell + boot state (kiosk bootstrap, stage mount, machine provider, asset verification into idle) in apps/experience/src/app/App.tsx
+- [x] T020 Implement React app shell + boot state (kiosk bootstrap, stage mount, machine provider, asset verification into idle) in apps/experience/src/app/App.tsx
   - Meta: Phase PH2 · Feature F001 · Owner `agent:Claude Sonnet 5 (Anthropic)` · Branch `phase/001-ph2-foundation` (consolidated) · PR #2 · Blockers —
   - Do: Full-screen stage shell rendering from machine snapshots only; boot state: load+revalidate release (T017), preload critical assets, start input boundary + transports, verify console connectivity (non-blocking), enter idle; public surface renders zero menus/instructions/errors; operator overlay mount point (empty until T051).
   - Files: `apps/experience/src/app/{App.tsx,bootstrap.ts,StageMount.tsx,MachineProvider.tsx}`
