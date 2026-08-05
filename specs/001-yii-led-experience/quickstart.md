@@ -21,7 +21,7 @@ Runnable scenarios proving the feature end-to-end. Contracts referenced, not dup
 ```bash
 pnpm install
 pnpm -r build                      # packages → apps
-pnpm --filter content-pipeline seed:sample   # generates a valid sample release (2 categories × 3 projects, staging channel)
+pnpm --filter content-pipeline seed:sample   # generates a valid sample release (12 categories × 3 projects, staging channel)
 pnpm --filter experience dev                 # serves app + kiosk sidecar (static, ws transport, telemetry sink)
 ```
 
