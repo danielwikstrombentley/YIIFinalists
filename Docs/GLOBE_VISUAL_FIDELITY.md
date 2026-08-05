@@ -6,7 +6,7 @@
 
 **Base:** `2a2f634` (`task/001-T078-wire-globe-textures`)
 
-**Status:** Visual pass 4 implemented; awaiting human review of the diffused light-blue halo.
+**Status:** Visual pass 5 implemented; awaiting human review of the brighter saturated-blue halo.
 
 This is a one-off visual-polish workstream. It deliberately does **not** add or modify feature
 specification tasks. Keep this document current after every feedback round so a new chat can resume
@@ -104,6 +104,8 @@ The former additive Fresnel glow was replaced with a thin-shell scattering appro
 - one `atmosphereHaloStrength` value scales both scattering colour and opacity;
 - `atmosphereHaloSoftness` shapes a gradual path-density fade toward the outer circumference;
 - `atmosphereHaloColor` exposes the dominant daylight scattering hue;
+- `atmosphereHaloBrightness` increases RGB radiance without making the alpha silhouette more solid;
+- `atmosphereHaloSaturation` restores chroma after AgX tone mapping to prevent highlight washout;
 - alpha is bounded to `0.36` as a safety ceiling;
 - the atmosphere uses the renderer's tone-mapping and output-colour stages.
 
@@ -135,8 +137,10 @@ Defaults live in `DEFAULT_GLOBE_VISUAL_TUNING` in
 | `cloudEvolutionStrength` | `0.12` | Local edge growth and dissipation amplitude. |
 | `atmosphereHaloThickness` | `0.18` | Halo width added to the radius-5 Earth. |
 | `atmosphereHaloStrength` | `1.35` | Main editable halo brightness/opacity control. |
-| `atmosphereHaloSoftness` | `1.75` | Outer-edge diffusion exponent; higher is softer. |
-| `atmosphereHaloColor` | `#63c7ff` | Dominant vibrant light-blue scattering hue. |
+| `atmosphereHaloSoftness` | `4.75` | Outer-edge diffusion exponent; higher is softer. |
+| `atmosphereHaloColor` | `#00a2ff` | Dominant saturated-blue scattering hue. |
+| `atmosphereHaloBrightness` | `1.45` | RGB-only radiance multiplier. |
+| `atmosphereHaloSaturation` | `1.45` | Post-tone-map chroma restoration. |
 
 Renderer exposure remains `1.0` in
 [GlobeRendererAdapter.ts](../apps/experience/src/renderers/globe/GlobeRendererAdapter.ts). Prefer
@@ -309,6 +313,33 @@ Validation completed for pass 4:
   hue, with no shader, console, or page errors;
 - custom softness, colour, strength, and thickness behavior covered by the focused globe-scene
   suite: 6/6 passed;
+- experience typecheck and production build passed;
+- real-browser WebGL shader regression: 1/1 passed.
+
+**Human verdict:** diffusion improved, but the halo colour still appeared too washed out; requested
+more colour brightness even with a strongly blue hue. Before pass 5, the human directly selected
+`atmosphereHaloSoftness: 4.75` and `atmosphereHaloColor: #00a2ff`; both values are preserved.
+
+### Pass 5 — 2026-08-05
+
+Feedback: increase brightness in the halo's colour without losing the soft outer falloff.
+
+Simply increasing the existing strength would raise opacity as well as RGB and risk returning to a
+solid ring. Pass 5 therefore separates colour energy from silhouette density:
+
+- `atmosphereHaloBrightness: 1.45` multiplies scattering RGB before tone mapping but does not alter
+  alpha;
+- `atmosphereHaloSaturation: 1.45` restores chroma immediately after AgX tone mapping and before
+  sRGB output, counteracting the tone mapper's deliberate highlight desaturation;
+- saturation operates on the final blue-dominant scattering result while alpha, softness,
+  thickness, and normal blending remain unchanged;
+- the human-selected `#00a2ff` hue and `4.75` softness are retained as current defaults.
+
+Validation completed for pass 5:
+
+- hard-reloaded daylight and night checkpoints: brighter saturated cyan-blue halo with the same
+  diffused outer silhouette and no shader, console, or page errors;
+- custom brightness and saturation behavior covered by the focused globe-scene suite: 6/6 passed;
 - experience typecheck and production build passed;
 - real-browser WebGL shader regression: 1/1 passed.
 

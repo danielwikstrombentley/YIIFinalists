@@ -21,6 +21,8 @@ uniform float uPlanetRadius;
 uniform float uAtmosphereRadius;
 uniform float uHaloStrength;
 uniform float uHaloSoftness;
+uniform float uHaloBrightness;
+uniform float uHaloSaturation;
 varying vec3 vWorldNormal;
 varying vec3 vWorldPosition;
 varying vec3 vWorldCenter;
@@ -73,7 +75,7 @@ void main() {
 
   vec3 scatteringColor = uRayleighColor * rayleighPhase * (0.18 + 0.82 * daylight);
   scatteringColor += uSunsetColor * twilight * (0.12 + forwardMie * 0.08);
-  scatteringColor *= uHaloStrength * 0.9;
+  scatteringColor *= uHaloStrength * uHaloBrightness * 0.9;
 
   float alpha = opticalDensity
     * (0.028 + daylight * 0.22 + twilight * 0.13)
@@ -83,5 +85,10 @@ void main() {
 
   gl_FragColor = vec4(scatteringColor, alpha);
   #include <tonemapping_fragment>
+  float toneMappedLuminance = dot(gl_FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+  gl_FragColor.rgb = max(
+    mix(vec3(toneMappedLuminance), gl_FragColor.rgb, uHaloSaturation),
+    vec3(0.0)
+  );
   #include <colorspace_fragment>
 }

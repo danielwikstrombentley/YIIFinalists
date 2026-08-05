@@ -58,6 +58,8 @@ describe('GlobeScene', () => {
         atmosphereHaloStrength: 0.7,
         atmosphereHaloSoftness: 2.1,
         atmosphereHaloColor: '#77ccff',
+        atmosphereHaloBrightness: 1.6,
+        atmosphereHaloSaturation: 1.3,
       },
     });
 
@@ -76,6 +78,8 @@ describe('GlobeScene', () => {
     expect(globe.atmosphereUniforms.uAtmosphereRadius.value).toBe(5.09);
     expect(globe.atmosphereUniforms.uHaloStrength.value).toBe(0.7);
     expect(globe.atmosphereUniforms.uHaloSoftness.value).toBe(2.1);
+    expect(globe.atmosphereUniforms.uHaloBrightness.value).toBe(1.6);
+    expect(globe.atmosphereUniforms.uHaloSaturation.value).toBe(1.3);
     expect(globe.atmosphereUniforms.uRayleighColor.value.getHexString()).toBe('77ccff');
 
     globe.dispose();

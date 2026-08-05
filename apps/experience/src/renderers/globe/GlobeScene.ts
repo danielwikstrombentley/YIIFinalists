@@ -74,6 +74,10 @@ export interface GlobeVisualTuning {
   atmosphereHaloSoftness: number;
   /** Dominant daylight scattering hue. */
   atmosphereHaloColor: string;
+  /** RGB radiance multiplier; does not alter halo opacity. */
+  atmosphereHaloBrightness: number;
+  /** Chroma restored after tone mapping; values above 1 counter highlight washout. */
+  atmosphereHaloSaturation: number;
 }
 
 /** Centralized first-pass values for iterative LED-wall visual review. */
@@ -91,8 +95,10 @@ export const DEFAULT_GLOBE_VISUAL_TUNING: Readonly<GlobeVisualTuning> = {
   cloudEvolutionStrength: 0.12,
   atmosphereHaloThickness: 0.18,
   atmosphereHaloStrength: 1.35,
-  atmosphereHaloSoftness: 1.75,
-  atmosphereHaloColor: '#63c7ff',
+  atmosphereHaloSoftness: 4.75,
+  atmosphereHaloColor: '#00a2ff',
+  atmosphereHaloBrightness: 1.45,
+  atmosphereHaloSaturation: 1.45,
 };
 
 export interface GlobeSceneOptions {
@@ -190,6 +196,8 @@ export class GlobeScene {
     uAtmosphereRadius: { value: number };
     uHaloStrength: { value: number };
     uHaloSoftness: { value: number };
+    uHaloBrightness: { value: number };
+    uHaloSaturation: { value: number };
   };
   readonly textureProfile: GlobeTextureProfile;
   readonly visualTuning: GlobeVisualTuning;
@@ -299,6 +307,8 @@ export class GlobeScene {
       uAtmosphereRadius: { value: atmosphereRadius },
       uHaloStrength: { value: this.visualTuning.atmosphereHaloStrength },
       uHaloSoftness: { value: this.visualTuning.atmosphereHaloSoftness },
+      uHaloBrightness: { value: this.visualTuning.atmosphereHaloBrightness },
+      uHaloSaturation: { value: this.visualTuning.atmosphereHaloSaturation },
     };
     this.atmosphereMaterial = new ShaderMaterial({
       uniforms: this.atmosphereUniforms,
