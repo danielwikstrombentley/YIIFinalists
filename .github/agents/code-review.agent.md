@@ -29,7 +29,7 @@ every model that implemented the work under review.
    - If ANY implementer model shares your provider family → **STOP**. Output
      `REVIEW REFUSED — provider independence violated`, name the conflicting provider, and
      instruct the user to re-run this agent with a model from a different provider (e.g. work
-     implemented by GPT-5.6 Sol (OpenAI) must be reviewed by Claude Opus 4.8 (Anthropic) or a
+     implemented by GPT-5.6 Sol (OpenAI) must be reviewed by Claude Sonnet 5 (Anthropic) or a
      Gemini model (Google)). Do not review anything.
    - Human-implemented work may be reviewed by any provider.
    - If implementer provenance cannot be determined, warn loudly, record
