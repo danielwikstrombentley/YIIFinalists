@@ -1,4 +1,4 @@
-import { WebGLRenderer } from 'three';
+import { AgXToneMapping, SRGBColorSpace, WebGLRenderer } from 'three';
 import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
 import { GlobeCameraRig, type GlobePreviewProject } from './camera-rig.js';
 import { GlobeMarkerSystem, type GlobeMarkerProject } from './markers.js';
@@ -60,6 +60,12 @@ function createNoopRenderer(): WebGLRenderer {
   } as unknown as WebGLRenderer;
 }
 
+function configureRendererColorPipeline(renderer: WebGLRenderer): void {
+  renderer.outputColorSpace = SRGBColorSpace;
+  renderer.toneMapping = AgXToneMapping;
+  renderer.toneMappingExposure = 1;
+}
+
 function once(cancel: () => void): GlobeOperationHandle {
   let cancelled = false;
   return {
@@ -111,6 +117,7 @@ export class GlobeRendererAdapter {
       throw new Error('GlobeCameraRig must control the GlobeScene camera.');
     }
     this.renderer = (options.rendererFactory ?? createRenderer)(this.canvas);
+    configureRendererColorPipeline(this.renderer);
 
     for (const project of options.projects) {
       if (this.projectsById.has(project.id)) {
@@ -246,6 +253,7 @@ export class GlobeRendererAdapter {
   private render(deltaSeconds: number): void {
     if (!this.active || this.disposed) return;
     this.markers.advance(deltaSeconds);
+    this.scene.advance(deltaSeconds);
     this.scene.render(this.renderer);
     this.renderedFrame += 1;
     this.syncTestAttributes();

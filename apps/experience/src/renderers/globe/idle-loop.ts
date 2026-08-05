@@ -9,6 +9,7 @@ import { MOTION_DURATIONS_MS, MOTION_EASINGS } from '../../orchestration/motion-
 // renders the scene. This module never creates a requestAnimationFrame loop of its own.
 export interface GlobeIdleParameters {
   rotationY: number;
+  /** Deterministic starting point in the seamless cloud cycle; runtime evolution uses frame delta. */
   cloudPhase: number;
   sunOrbit: number;
 }
@@ -35,12 +36,6 @@ export class GlobeIdleLoop {
         destination: { rotationY: Math.PI * 2 },
         durationMs: MOTION_DURATIONS_MS.globeIdleOrbit,
         ease: MOTION_EASINGS.linear,
-      },
-      {
-        destination: { cloudPhase: 1 },
-        durationMs: MOTION_DURATIONS_MS.globeCloudCycle,
-        ease: MOTION_EASINGS.linear,
-        position: 0,
       },
       {
         destination: { sunOrbit: Math.PI * 2 + DEFAULT_GLOBE_IDLE_PARAMETERS.sunOrbit },

@@ -1,5 +1,6 @@
 import {
   NoColorSpace,
+  NormalBlending,
   SRGBColorSpace,
   Texture,
   type TextureLoader,
@@ -38,6 +39,26 @@ describe('GlobeScene', () => {
     expect(globe.scene.getObjectByName('atmosphere')).toBeDefined();
     expect(globe.textureProfile.estimatedGpuBytes).toBeLessThanOrEqual(GLOBE_TEXTURE_BUDGET_BYTES);
     expect(globe.textureProfile.fallback).toBeNull();
+    expect(globe.atmosphere.geometry.parameters.radius).toBe(5.075);
+    expect(globe.atmosphereMaterial.blending).toBe(NormalBlending);
+
+    globe.dispose();
+  });
+
+  it('centralizes independent surface, cloud, and atmosphere tuning as shader uniforms', () => {
+    const globe = new GlobeScene({
+      visualTuning: {
+        dayExposure: 0.76,
+        nightSaturation: 1.3,
+        cloudOpacity: 0.41,
+        atmosphereIntensity: 0.7,
+      },
+    });
+
+    expect(globe.earthUniforms.uDayExposure.value).toBe(0.76);
+    expect(globe.earthUniforms.uNightSaturation.value).toBe(1.3);
+    expect(globe.cloudUniforms.uCloudOpacity.value).toBe(0.41);
+    expect(globe.atmosphereUniforms.uAtmosphereIntensity.value).toBe(0.7);
 
     globe.dispose();
   });
@@ -58,6 +79,8 @@ describe('GlobeScene', () => {
     expect(globe.earthUniforms.uHasNightMap.value).toBe(1);
     expect(globe.earthUniforms.uHasNormalMap.value).toBe(1);
     expect(globe.cloudUniforms.uHasCloudMap.value).toBe(1);
+    expect(globe.earthUniforms.uCloudMap).toBe(globe.cloudUniforms.uCloudMap);
+    expect(globe.earthUniforms.uHasCloudMap).toBe(globe.cloudUniforms.uHasCloudMap);
     expect(textures[0]?.colorSpace).toBe(SRGBColorSpace);
     expect(textures[1]?.colorSpace).toBe(SRGBColorSpace);
     expect(textures[2]?.colorSpace).toBe(NoColorSpace);
@@ -86,17 +109,23 @@ describe('GlobeScene', () => {
     globe.dispose();
   });
 
-  it('renders through an adapter-owned renderer and applies the GSAP-driven idle parameters', () => {
+  it('renders through an adapter-owned renderer with deforming clouds and shared solar lighting', () => {
     const globe = new GlobeScene();
     const renderer = createRenderer();
 
     globe.setIdleParameters({ rotationY: 0.75, cloudPhase: 0.4, sunOrbit: 1.2 });
+    const initialCloudTime = 0.4 * globe.visualTuning.cloudCycleSeconds;
+    globe.advance(2.5);
     globe.render(renderer);
 
     expect(renderer.render).toHaveBeenCalledWith(globe.scene, globe.camera);
     expect(globe.globe.rotation.y).toBeCloseTo(0.75);
-    expect(globe.cloudUniforms.uCloudPhase.value).toBeCloseTo(0.4);
+    expect(globe.cloudLayer.rotation.y).toBe(0);
+    expect(globe.cloudUniforms.uCloudTime.value).toBeCloseTo(initialCloudTime + 2.5);
+    expect(globe.earthUniforms.uCloudTime).toBe(globe.cloudUniforms.uCloudTime);
     expect(globe.earthUniforms.uSunDirection.value.length()).toBeCloseTo(1);
+    expect(globe.cloudUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
+    expect(globe.atmosphereUniforms.uSunDirection).toBe(globe.earthUniforms.uSunDirection);
 
     globe.dispose();
   });

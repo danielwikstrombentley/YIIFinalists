@@ -15,16 +15,86 @@ void main() {
 precision highp float;
 
 uniform vec3 uSunDirection;
-uniform float uCloudShadow;
 uniform sampler2D uDayMap;
 uniform sampler2D uNightMap;
 uniform sampler2D uNormalMap;
+uniform sampler2D uCloudMap;
 uniform float uHasDayMap;
 uniform float uHasNightMap;
 uniform float uHasNormalMap;
+uniform float uHasCloudMap;
+uniform float uCloudTime;
+uniform float uCloudCycleSeconds;
+uniform float uCloudShadowStrength;
+uniform float uDayExposure;
+uniform float uDaySaturation;
+uniform float uDayContrast;
+uniform float uNightIntensity;
+uniform float uNightSaturation;
 varying vec3 vWorldNormal;
 varying vec3 vWorldPosition;
 varying vec2 vUv;
+
+const float PI = 3.14159265359;
+const float TWO_PI = 6.28318530718;
+
+float globeLuminance(vec3 color) {
+  return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+vec3 adjustSaturation(vec3 color, float saturation) {
+  return mix(vec3(globeLuminance(color)), color, saturation);
+}
+
+vec3 gradeDaylight(vec3 color) {
+  vec3 exposed = color * uDayExposure;
+  vec3 saturated = adjustSaturation(exposed, uDaySaturation);
+  return max((saturated - vec3(0.18)) * uDayContrast + vec3(0.18), vec3(0.0));
+}
+
+vec3 gradeNight(vec3 color) {
+  float cityLightMask = smoothstep(0.012, 0.22, globeLuminance(color));
+  vec3 darkBackground = color * 0.42;
+  vec3 saturatedLights = max(adjustSaturation(color, uNightSaturation), vec3(0.0));
+  return mix(darkBackground, saturatedLights * uNightIntensity, cityLightMask);
+}
+
+vec2 advectedCloudUv(vec2 uv, float flow) {
+  float latitude = (uv.y - 0.5) * PI;
+  float phase = flow * TWO_PI;
+  float zonalWind = 0.018 * (0.68 + 0.32 * cos(latitude * 2.0));
+  vec2 deformation = vec2(
+    sin(uv.y * 31.0 + uv.x * 5.0 + phase) * 0.0034
+      + sin(uv.y * 13.0 - phase * 0.73) * 0.0016,
+    sin(uv.x * 23.0 - uv.y * 7.0 - phase * 0.81) * 0.0022
+      + sin(latitude * 6.0 + phase * 0.57) * 0.0012
+  );
+  vec2 advected = uv + vec2(
+    flow * zonalWind,
+    flow * sin(latitude * 5.0) * 0.0025
+  ) + deformation;
+  return vec2(fract(advected.x), clamp(advected.y, 0.002, 0.998));
+}
+
+float cloudCoverageAt(vec2 uv) {
+  float photographedLuminance = globeLuminance(texture2D(uCloudMap, uv).rgb);
+  float photographedClouds = pow(smoothstep(0.08, 0.78, photographedLuminance), 1.2);
+  float proceduralClouds = smoothstep(
+    0.42,
+    0.76,
+    0.5 + 0.28 * sin(uv.x * TWO_PI * 7.0) + 0.22 * sin(uv.y * TWO_PI * 5.0)
+  );
+  return mix(proceduralClouds, photographedClouds, uHasCloudMap);
+}
+
+float advectedCloudCoverage(vec2 uv) {
+  float cycle = max(uCloudCycleSeconds, 1.0);
+  float phase = fract(uCloudTime / cycle);
+  float forwardSample = cloudCoverageAt(advectedCloudUv(uv, phase));
+  float wrappedSample = cloudCoverageAt(advectedCloudUv(uv, phase - 1.0));
+  float wrapBlend = smoothstep(0.15, 0.85, phase);
+  return mix(forwardSample, wrappedSample, wrapBlend);
+}
 
 void main() {
   vec3 normal = normalize(vWorldNormal);
@@ -35,8 +105,10 @@ void main() {
   vec3 proceduralDay = mix(ocean, land, smoothstep(0.42, 0.68, latitudeBand * longitudeBand));
   vec3 proceduralNight = vec3(0.003, 0.008, 0.035) + vec3(0.06, 0.035, 0.005) * longitudeBand * latitudeBand;
 
-  vec3 day = mix(proceduralDay, texture2D(uDayMap, vUv).rgb, uHasDayMap);
-  vec3 night = mix(proceduralNight, texture2D(uNightMap, vUv).rgb, uHasNightMap);
+  vec3 sampledDay = mix(proceduralDay, texture2D(uDayMap, vUv).rgb, uHasDayMap);
+  vec3 sampledNight = mix(proceduralNight, texture2D(uNightMap, vUv).rgb, uHasNightMap);
+  vec3 day = gradeDaylight(sampledDay);
+  vec3 night = gradeNight(sampledNight);
 
   vec3 tangentLongitude = normalize(vec3(-normal.z, 0.0, normal.x));
   vec3 tangentLatitude = normalize(cross(normal, tangentLongitude));
@@ -46,10 +118,23 @@ void main() {
   );
   normal = normalize(mix(normal, detailedNormal, 0.35 * uHasNormalMap));
 
-  float sunlight = smoothstep(-0.12, 0.38, dot(normal, normalize(uSunDirection)));
-  vec3 dayLit = day * (0.18 + 0.82 * sunlight) * (1.0 - uCloudShadow);
-  vec3 nightLit = night * 1.35;
-  vec3 surface = mix(nightLit, dayLit, sunlight);
+  vec3 sunDirection = normalize(uSunDirection);
+  vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+  float sunIncidence = dot(normal, sunDirection);
+  float daylightBlend = smoothstep(-0.10, 0.18, sunIncidence);
+  float diffuse = mix(0.30, 1.0, sqrt(max(sunIncidence, 0.0)));
+
+  float cloudShadow = advectedCloudCoverage(vUv) * uCloudShadowStrength * daylightBlend;
+  vec3 dayLit = day * diffuse * (1.0 - cloudShadow);
+
+  vec3 surface = mix(night, dayLit, daylightBlend);
+
+  float viewRim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.2);
+  float sunlitHaze = smoothstep(-0.18, 0.34, sunIncidence);
+  float twilight = exp(-pow((sunIncidence + 0.055) / 0.16, 2.0));
+  vec3 hazeColor = mix(vec3(0.10, 0.30, 0.72), vec3(0.95, 0.28, 0.08), twilight * 0.62);
+  surface += hazeColor * viewRim * (sunlitHaze * 0.075 + twilight * 0.035);
+
   gl_FragColor = vec4(surface, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

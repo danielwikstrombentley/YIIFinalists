@@ -1,5 +1,4 @@
 import {
-  AdditiveBlending,
   BackSide,
   Color,
   DataTexture,
@@ -52,9 +51,40 @@ const EARTH_SHADER = splitShaderSource(earthShaderSource);
 const CLOUD_SHADER = splitShaderSource(cloudsShaderSource);
 const ATMOSPHERE_SHADER = splitShaderSource(atmosphereShaderSource);
 
+const EARTH_RADIUS = 5;
+const CLOUD_RADIUS = 5.025;
+
+export interface GlobeVisualTuning {
+  dayExposure: number;
+  daySaturation: number;
+  dayContrast: number;
+  nightIntensity: number;
+  nightSaturation: number;
+  cloudOpacity: number;
+  cloudShadowStrength: number;
+  cloudCycleSeconds: number;
+  atmosphereRadius: number;
+  atmosphereIntensity: number;
+}
+
+/** Centralized first-pass values for iterative LED-wall visual review. */
+export const DEFAULT_GLOBE_VISUAL_TUNING: Readonly<GlobeVisualTuning> = {
+  dayExposure: 0.74,
+  daySaturation: 0.76,
+  dayContrast: 0.92,
+  nightIntensity: 1.62,
+  nightSaturation: 1.2,
+  cloudOpacity: 0.48,
+  cloudShadowStrength: 0.18,
+  cloudCycleSeconds: 240,
+  atmosphereRadius: 5.075,
+  atmosphereIntensity: 0.68,
+};
+
 export interface GlobeSceneOptions {
   textureProfileId?: GlobeTextureProfileId;
   idleParameters?: Partial<GlobeIdleParameters>;
+  visualTuning?: Partial<GlobeVisualTuning>;
   /** Injectable for deterministic tests; omitted in non-WebGL environments uses procedural fallback. */
   textureLoader?: TextureLoader | null;
 }
@@ -84,6 +114,10 @@ function defaultTextureLoader(): TextureLoader | null {
   return new TextureLoader();
 }
 
+function positiveFraction(value: number): number {
+  return ((value % 1) + 1) % 1;
+}
+
 /**
  * Three.js scene graph for idle/category/preview presentation (research R3).
  *
@@ -103,33 +137,54 @@ export class GlobeScene {
   readonly atmosphereMaterial: ShaderMaterial;
   readonly earthUniforms: {
     uSunDirection: { value: Vector3 };
-    uCloudShadow: { value: number };
     uDayMap: { value: Texture };
     uNightMap: { value: Texture };
     uNormalMap: { value: Texture };
+    uCloudMap: { value: Texture };
     uHasDayMap: { value: number };
     uHasNightMap: { value: number };
     uHasNormalMap: { value: number };
+    uHasCloudMap: { value: number };
+    uCloudTime: { value: number };
+    uCloudCycleSeconds: { value: number };
+    uCloudShadowStrength: { value: number };
+    uDayExposure: { value: number };
+    uDaySaturation: { value: number };
+    uDayContrast: { value: number };
+    uNightIntensity: { value: number };
+    uNightSaturation: { value: number };
   };
   readonly cloudUniforms: {
-    uCloudPhase: { value: number };
+    uSunDirection: { value: Vector3 };
     uCloudMap: { value: Texture };
     uHasCloudMap: { value: number };
+    uCloudTime: { value: number };
+    uCloudCycleSeconds: { value: number };
+    uCloudOpacity: { value: number };
   };
   readonly atmosphereUniforms: {
-    uGlowColor: { value: Color };
-    uGlowStrength: { value: number };
+    uSunDirection: { value: Vector3 };
+    uRayleighColor: { value: Color };
+    uSunsetColor: { value: Color };
+    uPlanetRadius: { value: number };
+    uAtmosphereRadius: { value: number };
+    uAtmosphereIntensity: { value: number };
   };
   readonly textureProfile: GlobeTextureProfile;
+  readonly visualTuning: GlobeVisualTuning;
 
   private readonly idleParameters: GlobeIdleParameters;
   private readonly idleLoop: GlobeIdleLoop;
   private readonly ownedResources: GlobeResource[] = [];
+  private cloudTimeSeconds: number;
   private disposed = false;
 
   constructor(options: GlobeSceneOptions = {}) {
     this.textureProfile = getGlobeTextureProfile(options.textureProfileId);
     this.idleParameters = { ...DEFAULT_GLOBE_IDLE_PARAMETERS, ...options.idleParameters };
+    this.visualTuning = { ...DEFAULT_GLOBE_VISUAL_TUNING, ...options.visualTuning };
+    this.cloudTimeSeconds =
+      positiveFraction(this.idleParameters.cloudPhase) * this.visualTuning.cloudCycleSeconds;
     this.idleLoop = new GlobeIdleLoop(this.idleParameters);
 
     this.scene = new Scene();
@@ -147,30 +202,50 @@ export class GlobeScene {
     const normalFallback = solidTexture([128, 128, 255, 255], NoColorSpace);
     this.ownedResources.push(dayFallback, nightFallback, cloudFallback, normalFallback);
 
+    const sunDirectionUniform = {
+      value: new Vector3(0.7, 0.25, 0.8).normalize(),
+    };
+    const cloudMapUniform = { value: cloudFallback as Texture };
+    const hasCloudMapUniform = { value: 0 };
+    const cloudTimeUniform = { value: this.cloudTimeSeconds };
+    const cloudCycleUniform = { value: this.visualTuning.cloudCycleSeconds };
+
     this.earthUniforms = {
-      uSunDirection: { value: new Vector3(0.7, 0.25, 0.8).normalize() },
-      uCloudShadow: { value: 0.12 },
+      uSunDirection: sunDirectionUniform,
       uDayMap: { value: dayFallback },
       uNightMap: { value: nightFallback },
       uNormalMap: { value: normalFallback },
+      uCloudMap: cloudMapUniform,
       uHasDayMap: { value: 0 },
       uHasNightMap: { value: 0 },
       uHasNormalMap: { value: 0 },
+      uHasCloudMap: hasCloudMapUniform,
+      uCloudTime: cloudTimeUniform,
+      uCloudCycleSeconds: cloudCycleUniform,
+      uCloudShadowStrength: { value: this.visualTuning.cloudShadowStrength },
+      uDayExposure: { value: this.visualTuning.dayExposure },
+      uDaySaturation: { value: this.visualTuning.daySaturation },
+      uDayContrast: { value: this.visualTuning.dayContrast },
+      uNightIntensity: { value: this.visualTuning.nightIntensity },
+      uNightSaturation: { value: this.visualTuning.nightSaturation },
     };
     this.earthMaterial = new ShaderMaterial({
       uniforms: this.earthUniforms,
       vertexShader: EARTH_SHADER.vertex,
       fragmentShader: EARTH_SHADER.fragment,
     });
-    const earthGeometry = new SphereGeometry(5, 96, 64);
+    const earthGeometry = new SphereGeometry(EARTH_RADIUS, 96, 64);
     this.earth = new Mesh(earthGeometry, this.earthMaterial);
     this.earth.name = 'earth';
     this.globe.add(this.earth);
 
     this.cloudUniforms = {
-      uCloudPhase: { value: this.idleParameters.cloudPhase },
-      uCloudMap: { value: cloudFallback },
-      uHasCloudMap: { value: 0 },
+      uSunDirection: sunDirectionUniform,
+      uCloudMap: cloudMapUniform,
+      uHasCloudMap: hasCloudMapUniform,
+      uCloudTime: cloudTimeUniform,
+      uCloudCycleSeconds: cloudCycleUniform,
+      uCloudOpacity: { value: this.visualTuning.cloudOpacity },
     };
     this.cloudMaterial = new ShaderMaterial({
       uniforms: this.cloudUniforms,
@@ -179,14 +254,18 @@ export class GlobeScene {
       transparent: true,
       depthWrite: false,
     });
-    const cloudGeometry = new SphereGeometry(5.045, 96, 64);
+    const cloudGeometry = new SphereGeometry(CLOUD_RADIUS, 96, 64);
     this.cloudLayer = new Mesh(cloudGeometry, this.cloudMaterial);
     this.cloudLayer.name = 'cloud-layer';
     this.globe.add(this.cloudLayer);
 
     this.atmosphereUniforms = {
-      uGlowColor: { value: new Color('#5eb9ff') },
-      uGlowStrength: { value: 1.15 },
+      uSunDirection: sunDirectionUniform,
+      uRayleighColor: { value: new Color('#4d88bd') },
+      uSunsetColor: { value: new Color('#e47b58') },
+      uPlanetRadius: { value: EARTH_RADIUS },
+      uAtmosphereRadius: { value: this.visualTuning.atmosphereRadius },
+      uAtmosphereIntensity: { value: this.visualTuning.atmosphereIntensity },
     };
     this.atmosphereMaterial = new ShaderMaterial({
       uniforms: this.atmosphereUniforms,
@@ -195,9 +274,8 @@ export class GlobeScene {
       transparent: true,
       depthWrite: false,
       side: BackSide,
-      blending: AdditiveBlending,
     });
-    const atmosphereGeometry = new SphereGeometry(5.22, 96, 64);
+    const atmosphereGeometry = new SphereGeometry(this.visualTuning.atmosphereRadius, 96, 64);
     this.atmosphere = new Mesh(atmosphereGeometry, this.atmosphereMaterial);
     this.atmosphere.name = 'atmosphere';
     this.globe.add(this.atmosphere);
@@ -220,7 +298,18 @@ export class GlobeScene {
   setIdleParameters(parameters: Partial<GlobeIdleParameters>): void {
     if (this.disposed) return;
     Object.assign(this.idleParameters, parameters);
+    if (parameters.cloudPhase !== undefined && Number.isFinite(parameters.cloudPhase)) {
+      this.cloudTimeSeconds =
+        positiveFraction(parameters.cloudPhase) * this.visualTuning.cloudCycleSeconds;
+    }
     this.syncVisualState();
+  }
+
+  /** Advances shader time from the adapter's one shared ticker; this creates no timer of its own. */
+  advance(deltaSeconds: number): void {
+    if (this.disposed || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
+    this.cloudTimeSeconds += deltaSeconds;
+    this.cloudUniforms.uCloudTime.value = this.cloudTimeSeconds;
   }
 
   /** Starts only the GSAP parameter timeline; the adapter-owned ticker performs rendering. */
@@ -275,15 +364,13 @@ export class GlobeScene {
 
   private syncVisualState(): void {
     this.globe.rotation.y = this.idleParameters.rotationY;
-    this.cloudLayer.rotation.y = this.idleParameters.cloudPhase * Math.PI * 2;
-    this.cloudUniforms.uCloudPhase.value = this.idleParameters.cloudPhase;
+    this.cloudLayer.rotation.y = 0;
+    this.cloudUniforms.uCloudTime.value = this.cloudTimeSeconds;
 
     const sunDirection = this.earthUniforms.uSunDirection.value;
     sunDirection
       .set(Math.cos(this.idleParameters.sunOrbit), 0.22, Math.sin(this.idleParameters.sunOrbit))
       .normalize();
-    this.earthUniforms.uCloudShadow.value = 0.1 + this.cloudUniforms.uCloudPhase.value * 0.06;
-    this.atmosphereUniforms.uGlowStrength.value = 1.05 + sunDirection.y * 0.25;
   }
 
   private loadTextureProfile(textureLoader: TextureLoader): void {
@@ -314,6 +401,7 @@ export class GlobeScene {
 
     texture.wrapS = RepeatWrapping;
     texture.colorSpace = assetId === 'day' || assetId === 'night' ? SRGBColorSpace : NoColorSpace;
+    texture.anisotropy = 4;
     texture.needsUpdate = true;
 
     switch (assetId) {

@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import type { WebGLRenderer } from 'three';
+import { AgXToneMapping, SRGBColorSpace, type WebGLRenderer } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import {
   GlobeRendererAdapter,
@@ -31,6 +31,23 @@ function createRenderer() {
 }
 
 describe('GlobeRendererAdapter', () => {
+  it('uses an explicit display color space and cinematic tone mapping', () => {
+    const ticker = new Ticker();
+    const renderer = createRenderer();
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      rendererFactory: () => renderer,
+    });
+
+    expect(renderer.outputColorSpace).toBe(SRGBColorSpace);
+    expect(renderer.toneMapping).toBe(AgXToneMapping);
+    expect(renderer.toneMappingExposure).toBe(1);
+
+    adapter.dispose();
+    ticker.stop();
+  });
+
   it('owns one ticker registration while active and renders scene + marker updates through it', () => {
     const ticker = new Ticker();
     const renderer = createRenderer();
