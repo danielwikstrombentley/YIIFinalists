@@ -47,24 +47,27 @@ function sampleLon(categoryIndex: number, projectIndex: number): number {
 function buildSampleProject(categoryIndex: number, projectIndex: number): Project {
   const categoryId = `cat-${categoryIndex + 1}`;
   const id = `${categoryId}-proj-${projectIndex + 1}`;
+  // A deterministic non-city fixture lets the US2 browser journey prove that landing framing is
+  // content-driven rather than a city-specific renderer default.
+  const isCorridorFixture = categoryIndex === 0 && projectIndex === 1;
   return {
     id,
     name: `Sample Project ${categoryIndex + 1}.${projectIndex + 1}`,
     organisation: 'Sample Organisation',
     country: 'Sampleland',
-    location: 'Sample City',
+    location: isCorridorFixture ? 'Sample Corridor' : 'Sample City',
     categoryId,
     marker: { lat: sampleLat(categoryIndex), lon: sampleLon(categoryIndex, projectIndex) },
     geographicFraming: {
-      scopeType: 'city',
+      scopeType: isCorridorFixture ? 'corridor' : 'city',
       landingCamera: {
         destination: {
           lat: sampleLat(categoryIndex),
           lon: sampleLon(categoryIndex, projectIndex),
-          height: 400,
+          height: isCorridorFixture ? 1_200 : 400,
         },
         orientation: { heading: 0, pitch: -30, roll: 0 },
-        range: 800,
+        range: isCorridorFixture ? 16_000 : 800,
       },
       previewEmphasis: { markerScale: 1.2 },
       tileTier: 'safe-composition',

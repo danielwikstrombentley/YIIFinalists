@@ -30,8 +30,8 @@ describe('kiosk server', () => {
       staticRoot,
       contentRoot,
       logDir,
-      ionAccessToken: undefined,
-      ionGoogleTilesAssetId: undefined,
+      ionAccessToken: 'test-ion-token',
+      ionGoogleTilesAssetId: '123',
     };
     kiosk = createKioskServer(config);
     await kiosk.listen();
@@ -56,6 +56,16 @@ describe('kiosk server', () => {
     const response = await fetch(`${baseUrl}/content/channels.json`);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ staging: '1.0.0' });
+  });
+
+  it('serves Cesium credentials only from local runtime configuration, never a bundled source file', async () => {
+    const response = await fetch(`${baseUrl}/runtime-config.json`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({
+      ionAccessToken: 'test-ion-token',
+      ionGoogleTilesAssetId: '123',
+    });
   });
 
   it('accepts a valid telemetry batch and appends it', async () => {

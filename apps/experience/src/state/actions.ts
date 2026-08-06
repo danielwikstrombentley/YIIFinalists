@@ -98,23 +98,28 @@ export const retargetPreview = assign<
 
 /** State-entry adapter wiring for idle: all markers visible and the seamless globe loop active. */
 export function activateGlobeIdle({ context }: { context: ExperienceContext }): void {
+  context.runtime.cesium?.reset();
   const globe = context.runtime.globe?.adapter;
   if (!globe) return;
+  globe.start();
   const handle = globe.enterIdle();
   context.cleanup.register('globe-idle', () => handle.cancel());
 }
 
 /** State-entry adapter wiring for category preview: filter to three markers and auto-preview first. */
 export function activateGlobeCategoryPreview({ context }: { context: ExperienceContext }): void {
+  context.runtime.cesium?.reset();
   const globe = context.runtime.globe?.adapter;
   const categoryId = context.activeCategoryId;
   const projectId = context.previewedProjectId;
   if (!globe || !categoryId || !projectId) return;
 
+  globe.start();
   const categoryHandle = globe.setCategoryFilter(categoryId);
   context.cleanup.register('globe-category', () => categoryHandle.cancel());
   const previewHandle = globe.previewCategoryProject(projectId);
   context.cleanup.register('globe-preview', () => previewHandle.cancel());
+  prewarmCesiumPreview(context);
 }
 
 /** Retargets the live globe camera after a valid hover action without queuing obsolete destinations. */
@@ -124,6 +129,13 @@ export function activateGlobePreviewRetarget({ context }: { context: ExperienceC
   if (!globe || !projectId) return;
   const handle = globe.previewProject(projectId);
   context.cleanup.register('globe-preview', () => handle.cancel());
+  prewarmCesiumPreview(context);
+}
+
+function prewarmCesiumPreview(context: ExperienceContext): void {
+  const projectId = context.previewedProjectId;
+  const project = projectId ? context.runtime.globe?.getProject(projectId) : undefined;
+  if (project) context.runtime.cesium?.prewarm.warm(project);
 }
 
 export const beginTransitionToProject = assign<
@@ -137,6 +149,80 @@ export const beginTransitionToProject = assign<
   generation: nextGeneration(context.generation),
 }));
 
+interface HandoverActionSelf {
+  send(event: ExperienceEvent): void;
+  getSnapshot(): { context: ExperienceContext };
+}
+
+function isCurrentHandoverGeneration(self: HandoverActionSelf, generation: number): boolean {
+  return self.getSnapshot().context.generation === generation;
+}
+
+function reportHandoverFailure(self: HandoverActionSelf, generation: number, reason: string): void {
+  if (!isCurrentHandoverGeneration(self, generation)) return;
+  self.send({ type: 'internal.handoverToProjectFailed', generation, reason });
+}
+
+function launchForwardHandover(
+  context: ExperienceContext,
+  self: HandoverActionSelf,
+  generation: number,
+): void {
+  const projectId = context.selectedProjectId;
+  const project = projectId ? context.runtime.globe?.getProject(projectId) : undefined;
+  const handover = context.runtime.cesium?.handover;
+  if (!project || !handover) {
+    reportHandoverFailure(
+      self,
+      generation,
+      'The selected project or Cesium handover runtime is unavailable.',
+    );
+    return;
+  }
+
+  const operation = handover.startForward(project);
+  context.cleanup.register('handover-forward', () => operation.cancel());
+  void operation.completion.then((result) => {
+    if (result.status === 'completed' || result.status === 'fallback') {
+      if (isCurrentHandoverGeneration(self, generation)) {
+        self.send({ type: 'internal.handoverToProjectComplete', generation });
+      }
+      return;
+    }
+    // Expected navigation interruption resolves as `cancelled` without a reason. A controller
+    // failure includes its reason and returns safely to the already-active category preview.
+    if (result.reason) reportHandoverFailure(self, generation, result.reason);
+  });
+}
+
+/** Starts the state-owned forward handover and reports only generation-checked terminal events. */
+export function startForwardHandover({
+  context,
+  self,
+}: {
+  context: ExperienceContext;
+  self: HandoverActionSelf;
+}): void {
+  const generation = context.generation;
+  // Adapter-free state tests deliberately drive completion events themselves. In the mounted
+  // browser shell a dynamically loaded renderer advertises `cesiumReady`; wait for it rather
+  // than letting a large Cesium module delay first paint or dropping a valid confirmation.
+  if (!context.runtime.cesium) {
+    const ready = context.runtime.cesiumReady;
+    if (!ready) return;
+    void ready.then((presentation) => {
+      if (!isCurrentHandoverGeneration(self, generation)) return;
+      if (!presentation) {
+        reportHandoverFailure(self, generation, 'Cesium presentation startup failed.');
+        return;
+      }
+      launchForwardHandover(context, self, generation);
+    });
+    return;
+  }
+  launchForwardHandover(context, self, generation);
+}
+
 export const enterProjectLanding = assign<
   ExperienceContext,
   ExperienceEvent,
@@ -144,6 +230,49 @@ export const enterProjectLanding = assign<
   ExperienceEvent,
   never
 >(({ context }) => ({
+  activeContentPosition: null,
+  activeSequenceId: null,
+  activeVoiceoverId: null,
+  generation: nextGeneration(context.generation),
+}));
+
+/** Landing owns option-media warming; exiting the state cancels it through CleanupRegistry. */
+export function preloadLandingOptionAssets({ context }: { context: ExperienceContext }): void {
+  const projectId = context.selectedProjectId;
+  const project = projectId ? context.runtime.globe?.getProject(projectId) : undefined;
+  if (!project) return;
+  const handle = context.runtime.cesium?.preloadLandingOptions(project);
+  if (handle) context.cleanup.register('landing-option-preloads', () => handle.cancel());
+}
+
+/** Fatal forward-handover failure returns to the pre-existing preview without stale selection. */
+export const returnToPreviewAfterHandoverFailure = assign<
+  ExperienceContext,
+  ExperienceEvent,
+  undefined,
+  ExperienceEvent,
+  never
+>(({ context, event }) => ({
+  selectedProjectId: null,
+  activeContentPosition: null,
+  activeSequenceId: null,
+  activeVoiceoverId: null,
+  lastError: {
+    atState: 'transitionToProject',
+    reason: event.type === 'internal.handoverToProjectFailed' ? event.reason : 'Unknown failure',
+  },
+  generation: nextGeneration(context.generation),
+}));
+
+/** Leaving an interrupted forward transition by back must also clear its selected-project ref. */
+export const returnToPreview = assign<
+  ExperienceContext,
+  ExperienceEvent,
+  undefined,
+  ExperienceEvent,
+  never
+>(({ context }) => ({
+  selectedProjectId: null,
   activeContentPosition: null,
   activeSequenceId: null,
   activeVoiceoverId: null,

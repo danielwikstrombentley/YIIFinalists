@@ -11,10 +11,14 @@ import {
   enterCategoryPreview,
   enterProjectLanding,
   enterRecovering,
+  preloadLandingOptionAssets,
   registerReleaseCategories,
   requestCategorySwitch,
   resetToIdle,
   retargetPreview,
+  returnToPreview,
+  returnToPreviewAfterHandoverFailure,
+  startForwardHandover,
 } from './actions.js';
 import { createCleanupRegistry } from './cleanup-registry.js';
 import { isCurrentGeneration, outranks } from './guards.js';
@@ -82,7 +86,7 @@ export const experienceMachine = setup({
             'preview.hover': { actions: [retargetPreview, activateGlobePreviewRetarget] },
             'project.select': {
               target: '#experience.transitionToProject',
-              actions: [beginTransitionToProject],
+              actions: [beginTransitionToProject, startForwardHandover],
             },
             'category.select': {
               target: 'preview',
@@ -99,7 +103,12 @@ export const experienceMachine = setup({
         'internal.handoverToProjectComplete': {
           target: 'projectLanding',
           guard: ({ context, event }) => isCurrentGeneration(context, event),
-          actions: [enterProjectLanding],
+          actions: [enterProjectLanding, preloadLandingOptionAssets],
+        },
+        'internal.handoverToProjectFailed': {
+          target: 'categoryActive.preview',
+          guard: ({ context, event }) => isCurrentGeneration(context, event),
+          actions: [returnToPreviewAfterHandoverFailure],
         },
         'category.select': {
           target: 'categoryActive.preview',
@@ -109,6 +118,7 @@ export const experienceMachine = setup({
         'nav.back': {
           target: 'categoryActive.preview',
           guard: ({ event }) => outranks(event, 'project.select'),
+          actions: [returnToPreview],
         },
       },
     },

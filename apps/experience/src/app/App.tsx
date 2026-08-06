@@ -56,7 +56,15 @@ function BootOrchestrator() {
       ...deps,
       onReleaseLoaded: async (release) => {
         const projects = await deps.loader.loadAllProjects();
-        actor.getSnapshot().context.runtime.setGlobe(createGlobePresentation(projects));
+        actor
+          .getSnapshot()
+          .context.runtime.setGlobe(
+            createGlobePresentation(
+              projects,
+              (packageRelativePath) =>
+                `/content/releases/${release.version}/${packageRelativePath}`,
+            ),
+          );
         categoryIdsRef.current = release.categories.map(({ id }) => id);
       },
     });
