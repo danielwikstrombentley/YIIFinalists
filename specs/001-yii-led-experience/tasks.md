@@ -501,8 +501,8 @@ cancels safely (spec US2).
   - Tests: RTL unit: renders only in landing states, no story/menu content; treatment params applied/reverted cleanly.
   - Accept: FR-009 landing composition complete (no narration, no content menu).
 
-- [ ] T035 [US2] Wire machine states transitionToProject + projectLanding (failure destinations, mid-transition interruption) in apps/experience/src/state/machine.ts
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T035-us2-wiring` · PR — · Blockers —
+- [~] T035 [US2] Wire machine states transitionToProject + projectLanding (failure destinations, mid-transition interruption) in apps/experience/src/state/machine.ts
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: `project.select` → transitionToProject invoking HandoverController actor; success → projectLanding (hero + option-asset preload trigger); failure → R4 fallback tier → fallback landing or back to preview per data-model destinations; higher-priority interruption cancels handover safely; landing exit stops preloads + clears overlay.
   - Files: `apps/experience/src/state/machine.ts`
   - Deps: T033, T034, T029
