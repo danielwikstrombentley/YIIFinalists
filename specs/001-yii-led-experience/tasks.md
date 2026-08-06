@@ -509,8 +509,8 @@ cancels safely (spec US2).
   - Tests: T029 green; T010 matrix rows for transitionToProject/projectLanding pass.
   - Accept: US2 scenarios 1–4 pass; SC-003 helper green in CI.
 
-- [ ] T036 [P] [US2] Add renderer/handover integration tests (readiness-gated swap, watchdog fallback, cancel mid-beat, stale completions) in apps/experience/tests/renderers/handover.test.ts
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T036-handover-tests` · PR — · Blockers —
+- [~] T036 [P] [US2] Add renderer/handover integration tests (readiness-gated swap, watchdog fallback, cancel mid-beat, stale completions) in apps/experience/tests/renderers/handover.test.ts
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: Integration tests with mocked renderer readiness: swap never fires before readiness; watchdog exit to fallback tier on missed readiness; cancel at each beat returns both renderers to known state; stale generation-token completions discarded; repeated handover cycles leak-free.
   - Files: `apps/experience/tests/renderers/handover.test.ts`
   - Deps: T033
