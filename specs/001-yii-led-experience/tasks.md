@@ -447,12 +447,12 @@ content, no narration).
 no obvious renderer switch, correct landing composition + metadata; mid-transition interruption
 cancels safely (spec US2).
 **Phase branch**: `phase/001-ph4-us2-handover-landing` · **Depends on**: PH3
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: — · Implementer model(s): agent:GPT-5.6 Terra (OpenAI) · Review model: — · Verdict: —`
 
 ### Verification for US2 (red-first) ⚠️
 
-- [ ] T029 [P] [US2] Author failing E2E spec for confirm → concealed handover → landing (frame-capture black/stale detection, mid-transition interruption) in apps/experience/tests/e2e/us2-confirm-handover.spec.ts *(red-first)*
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T029-us2-e2e` · PR — · Blockers —
+- [~] T029 [P] [US2] Author failing E2E spec for confirm → concealed handover → landing (frame-capture black/stale detection, mid-transition interruption) in apps/experience/tests/e2e/us2-confirm-handover.spec.ts *(red-first)*
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: US2 scenarios 1–4: confirm → screenshot sampling through the transition asserting no black/blank frames and no loading UI; landing shows name/organisation/location only, no narration/menu; corridor/region-scope fixture project uses its own framing; `category.select` mid-transition cancels safely to new preview.
   - Files: `apps/experience/tests/e2e/us2-confirm-handover.spec.ts`
   - Deps: T028
