@@ -63,12 +63,12 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
     await expect(hero).toContainText('Sample Project 1.1');
     await expect(hero).toContainText('Sample Organisation');
     await expect(hero).toContainText('Sample City');
-    await expect(page.locator('[data-testid="public-loading"], [data-testid="story-content"]')).toHaveCount(
-      0,
-    );
-    await expect(page.locator('[data-testid="voiceover-caption"], [data-testid="public-menu"]')).toHaveCount(
-      0,
-    );
+    await expect(
+      page.locator('[data-testid="public-loading"], [data-testid="story-content"]'),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('[data-testid="voiceover-caption"], [data-testid="public-menu"]'),
+    ).toHaveCount(0);
   });
 
   test('US2 scenario 2: landing contains no narration or content controls before a position is selected', async ({
@@ -80,10 +80,14 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
 
     await expect(page.getByTestId('landing-hero')).toBeVisible();
     await expect(page.locator('[data-testid="voiceover-player"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="content-option"], [data-testid="replay-control"]')).toHaveCount(0);
+    await expect(
+      page.locator('[data-testid="content-option"], [data-testid="replay-control"]'),
+    ).toHaveCount(0);
   });
 
-  test('US2 scenario 3: a corridor project lands using its own approved framing', async ({ page }) => {
+  test('US2 scenario 3: a corridor project lands using its own approved framing', async ({
+    page,
+  }) => {
     await openIdleStage(page);
     await previewProject(page, 'cat-1-proj-2');
     await confirmPreview(page);
@@ -110,15 +114,24 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
     await openIdleStage(page);
     await previewProject(page);
     await injectAction(page, 'project.select', {});
-    await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"transitionToProject"');
+    await expect(page.locator('#stage')).toHaveAttribute(
+      'data-machine-state',
+      '"transitionToProject"',
+    );
     await injectAction(page, 'category.select', { categoryId: 'cat-2' });
 
     await expect(page.locator('#stage')).toHaveAttribute(
       'data-machine-state',
       '{"categoryActive":"preview"}',
     );
-    await expect(page.getByTestId('preview-metadata')).toHaveAttribute('data-project-id', 'cat-2-proj-1');
-    await expect(page.getByTestId('handover-controller')).toHaveAttribute('data-status', 'cancelled');
+    await expect(page.getByTestId('preview-metadata')).toHaveAttribute(
+      'data-project-id',
+      'cat-2-proj-1',
+    );
+    await expect(page.getByTestId('handover-controller')).toHaveAttribute(
+      'data-status',
+      'cancelled',
+    );
     await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(3);
   });
 });

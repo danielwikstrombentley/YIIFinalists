@@ -47,7 +47,8 @@ async function captureStageFrame(page: Page): Promise<CapturedFrame> {
         const green = data[pixelOffset + 1] ?? 0;
         const blue = data[pixelOffset + 2] ?? 0;
         const luma = ((red * 0.2126 + green * 0.7152 + blue * 0.0722) * alpha) / 255;
-        const cell = Math.min(rows - 1, Math.floor((y / height) * rows)) * columns +
+        const cell =
+          Math.min(rows - 1, Math.floor((y / height) * rows)) * columns +
           Math.min(columns - 1, Math.floor((x / width) * columns));
 
         totalLuma += luma;
