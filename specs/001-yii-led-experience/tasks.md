@@ -451,7 +451,7 @@ cancels safely (spec US2).
 
 ### Verification for US2 (red-first) ⚠️
 
-- [R] T029 [P] [US2] Author failing E2E spec for confirm → concealed handover → landing (frame-capture black/stale detection, mid-transition interruption) in apps/experience/tests/e2e/us2-confirm-handover.spec.ts *(red-first)*
+- [x] T029 [P] [US2] Author failing E2E spec for confirm → concealed handover → landing (frame-capture black/stale detection, mid-transition interruption) in apps/experience/tests/e2e/us2-confirm-handover.spec.ts *(red-first)*
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: US2 scenarios 1–4: confirm → screenshot sampling through the transition asserting no black/blank frames and no loading UI; landing shows name/organisation/location only, no narration/menu; corridor/region-scope fixture project uses its own framing; `category.select` mid-transition cancels safely to new preview.
   - Files: `apps/experience/tests/e2e/us2-confirm-handover.spec.ts`
@@ -461,7 +461,7 @@ cancels safely (spec US2).
 
 ### Implementation for US2
 
-- [R] T030 [P] [US2] Implement CesiumStageAdapter (viewer, ion Google-tiles tileset lifecycle, fallback tiers) in apps/experience/src/renderers/cesium/CesiumStageAdapter.ts
+- [x] T030 [P] [US2] Implement CesiumStageAdapter (viewer, ion Google-tiles tileset lifecycle, fallback tiers) in apps/experience/src/renderers/cesium/CesiumStageAdapter.ts
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: Cesium viewer per research R4/R6: `globe:false`, default UI off, `useDefaultRenderLoop:false` (render via single ticker); `Cesium3DTileset.fromIonAssetId` with configured asset id + token from kiosk config (never bundled); three-tier fallback (photorealistic → local fallback scene from package → safe composition) with latency/failure-triggered degradation events; tile-cache ceiling per R14; owns/disposes tileset + primitives.
   - Files: `apps/experience/src/renderers/cesium/{CesiumStageAdapter.ts,tileset.ts,fallback-tiers.ts}`
@@ -469,7 +469,7 @@ cancels safely (spec US2).
   - Tests: unit: tier degradation on injected tile failure/latency without blanking; dispose leak-free; renders only when active.
   - Accept: Principle IV documented-fallback behaviour implemented; credentials only from kiosk config (QR-008).
 
-- [R] T031 [US2] Implement the camera flight adapter (native flyTo with complete/cancel, no concurrent GSAP camera writes) in apps/experience/src/renderers/cesium/camera-flight.ts
+- [x] T031 [US2] Implement the camera flight adapter (native flyTo with complete/cancel, no concurrent GSAP camera writes) in apps/experience/src/renderers/cesium/camera-flight.ts
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: Promise-based wrapper over `camera.flyTo` exposing `complete`/`cancel`; guard flag preventing any GSAP mutation of the Cesium camera while a native flight is active (Principle II); flights parameterised from `GeographicFraming.landingCamera`.
   - Files: `apps/experience/src/renderers/cesium/camera-flight.ts`
@@ -477,7 +477,7 @@ cancels safely (spec US2).
   - Tests: unit: cancel mid-flight resolves cancelled (not complete); concurrent-writer guard throws in dev/asserts in test.
   - Accept: no competing camera writers possible by construction (quality gate 3).
 
-- [R] T032 [US2] Implement preview-time prewarm + landing preload (FR-030 part 1) in apps/experience/src/renderers/cesium/prewarm.ts
+- [x] T032 [US2] Implement preview-time prewarm + landing preload (FR-030 part 1) in apps/experience/src/renderers/cesium/prewarm.ts
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: On preview change, warm the previewed project's Cesium target off-screen (tileset target readiness) and stage landing assets via the content preload cache; cancellation on preview retarget/category change; readiness signal consumed by HandoverController.
   - Files: `apps/experience/src/renderers/cesium/prewarm.ts`, `apps/experience/src/content/preload.ts`
@@ -485,7 +485,7 @@ cancels safely (spec US2).
   - Tests: unit: retarget cancels prior warm; readiness reported; cache reuse (no double decode).
   - Accept: R5 pre-warm beat has its data source; eviction on category change per R14.
 
-- [R] T033 [US2] Implement HandoverController forward choreography (pre-warm → approach → cover swap → reveal, watchdog, cancel path) in apps/experience/src/renderers/handover/HandoverController.ts
+- [x] T033 [US2] Implement HandoverController forward choreography (pre-warm → approach → cover swap → reveal, watchdog, cancel path) in apps/experience/src/renderers/handover/HandoverController.ts
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: GSAP-choreographed sequence per research R5 over stacked canvases: readiness-gated swap during full atmospheric cover; watchdog enforcing max cover duration → exit to fallback tier instead of holding/blanking; cancel path returns both renderers to known state; generation tokens discard stale completions; both renderers render simultaneously only inside the controller's window.
   - Files: `apps/experience/src/renderers/handover/HandoverController.ts`
@@ -493,7 +493,7 @@ cancels safely (spec US2).
   - Tests: covered by T036.
   - Accept: FR-008 concealment guarantees implemented; interruption at any beat routes through cancel path.
 
-- [R] T034 [P] [US2] Build the project landing hero overlay + geographic canvas treatment hooks in apps/experience/src/ui/LandingHero.tsx
+- [x] T034 [P] [US2] Build the project landing hero overlay + geographic canvas treatment hooks in apps/experience/src/ui/LandingHero.tsx
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: Hero overlay (name/organisation/location) on design tokens; canvas treatment module applying `GeographicFraming.canvasTreatment` (darken/soften/reframe/highlight/restore — FR-024) as Cesium primitives/post-process; boundaries/routes/regions overlays from framing GeoJSON refs.
   - Files: `apps/experience/src/ui/LandingHero.tsx`, `apps/experience/src/renderers/cesium/treatment.ts`
@@ -501,7 +501,7 @@ cancels safely (spec US2).
   - Tests: RTL unit: renders only in landing states, no story/menu content; treatment params applied/reverted cleanly.
   - Accept: FR-009 landing composition complete (no narration, no content menu).
 
-- [R] T035 [US2] Wire machine states transitionToProject + projectLanding (failure destinations, mid-transition interruption) in apps/experience/src/state/machine.ts
+- [x] T035 [US2] Wire machine states transitionToProject + projectLanding (failure destinations, mid-transition interruption) in apps/experience/src/state/machine.ts
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: `project.select` → transitionToProject invoking HandoverController actor; success → projectLanding (hero + option-asset preload trigger); failure → R4 fallback tier → fallback landing or back to preview per data-model destinations; higher-priority interruption cancels handover safely; landing exit stops preloads + clears overlay.
   - Files: `apps/experience/src/state/machine.ts`
@@ -509,7 +509,7 @@ cancels safely (spec US2).
   - Tests: T029 green; T010 matrix rows for transitionToProject/projectLanding pass.
   - Accept: US2 scenarios 1–4 pass; SC-003 helper green in CI.
 
-- [R] T036 [P] [US2] Add renderer/handover integration tests (readiness-gated swap, watchdog fallback, cancel mid-beat, stale completions) in apps/experience/tests/renderers/handover.test.ts
+- [x] T036 [P] [US2] Add renderer/handover integration tests (readiness-gated swap, watchdog fallback, cancel mid-beat, stale completions) in apps/experience/tests/renderers/handover.test.ts
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR #8 · Blockers —
   - Do: Integration tests with mocked renderer readiness: swap never fires before readiness; watchdog exit to fallback tier on missed readiness; cancel at each beat returns both renderers to known state; stale generation-token completions discarded; repeated handover cycles leak-free.
   - Files: `apps/experience/tests/renderers/handover.test.ts`
