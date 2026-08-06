@@ -69,16 +69,16 @@ async function configureFromKiosk(stage: CesiumStageAdapter): Promise<void> {
  * globe have mounted. The machine decides when each operation runs; this module owns only the
  * DOM/GPU/preload resources and exposes cancellable handles to that machine.
  */
-export async function createCesiumPresentation(
+export function createCesiumPresentation(
   stageElement: HTMLElement,
   globe: GlobePresentation,
-): Promise<CesiumPresentation> {
+): CesiumPresentation {
   const stage = new CesiumStageAdapter();
   stage.start(stageElement);
-  // Do not make the renderer available to state actions until its kiosk-local configuration has
-  // had a chance to arrive. `startForwardHandover()` already waits for `cesiumReady`, so this
-  // closes the startup race where an early confirmation could incorrectly select a fallback tier.
-  await configureFromKiosk(stage);
+  // The renderer and its safe surface are available synchronously, preserving a visible stage
+  // while configuration loads. State-owned preview/handover work waits for this promise before
+  // it asks the adapter to choose a streamed or fallback tier.
+  const configurationReady = configureFromKiosk(stage);
 
   const preloadManager = new PreloadManager();
   const prewarm = new CesiumPrewarmController({
@@ -111,11 +111,23 @@ export async function createCesiumPresentation(
     cesium: stage,
     prewarm,
   });
+  let prewarmGeneration = 0;
 
   return {
     stage,
     prewarm,
     handover,
+    configurationReady,
+    prewarmPreview(project) {
+      const generation = ++prewarmGeneration;
+      void configurationReady.then(() => {
+        // Category/hover changes can arrive while configuration is still in flight. Only the
+        // current preview gets to warm tiles; `CesiumPrewarmController.warm()` cancels the prior
+        // real warm after configuration has become available.
+        if (generation !== prewarmGeneration) return;
+        prewarm.warm(project);
+      });
+    },
     preloadLandingOptions(project) {
       const targets = optionAssetTargets(project);
       for (const target of targets) {
@@ -135,11 +147,13 @@ export async function createCesiumPresentation(
       };
     },
     reset() {
+      prewarmGeneration += 1;
       prewarm.cancel();
       preloadManager.clear();
       stage.reset();
     },
     dispose() {
+      prewarmGeneration += 1;
       handover.dispose();
       prewarm.dispose();
       preloadManager.clear();

@@ -47,12 +47,12 @@ export function StageMount() {
     // dependency, whereas boot/idle/category preview are purely globe-owned; a queued
     // `project.select` waits for this promise in the machine action rather than being dropped.
     void import('./cesium-presentation.js')
-      .then(async ({ createCesiumPresentation }) => {
+      .then(({ createCesiumPresentation }) => {
         if (disposed) {
           resolveReady(null);
           return;
         }
-        const presentation = await createCesiumPresentation(stage, globe);
+        const presentation = createCesiumPresentation(stage, globe);
         if (disposed) {
           presentation.dispose();
           resolveReady(null);

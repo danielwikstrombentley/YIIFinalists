@@ -135,7 +135,7 @@ export function activateGlobePreviewRetarget({ context }: { context: ExperienceC
 function prewarmCesiumPreview(context: ExperienceContext): void {
   const projectId = context.previewedProjectId;
   const project = projectId ? context.runtime.globe?.getProject(projectId) : undefined;
-  if (project) context.runtime.cesium?.prewarm.warm(project);
+  if (project) context.runtime.cesium?.prewarmPreview(project);
 }
 
 export const beginTransitionToProject = assign<
@@ -195,6 +195,24 @@ function launchForwardHandover(
   });
 }
 
+function launchConfiguredForwardHandover(
+  context: ExperienceContext,
+  self: HandoverActionSelf,
+  generation: number,
+  presentation: NonNullable<ExperienceContext['runtime']['cesium']>,
+): void {
+  const launchIfCurrent = (): void => {
+    if (!isCurrentHandoverGeneration(self, generation)) return;
+    if (context.runtime.cesium !== presentation) return;
+    launchForwardHandover(context, self, generation);
+  };
+
+  // Configuration retrieval is intentionally fail-soft: `configureFromKiosk()` catches endpoint
+  // failures so the normal path resolves, while this rejection handler still preserves the
+  // adapter's documented fallback behaviour if a future config source rejects.
+  void presentation.configurationReady.then(launchIfCurrent, launchIfCurrent);
+}
+
 /** Starts the state-owned forward handover and reports only generation-checked terminal events. */
 export function startForwardHandover({
   context,
@@ -216,11 +234,11 @@ export function startForwardHandover({
         reportHandoverFailure(self, generation, 'Cesium presentation startup failed.');
         return;
       }
-      launchForwardHandover(context, self, generation);
+      launchConfiguredForwardHandover(context, self, generation, presentation);
     });
     return;
   }
-  launchForwardHandover(context, self, generation);
+  launchConfiguredForwardHandover(context, self, generation, context.runtime.cesium);
 }
 
 export const enterProjectLanding = assign<
