@@ -18,6 +18,19 @@ export interface HandoverOperation {
   cancel(): void;
 }
 
+/**
+ * The minimal GSAP timeline surface owned by a renderer handover. An injectable factory makes
+ * choreography tests deterministic while preserving GSAP as the only production motion engine.
+ */
+export interface HandoverTimeline {
+  set(target: HTMLElement, vars: Record<string, string | number>): HandoverTimeline;
+  to(target: HTMLElement, vars: Record<string, string | number>): HandoverTimeline;
+  call(callback: () => void): HandoverTimeline;
+  play(): HandoverTimeline;
+  pause(): HandoverTimeline;
+  kill(): void;
+}
+
 /** The globe port makes the controller the sole owner of the two-renderer overlap window. */
 export interface HandoverGlobeStage {
   element: HTMLElement;
@@ -49,12 +62,13 @@ export interface HandoverControllerOptions {
   durationMs?: number;
   maxCoverDurationMs?: number;
   onStatusChange?: (status: HandoverStatus) => void;
+  timelineFactory?: () => HandoverTimeline;
 }
 
 interface ActiveHandover {
   project: CesiumStageProject;
   generation: number;
-  timeline: gsap.core.Timeline;
+  timeline: HandoverTimeline;
   completion: Promise<HandoverResult>;
   settled: boolean;
   resolve(result: HandoverResult): void;
@@ -116,6 +130,7 @@ export class HandoverController {
   private readonly durationMs: number;
   private readonly maxCoverDurationMs: number;
   private readonly onStatusChange: ((status: HandoverStatus) => void) | undefined;
+  private readonly timelineFactory: () => HandoverTimeline;
   private active: ActiveHandover | null = null;
   private generation = 0;
   private status: HandoverStatus = 'idle';
@@ -128,6 +143,9 @@ export class HandoverController {
     this.durationMs = options.durationMs ?? MOTION_DURATIONS_MS.handover;
     this.maxCoverDurationMs = options.maxCoverDurationMs ?? 1_000;
     this.onStatusChange = options.onStatusChange;
+    this.timelineFactory =
+      options.timelineFactory ??
+      (() => gsap.timeline({ paused: true }) as unknown as HandoverTimeline);
     this.cover = createAtmosphericCover(options.stage);
   }
 
@@ -147,7 +165,7 @@ export class HandoverController {
     const completion = new Promise<HandoverResult>((resolveCompletion) => {
       resolve = resolveCompletion;
     });
-    const timeline = gsap.timeline({ paused: true });
+    const timeline = this.timelineFactory();
     const active: ActiveHandover = {
       project,
       generation,
