@@ -469,8 +469,8 @@ cancels safely (spec US2).
   - Tests: unit: tier degradation on injected tile failure/latency without blanking; dispose leak-free; renders only when active.
   - Accept: Principle IV documented-fallback behaviour implemented; credentials only from kiosk config (QR-008).
 
-- [ ] T031 [US2] Implement the camera flight adapter (native flyTo with complete/cancel, no concurrent GSAP camera writes) in apps/experience/src/renderers/cesium/camera-flight.ts
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T031-camera-flight` · PR — · Blockers —
+- [~] T031 [US2] Implement the camera flight adapter (native flyTo with complete/cancel, no concurrent GSAP camera writes) in apps/experience/src/renderers/cesium/camera-flight.ts
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: Promise-based wrapper over `camera.flyTo` exposing `complete`/`cancel`; guard flag preventing any GSAP mutation of the Cesium camera while a native flight is active (Principle II); flights parameterised from `GeographicFraming.landingCamera`.
   - Files: `apps/experience/src/renderers/cesium/camera-flight.ts`
   - Deps: T030
