@@ -493,8 +493,8 @@ cancels safely (spec US2).
   - Tests: covered by T036.
   - Accept: FR-008 concealment guarantees implemented; interruption at any beat routes through cancel path.
 
-- [ ] T034 [P] [US2] Build the project landing hero overlay + geographic canvas treatment hooks in apps/experience/src/ui/LandingHero.tsx
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T034-landing-hero` · PR — · Blockers —
+- [~] T034 [P] [US2] Build the project landing hero overlay + geographic canvas treatment hooks in apps/experience/src/ui/LandingHero.tsx
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: Hero overlay (name/organisation/location) on design tokens; canvas treatment module applying `GeographicFraming.canvasTreatment` (darken/soften/reframe/highlight/restore — FR-024) as Cesium primitives/post-process; boundaries/routes/regions overlays from framing GeoJSON refs.
   - Files: `apps/experience/src/ui/LandingHero.tsx`, `apps/experience/src/renderers/cesium/treatment.ts`
   - Deps: T030, T027 (tokens)
