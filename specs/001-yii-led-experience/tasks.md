@@ -461,8 +461,8 @@ cancels safely (spec US2).
 
 ### Implementation for US2
 
-- [ ] T030 [P] [US2] Implement CesiumStageAdapter (viewer, ion Google-tiles tileset lifecycle, fallback tiers) in apps/experience/src/renderers/cesium/CesiumStageAdapter.ts
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T030-cesium-adapter` · PR — · Blockers —
+- [~] T030 [P] [US2] Implement CesiumStageAdapter (viewer, ion Google-tiles tileset lifecycle, fallback tiers) in apps/experience/src/renderers/cesium/CesiumStageAdapter.ts
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: Cesium viewer per research R4/R6: `globe:false`, default UI off, `useDefaultRenderLoop:false` (render via single ticker); `Cesium3DTileset.fromIonAssetId` with configured asset id + token from kiosk config (never bundled); three-tier fallback (photorealistic → local fallback scene from package → safe composition) with latency/failure-triggered degradation events; tile-cache ceiling per R14; owns/disposes tileset + primitives.
   - Files: `apps/experience/src/renderers/cesium/{CesiumStageAdapter.ts,tileset.ts,fallback-tiers.ts}`
   - Deps: T016, T017
