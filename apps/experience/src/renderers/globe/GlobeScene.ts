@@ -62,6 +62,9 @@ const EARTH_RADIUS = 5;
 const CLOUD_RADIUS = 5.025;
 const IDENTITY_QUATERNION = new Quaternion();
 const SETTLED_ANGLE_RADIANS = 0.0001;
+// A visually imperceptible residual after a long/throttled tab frame should snap exactly to the
+// preview hemisphere rather than asymptotically lingering just outside the shader-test tolerance.
+const PREVIEW_DAYLIGHT_SETTLE_ANGLE_RADIANS = 0.0015;
 
 export interface GlobeVisualTuning {
   /** Seconds per full Earth revolution; lower values rotate faster. */
@@ -553,7 +556,7 @@ export class GlobeScene {
 
     const sunDirection = this.earthUniforms.uSunDirection.value;
     const angle = sunDirection.angleTo(this.previewSunDirection);
-    if (angle < SETTLED_ANGLE_RADIANS) {
+    if (angle < PREVIEW_DAYLIGHT_SETTLE_ANGLE_RADIANS) {
       sunDirection.copy(this.previewSunDirection);
       return;
     }
@@ -563,6 +566,9 @@ export class GlobeScene {
     this.previewSunRotation.setFromUnitVectors(sunDirection, this.previewSunDirection);
     this.previewSunRotation.slerp(IDENTITY_QUATERNION, 1 - progress);
     sunDirection.applyQuaternion(this.previewSunRotation).normalize();
+    if (sunDirection.angleTo(this.previewSunDirection) < PREVIEW_DAYLIGHT_SETTLE_ANGLE_RADIANS) {
+      sunDirection.copy(this.previewSunDirection);
+    }
   }
 
   private cancelIdleReturn(): void {
