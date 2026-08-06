@@ -998,6 +998,14 @@ plan-recorded N/A rationale — currently none).
   - Tests: React and Playwright integration tests verify that `1` reaches `categoryActive.preview` with the selected category's first project and that `0` returns it to idle.
   - Accept: pressing `1` during local development enters a valid, randomly selected category and pressing `0` returns to idle through the normal input-validation path; production builds and editable text targets remain unaffected.
 
+- [~] T080 Add a development-only `3` keyboard shortcut that confirms the currently previewed project through the simulator transport
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T080-dev-project-select-shortcut` · PR — · Blockers —
+  - Do: In the Vite development build, bind non-repeating, unmodified `3` only while the machine is in `categoryActive.preview` with a validated previewed project. Inject `project.select` through `SimulatorTransport`; never send directly to the XState actor or render a public control.
+  - Files: `apps/experience/src/app/App.tsx`, `apps/experience/tests/app/App.test.tsx`, `apps/experience/tests/e2e/us2-confirm-handover.spec.ts`
+  - Deps: T028, T035
+  - Tests: React and Playwright integration tests verify that `1` then `3` reaches `projectLanding`; idle, non-preview states, production builds, modified/repeating keys, and editable targets remain unaffected.
+  - Accept: pressing `3` during local development confirms the current preview through the normal input-validation and handover path only; it has no public UI or production effect.
+
 ---
 
 ## Dependencies & Execution Order
