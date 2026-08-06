@@ -222,12 +222,54 @@ export class CesiumStageAdapter {
 
   /** Prepares a project off-screen; T032 consumes this for preview-time readiness warming. */
   prewarmProject(project: CesiumStageProject): CesiumStageOperation {
-    return this.beginProject(project, false);
+    return this.beginProject(project, false, false);
   }
 
   /** Starts rendering the requested project as the active geographic presentation. */
   activateProject(project: CesiumStageProject): CesiumStageOperation {
-    return this.beginProject(project, true);
+    return this.beginProject(project, true, true);
+  }
+
+  /** Claims a previously ready prewarm at the concealed cover moment without loading it twice. */
+  activatePreparedProject(project: CesiumStageProject): CesiumStageOperation {
+    if (this.activeProject?.id !== project.id || !this.activeTier) {
+      return this.activateProject(project);
+    }
+    this.setRendering(true);
+    this.setPresentationVisible(true);
+    return {
+      ready: Promise.resolve({
+        projectId: project.id,
+        tier: this.activeTier,
+        fallback: this.activeTier !== 'photorealistic',
+        status: 'ready',
+      }),
+      cancel: () => this.deactivate(),
+    };
+  }
+
+  /** Watchdog escape hatch: make the local safe visual available before revealing the cover. */
+  showSafeComposition(project: CesiumStageProject): CesiumStageOperation {
+    if (this.disposed) {
+      return { ...once(() => {}), ready: Promise.resolve(this.cancelledResult(project)) };
+    }
+    this.operation += 1;
+    this.clearProjectResources();
+    this.activeProject = project;
+    this.activeTier = 'safe-composition';
+    this.setRendering(true);
+    this.setPresentationVisible(true);
+    this.activateSafeCompositionTier();
+    this.syncTestAttributes();
+    return {
+      ready: Promise.resolve({
+        projectId: project.id,
+        tier: 'safe-composition',
+        fallback: true,
+        status: 'ready',
+      }),
+      cancel: () => this.reset(),
+    };
   }
 
   /** Handover choreography controls visibility independently from off-screen prewarming. */
@@ -280,7 +322,11 @@ export class CesiumStageAdapter {
     return this.activeTier;
   }
 
-  private beginProject(project: CesiumStageProject, visible: boolean): CesiumStageOperation {
+  private beginProject(
+    project: CesiumStageProject,
+    visible: boolean,
+    rendering: boolean,
+  ): CesiumStageOperation {
     if (this.disposed) {
       return { ...once(() => {}), ready: Promise.resolve(this.cancelledResult(project)) };
     }
@@ -291,7 +337,7 @@ export class CesiumStageAdapter {
     this.clearProjectResources();
     this.activeProject = project;
     this.activeTier = null;
-    this.setRendering(true);
+    this.setRendering(rendering);
     this.setPresentationVisible(visible);
     // The safe surface is visible behind the opaque handover cover while remote readiness is
     // pending, guaranteeing that no asynchronous wait can create a black stage.
