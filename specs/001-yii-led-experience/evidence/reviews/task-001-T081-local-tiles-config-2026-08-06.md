@@ -64,3 +64,34 @@ The implementation correctly addresses most of the T081 requirements: `.env.loca
 - Files match the task's **Files** expectation (14 files changed, no unexpected out-of-scope modifications).
 - Test coverage for CLI, config loading, and sample generation is present and meaningful (not implementation trivia). The E2E failure indicates genuine runtime behavior that the test suite correctly catches.
 - No credentials, API keys, or sensitive asset IDs are visible in the diff or committed files.
+
+---
+
+## Round 2 Re-review — APPROVE
+
+**Reviewer**: Claude Haiku 4.5 (Anthropic) · **Implementer**: GPT-5.6 Terra (OpenAI)
+**Provider independence**: PASS · **Scope**: round-1 findings and delta through `fe4c304`
+· **Date**: 2026-08-06
+
+### Verdict: APPROVE
+
+All round-1 findings are resolved. `createCesiumPresentation()` now returns synchronously, so
+the Cesium safe surface is available without delaying the handover's first visible frame. The
+configuration promise is instead owned at the runtime/state boundary: preview warming and forward
+handover wait for kiosk configuration before a project selects a streamed or fallback tier. The
+generation checks preserve cancellation safety while configuration is pending.
+
+| Round-1 finding | Resolution | Status |
+|---|---|---|
+| CRITICAL: asynchronous presentation construction darkened the first US2 handover frame | Presentation construction is synchronous; configuration gates prewarm and forward handover instead. | PASS |
+| MAJOR: StageMount awaited presentation construction | StageMount registers the presentation immediately and keeps its existing disposal guards. | PASS |
+| MINOR: E2E sequencing insufficiently explicit | US2 confirmation waits for a settled globe preview and an active handover beat before frame capture. | PASS |
+
+### Re-verification
+
+- `pnpm run verify` — PASS
+- `pnpm --filter experience run test:e2e` — PASS (12/12)
+- US2 suite repeated twice — PASS (10/10)
+
+No new findings. The local `.env.local` loader, numeric-ion-ID diagnostic, opt-in sample
+photorealistic profile, shell precedence, and offline-safe test fixture remain valid.
