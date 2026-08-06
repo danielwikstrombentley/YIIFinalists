@@ -50,6 +50,30 @@ async function confirmPreview(page: Page): Promise<void> {
 }
 
 test.describe('US2: confirm, concealed renderer handover, and geographic landing', () => {
+  test('development keyboard 3 confirms the current preview through the simulator', async ({
+    page,
+  }) => {
+    await openIdleStage(page);
+
+    await page.keyboard.press('1');
+    const stage = page.locator('#stage');
+    await expect(stage).toHaveAttribute('data-machine-state', '{"categoryActive":"preview"}');
+    const previewedProjectId = await page
+      .getByTestId('preview-metadata')
+      .getAttribute('data-project-id');
+    if (!previewedProjectId) throw new Error('The development shortcut did not create a preview.');
+
+    await page.keyboard.press('3');
+    await expectVisibleTransitionFrames(page);
+    await expect(stage).toHaveAttribute('data-machine-state', '"projectLanding"', {
+      timeout: 5_000,
+    });
+    await expect(page.getByTestId('landing-hero')).toHaveAttribute(
+      'data-project-id',
+      previewedProjectId,
+    );
+  });
+
   test('US2 scenario 1: confirm samples no black or stale frames and reveals a landing hero only', async ({
     page,
   }) => {

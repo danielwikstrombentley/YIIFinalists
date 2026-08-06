@@ -100,6 +100,20 @@ function BootOrchestrator() {
         return;
       }
 
+      if (event.key === '3') {
+        const snapshot = actor.getSnapshot();
+        if (
+          !snapshot.matches({ categoryActive: 'preview' }) ||
+          !snapshot.context.previewedProjectId
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        simulator.injectAction('project.select', {});
+        return;
+      }
+
       if (event.key !== '1') return;
 
       const categoryIds = categoryIdsRef.current;
@@ -112,7 +126,7 @@ function BootOrchestrator() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [actor]);
 
   useEffect(() => {
     // Keeps the input boundary's release validator in sync with the machine's own idea of "the
