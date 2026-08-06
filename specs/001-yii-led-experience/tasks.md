@@ -477,8 +477,8 @@ cancels safely (spec US2).
   - Tests: unit: cancel mid-flight resolves cancelled (not complete); concurrent-writer guard throws in dev/asserts in test.
   - Accept: no competing camera writers possible by construction (quality gate 3).
 
-- [ ] T032 [US2] Implement preview-time prewarm + landing preload (FR-030 part 1) in apps/experience/src/renderers/cesium/prewarm.ts
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T032-prewarm` · PR — · Blockers —
+- [~] T032 [US2] Implement preview-time prewarm + landing preload (FR-030 part 1) in apps/experience/src/renderers/cesium/prewarm.ts
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: On preview change, warm the previewed project's Cesium target off-screen (tileset target readiness) and stage landing assets via the content preload cache; cancellation on preview retarget/category change; readiness signal consumed by HandoverController.
   - Files: `apps/experience/src/renderers/cesium/prewarm.ts`, `apps/experience/src/content/preload.ts`
   - Deps: T030, T031, T028
