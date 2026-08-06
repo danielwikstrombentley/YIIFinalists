@@ -485,8 +485,8 @@ cancels safely (spec US2).
   - Tests: unit: retarget cancels prior warm; readiness reported; cache reuse (no double decode).
   - Accept: R5 pre-warm beat has its data source; eviction on category change per R14.
 
-- [ ] T033 [US2] Implement HandoverController forward choreography (pre-warm → approach → cover swap → reveal, watchdog, cancel path) in apps/experience/src/renderers/handover/HandoverController.ts
-  - Meta: Phase PH4 · Feature F001 · Owner — · Branch `task/001-T033-handover-forward` · PR — · Blockers —
+- [~] T033 [US2] Implement HandoverController forward choreography (pre-warm → approach → cover swap → reveal, watchdog, cancel path) in apps/experience/src/renderers/handover/HandoverController.ts
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph4-us2-handover-landing` (consolidated) · PR — · Blockers —
   - Do: GSAP-choreographed sequence per research R5 over stacked canvases: readiness-gated swap during full atmospheric cover; watchdog enforcing max cover duration → exit to fallback tier instead of holding/blanking; cancel path returns both renderers to known state; generation tokens discard stale completions; both renderers render simultaneously only inside the controller's window.
   - Files: `apps/experience/src/renderers/handover/HandoverController.ts`
   - Deps: T026, T030, T031, T032, T016
