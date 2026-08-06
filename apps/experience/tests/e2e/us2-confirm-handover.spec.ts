@@ -42,7 +42,15 @@ async function previewProject(page: Page, projectId = 'cat-1-proj-1'): Promise<v
 }
 
 async function confirmPreview(page: Page): Promise<void> {
+  await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+    'data-preview-motion',
+    'settled',
+  );
   await injectAction(page, 'project.select', {});
+  await expect(page.getByTestId('handover-controller')).toHaveAttribute(
+    'data-status',
+    /^(approaching|covering|revealing)$/,
+  );
   await expectVisibleTransitionFrames(page);
   await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"projectLanding"', {
     timeout: 5_000,
@@ -62,6 +70,10 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
       .getByTestId('preview-metadata')
       .getAttribute('data-project-id');
     if (!previewedProjectId) throw new Error('The development shortcut did not create a preview.');
+    await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+      'data-preview-motion',
+      'settled',
+    );
 
     await page.keyboard.press('3');
     await expectVisibleTransitionFrames(page);

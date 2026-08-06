@@ -2,7 +2,12 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
-import { loadKioskConfig, type KioskConfig } from './config.js';
+import {
+  getKioskCesiumConfigurationWarning,
+  loadKioskConfig,
+  loadKioskLocalEnv,
+  type KioskConfig,
+} from './config.js';
 import { TelemetrySink } from './telemetry-sink.js';
 import { WsInputBridge } from './ws-input.js';
 
@@ -167,7 +172,10 @@ function describeError(error: unknown): string {
 
 const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
+  loadKioskLocalEnv();
   const config = loadKioskConfig();
+  const cesiumConfigWarning = getKioskCesiumConfigurationWarning(config);
+  if (cesiumConfigWarning) console.warn(`[kiosk] ${cesiumConfigWarning}`);
   const kiosk = createKioskServer(config);
   void kiosk.listen().then(() => {
     console.log(`[kiosk] serving app from ${config.staticRoot}`);

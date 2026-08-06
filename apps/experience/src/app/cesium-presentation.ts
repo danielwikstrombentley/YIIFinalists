@@ -53,19 +53,15 @@ function isKioskCesiumConfig(value: unknown): value is KioskCesiumConfig {
  * embedded in the application bundle; a failed lookup simply leaves the adapter on its approved
  * local fallback tiers.
  */
-function configureFromKiosk(stage: CesiumStageAdapter): void {
-  void fetch('/runtime-config.json', { cache: 'no-store' })
-    .then(async (response) => {
-      if (!response.ok) return null;
-      return response.json() as Promise<unknown>;
-    })
-    .then((config) => {
-      if (!isKioskCesiumConfig(config)) return;
-      stage.configureIon(config);
-    })
-    .catch(() => {
-      // The adapter's local fallback remains available during an offline sidecar/config failure.
-    });
+async function configureFromKiosk(stage: CesiumStageAdapter): Promise<void> {
+  try {
+    const response = await fetch('/runtime-config.json', { cache: 'no-store' });
+    if (!response.ok) return;
+    const config = (await response.json()) as unknown;
+    if (isKioskCesiumConfig(config)) stage.configureIon(config);
+  } catch {
+    // The adapter's local fallback remains available during an offline sidecar/config failure.
+  }
 }
 
 /**
@@ -79,7 +75,10 @@ export function createCesiumPresentation(
 ): CesiumPresentation {
   const stage = new CesiumStageAdapter();
   stage.start(stageElement);
-  configureFromKiosk(stage);
+  // The renderer and its safe surface are available synchronously, preserving a visible stage
+  // while configuration loads. State-owned preview/handover work waits for this promise before
+  // it asks the adapter to choose a streamed or fallback tier.
+  const configurationReady = configureFromKiosk(stage);
 
   const preloadManager = new PreloadManager();
   const prewarm = new CesiumPrewarmController({
@@ -112,11 +111,23 @@ export function createCesiumPresentation(
     cesium: stage,
     prewarm,
   });
+  let prewarmGeneration = 0;
 
   return {
     stage,
     prewarm,
     handover,
+    configurationReady,
+    prewarmPreview(project) {
+      const generation = ++prewarmGeneration;
+      void configurationReady.then(() => {
+        // Category/hover changes can arrive while configuration is still in flight. Only the
+        // current preview gets to warm tiles; `CesiumPrewarmController.warm()` cancels the prior
+        // real warm after configuration has become available.
+        if (generation !== prewarmGeneration) return;
+        prewarm.warm(project);
+      });
+    },
     preloadLandingOptions(project) {
       const targets = optionAssetTargets(project);
       for (const target of targets) {
@@ -136,11 +147,13 @@ export function createCesiumPresentation(
       };
     },
     reset() {
+      prewarmGeneration += 1;
       prewarm.cancel();
       preloadManager.clear();
       stage.reset();
     },
     dispose() {
+      prewarmGeneration += 1;
       handover.dispose();
       prewarm.dispose();
       preloadManager.clear();

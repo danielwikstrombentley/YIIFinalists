@@ -18,6 +18,10 @@ export interface CesiumPresentation {
   readonly stage: CesiumStageAdapter;
   readonly prewarm: CesiumPrewarmController;
   readonly handover: HandoverController;
+  /** Resolves after the kiosk-local configuration has been applied or safely unavailable. */
+  readonly configurationReady: Promise<void>;
+  /** Starts only the latest preview target after kiosk configuration is ready. */
+  prewarmPreview(project: Project): void;
   preloadLandingOptions(project: Project): { cancel(): void };
   reset(): void;
   dispose(): void;

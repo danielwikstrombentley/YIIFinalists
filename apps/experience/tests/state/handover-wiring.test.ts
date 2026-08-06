@@ -47,6 +47,16 @@ function createContext() {
   return context;
 }
 
+function createPresentation(
+  handover: { startForward: ReturnType<typeof vi.fn> },
+  configurationReady: Promise<void> = Promise.resolve(),
+): CesiumPresentation {
+  return {
+    handover,
+    configurationReady,
+  } as unknown as CesiumPresentation;
+}
+
 describe('forward handover machine wiring', () => {
   it('queues a valid confirmation until the code-split Cesium presentation is ready', async () => {
     const context = createContext();
@@ -59,7 +69,7 @@ describe('forward handover machine wiring', () => {
     }>();
     const operation = { completion: completion.promise, cancel: vi.fn() };
     const handover = { startForward: vi.fn(() => operation) };
-    const cesium = { handover } as unknown as CesiumPresentation;
+    const cesium = createPresentation(handover);
     const send = vi.fn<(event: ExperienceEvent) => void>();
     const self = { send, getSnapshot: () => ({ context }) };
 
@@ -91,7 +101,7 @@ describe('forward handover machine wiring', () => {
     const handover = {
       startForward: vi.fn(),
     };
-    const cesium = { handover } as unknown as CesiumPresentation;
+    const cesium = createPresentation(handover);
     const send = vi.fn<(event: ExperienceEvent) => void>();
     const self = { send, getSnapshot: () => ({ context }) };
 
@@ -104,5 +114,34 @@ describe('forward handover machine wiring', () => {
     expect(handover.startForward).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
     expect(context.cleanup.size).toBe(0);
+  });
+
+  it('waits for kiosk configuration before beginning a forward handover', async () => {
+    const context = createContext();
+    const configuration = deferred<void>();
+    const completion = deferred<{
+      projectId: string;
+      generation: number;
+      status: 'completed';
+    }>();
+    const operation = { completion: completion.promise, cancel: vi.fn() };
+    const handover = { startForward: vi.fn(() => operation) };
+    context.runtime.setCesium(createPresentation(handover, configuration.promise));
+    const send = vi.fn<(event: ExperienceEvent) => void>();
+    const self = { send, getSnapshot: () => ({ context }) };
+
+    startForwardHandover({ context, self });
+    expect(handover.startForward).not.toHaveBeenCalled();
+
+    configuration.resolve();
+    await flushAsyncWork();
+    expect(handover.startForward).toHaveBeenCalledWith(PROJECT);
+
+    completion.resolve({ projectId: PROJECT.id, generation: 1, status: 'completed' });
+    await flushAsyncWork();
+    expect(send).toHaveBeenCalledWith({
+      type: 'internal.handoverToProjectComplete',
+      generation: 17,
+    });
   });
 });

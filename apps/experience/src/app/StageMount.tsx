@@ -52,7 +52,13 @@ export function StageMount() {
           resolveReady(null);
           return;
         }
-        cesium = createCesiumPresentation(stage, globe);
+        const presentation = createCesiumPresentation(stage, globe);
+        if (disposed) {
+          presentation.dispose();
+          resolveReady(null);
+          return;
+        }
+        cesium = presentation;
         runtime.setCesium(cesium);
         resolveReady(cesium);
       })
