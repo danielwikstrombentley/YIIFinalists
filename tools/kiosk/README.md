@@ -14,6 +14,32 @@ pnpm --filter content-pipeline seed:sample   # generate a sample content release
 pnpm --filter experience dev                 # runs this sidecar + Vite together
 ```
 
+### Local Google Photorealistic 3D Tiles
+
+The default sample release deliberately uses the offline-safe `safe-composition` tier, so a
+token alone does not cause network tiles to load. For a persistent local photorealistic demo:
+
+```bash
+cp .env.example .env.local                    # once; .env.local is ignored by git
+# Edit .env.local with the long Cesium ion token and the positive numeric ion asset ID.
+pnpm --filter content-pipeline seed:sample    # regenerates sample projects as configured
+pnpm --filter experience dev                  # kiosk loads root .env.local automatically
+```
+
+Set `YII_SAMPLE_TILE_TIER=photorealistic` in `.env.local` to opt the generated sample projects
+into streamed tiles. `ION_GOOGLE_TILES_ASSET_ID` is the **numeric Cesium ion asset ID**, not a
+token; `ION_ACCESS_TOKEN` is the long credential string. Shell-exported values take precedence
+over `.env.local`. Regenerate the sample after changing the tier, then restart the dev server.
+
+For a one-off profile without editing `.env.local`:
+
+```bash
+pnpm --filter content-pipeline seed:sample -- --tile-tier photorealistic
+```
+
+When credentials are absent, invalid, unavailable, or a project is intentionally configured for
+another tier, the stage retains the approved local/safe fallback instead of showing a blank frame.
+
 `pnpm --filter experience dev` starts both the kiosk sidecar (this package) and Vite concurrently.
 Vite's dev server proxies `/content`, `/telemetry`, and `/ws` to the sidecar (see
 `apps/experience/vite.config.ts`) so app code always uses the same relative paths in dev and
@@ -35,7 +61,8 @@ All configuration is env-based (never committed — see `.gitignore`'s `.env` ru
 | `KIOSK_CONTENT_ROOT` | `apps/content-pipeline/assets/sample` | Active content release tree, served at `/content` |
 | `KIOSK_LOG_DIR` | `tools/kiosk/logs` | Telemetry JSONL output directory (gitignored) |
 | `ION_ACCESS_TOKEN` | — | Cesium ion access token (research.md R4), passed through to kiosk config only |
-| `ION_GOOGLE_TILES_ASSET_ID` | — | Cesium ion asset id for Google Photorealistic 3D Tiles |
+| `ION_GOOGLE_TILES_ASSET_ID` | — | Positive numeric Cesium ion asset ID for Google Photorealistic 3D Tiles |
+| `YII_SAMPLE_TILE_TIER` | `safe-composition` | Sample release tier: `photorealistic`, `local-fallback-scene`, or `safe-composition` |
 
 ## Endpoints
 

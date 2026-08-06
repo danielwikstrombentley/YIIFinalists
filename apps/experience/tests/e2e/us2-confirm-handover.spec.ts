@@ -62,6 +62,10 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
       .getByTestId('preview-metadata')
       .getAttribute('data-project-id');
     if (!previewedProjectId) throw new Error('The development shortcut did not create a preview.');
+    await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+      'data-preview-motion',
+      'settled',
+    );
 
     await page.keyboard.press('3');
     await expectVisibleTransitionFrames(page);

@@ -53,19 +53,15 @@ function isKioskCesiumConfig(value: unknown): value is KioskCesiumConfig {
  * embedded in the application bundle; a failed lookup simply leaves the adapter on its approved
  * local fallback tiers.
  */
-function configureFromKiosk(stage: CesiumStageAdapter): void {
-  void fetch('/runtime-config.json', { cache: 'no-store' })
-    .then(async (response) => {
-      if (!response.ok) return null;
-      return response.json() as Promise<unknown>;
-    })
-    .then((config) => {
-      if (!isKioskCesiumConfig(config)) return;
-      stage.configureIon(config);
-    })
-    .catch(() => {
-      // The adapter's local fallback remains available during an offline sidecar/config failure.
-    });
+async function configureFromKiosk(stage: CesiumStageAdapter): Promise<void> {
+  try {
+    const response = await fetch('/runtime-config.json', { cache: 'no-store' });
+    if (!response.ok) return;
+    const config = (await response.json()) as unknown;
+    if (isKioskCesiumConfig(config)) stage.configureIon(config);
+  } catch {
+    // The adapter's local fallback remains available during an offline sidecar/config failure.
+  }
 }
 
 /**
@@ -73,13 +69,16 @@ function configureFromKiosk(stage: CesiumStageAdapter): void {
  * globe have mounted. The machine decides when each operation runs; this module owns only the
  * DOM/GPU/preload resources and exposes cancellable handles to that machine.
  */
-export function createCesiumPresentation(
+export async function createCesiumPresentation(
   stageElement: HTMLElement,
   globe: GlobePresentation,
-): CesiumPresentation {
+): Promise<CesiumPresentation> {
   const stage = new CesiumStageAdapter();
   stage.start(stageElement);
-  configureFromKiosk(stage);
+  // Do not make the renderer available to state actions until its kiosk-local configuration has
+  // had a chance to arrive. `startForwardHandover()` already waits for `cesiumReady`, so this
+  // closes the startup race where an early confirmation could incorrectly select a fallback tier.
+  await configureFromKiosk(stage);
 
   const preloadManager = new PreloadManager();
   const prewarm = new CesiumPrewarmController({

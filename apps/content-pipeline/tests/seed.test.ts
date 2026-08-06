@@ -13,6 +13,7 @@ import {
   SAMPLE_PROJECTS_PER_CATEGORY,
   SAMPLE_RELEASE_VERSION,
   generateSampleRelease,
+  parseSampleTileTier,
 } from '../src/seed/sample.ts';
 
 // T018 Tests: seeded release passes T007's valid-fixture schema checks; loader (T017) loads it
@@ -126,5 +127,22 @@ describe('generateSampleRelease', () => {
     const result = await generateSampleRelease({ outputDir });
     const ids = result.projects.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('uses photorealistic tiles for every sample project only when the caller explicitly opts in', async () => {
+    const result = await generateSampleRelease({
+      outputDir,
+      tileTier: parseSampleTileTier('photorealistic'),
+    });
+
+    expect(result.projects).toHaveLength(SAMPLE_CATEGORY_COUNT * SAMPLE_PROJECTS_PER_CATEGORY);
+    expect(
+      result.projects.every((project) => project.geographicFraming.tileTier === 'photorealistic'),
+    ).toBe(true);
+  });
+
+  it('defaults to the offline-safe profile and rejects unsupported tile-tier configuration', () => {
+    expect(parseSampleTileTier(undefined)).toBe('safe-composition');
+    expect(() => parseSampleTileTier('not-a-tier')).toThrow(/tile tier/i);
   });
 });

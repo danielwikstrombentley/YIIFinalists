@@ -1,4 +1,4 @@
-import { generateSampleRelease } from '../seed/sample.ts';
+import { generateSampleRelease, parseSampleTileTier } from '../seed/sample.ts';
 
 export interface CliCommand {
   name: string;
@@ -61,14 +61,23 @@ export const commands: CliCommand[] = [
   {
     name: 'seed:sample',
     description:
-      'Generate a schema-valid sample release (12 categories x 3 projects) for local dev/tests (T018).',
+      'Generate a schema-valid sample release (12 categories x 3 projects) for local dev/tests (T018; optional --tile-tier).',
     run: async (args: string[]): Promise<void> => {
       const outputFlagIndex = args.indexOf('--output');
       const outputDir = outputFlagIndex !== -1 ? args[outputFlagIndex + 1] : undefined;
-      const result = await generateSampleRelease({ outputDir });
+      const tileTierFlagIndex = args.indexOf('--tile-tier');
+      if (tileTierFlagIndex !== -1 && !args[tileTierFlagIndex + 1]) {
+        throw new Error('seed:sample --tile-tier requires a value.');
+      }
+      const tileTierValue =
+        tileTierFlagIndex !== -1 ? args[tileTierFlagIndex + 1] : process.env.YII_SAMPLE_TILE_TIER;
+      const result = await generateSampleRelease({
+        outputDir,
+        tileTier: parseSampleTileTier(tileTierValue),
+      });
       console.log(
         `[content-pipeline] seed:sample generated release "${result.version}" ` +
-          `(${result.categories.length} categories x ${result.projects.length / result.categories.length} projects) at ${result.outputDir}`,
+          `(${result.categories.length} categories x ${result.projects.length / result.categories.length} projects; ${result.projects[0]?.geographicFraming.tileTier ?? 'unknown'} tiles) at ${result.outputDir}`,
       );
     },
   },

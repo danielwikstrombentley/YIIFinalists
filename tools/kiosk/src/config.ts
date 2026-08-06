@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..');
+const localEnvFile = join(repoRoot, '.env.local');
 
 export interface KioskConfig {
   port: number;
@@ -18,6 +19,40 @@ export interface KioskConfig {
   logDir: string;
   ionAccessToken: string | undefined;
   ionGoogleTilesAssetId: string | undefined;
+}
+
+/**
+ * Loads root-level developer configuration for direct kiosk processes. Node preserves values
+ * already exported by the shell, so deployment/CI environment settings take precedence.
+ */
+export function loadKioskLocalEnv(envFile = localEnvFile): void {
+  try {
+    process.loadEnvFile(envFile);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+}
+
+function isPositiveIonAssetId(value: string | undefined): boolean {
+  if (!value || !/^\d+$/.test(value)) return false;
+  const assetId = Number(value);
+  return Number.isSafeInteger(assetId) && assetId > 0;
+}
+
+/** Reports configuration mistakes without ever including the configured token or asset value. */
+export function getKioskCesiumConfigurationWarning(config: KioskConfig): string | undefined {
+  if (!config.ionAccessToken && !config.ionGoogleTilesAssetId) return undefined;
+  if (!config.ionAccessToken) {
+    return 'ION_ACCESS_TOKEN is missing; Cesium will use the local fallback tier.';
+  }
+  if (!isPositiveIonAssetId(config.ionGoogleTilesAssetId)) {
+    return 'ION_GOOGLE_TILES_ASSET_ID must be a positive numeric Cesium ion asset ID; Cesium will use the local fallback tier.';
+  }
+  if (/^\d+$/.test(config.ionAccessToken)) {
+    return 'ION_ACCESS_TOKEN appears to be numeric; use the long Cesium ion credential token rather than the asset ID.';
+  }
+  return undefined;
 }
 
 export function loadKioskConfig(env: NodeJS.ProcessEnv = process.env): KioskConfig {

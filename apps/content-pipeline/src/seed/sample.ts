@@ -1,12 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Category, ChannelsFile, Manifest, Project } from '@yii/content-schema';
+import type { Category, ChannelsFile, Manifest, Project, TileTier } from '@yii/content-schema';
 import {
   categoriesFileSchema,
   channelsFileSchema,
   manifestSchema,
   projectSchema,
+  TILE_TIERS,
 } from '@yii/content-schema';
 
 // Sample release seed generator (T018): produces a schema-valid release (12 categories x 3
@@ -17,6 +18,7 @@ import {
 export const SAMPLE_CATEGORY_COUNT = 12;
 export const SAMPLE_PROJECTS_PER_CATEGORY = 3;
 export const SAMPLE_RELEASE_VERSION = '0.1.0-sample';
+export const DEFAULT_SAMPLE_TILE_TIER: TileTier = 'safe-composition';
 
 const SAMPLE_CATEGORY_NAMES = [
   'Climate Resilience',
@@ -44,7 +46,11 @@ function sampleLon(categoryIndex: number, projectIndex: number): number {
   return -170 + categoryIndex * 25 + projectIndex * 8;
 }
 
-function buildSampleProject(categoryIndex: number, projectIndex: number): Project {
+function buildSampleProject(
+  categoryIndex: number,
+  projectIndex: number,
+  tileTier: TileTier,
+): Project {
   const categoryId = `cat-${categoryIndex + 1}`;
   const id = `${categoryId}-proj-${projectIndex + 1}`;
   // A deterministic non-city fixture lets the US2 browser journey prove that landing framing is
@@ -70,7 +76,7 @@ function buildSampleProject(categoryIndex: number, projectIndex: number): Projec
         range: isCorridorFixture ? 16_000 : 800,
       },
       previewEmphasis: { markerScale: 1.2 },
-      tileTier: 'safe-composition',
+      tileTier,
       canvasTreatment: { darken: 0.15 },
     },
     contentOptions: [
@@ -158,6 +164,8 @@ function buildSampleChannels(): ChannelsFile {
 
 export interface GenerateSampleReleaseOptions {
   outputDir?: string;
+  /** Explicit opt-in only: default remains offline-safe for fixtures and automated tests. */
+  tileTier?: TileTier;
 }
 
 export interface GenerateSampleReleaseResult {
@@ -172,10 +180,21 @@ function defaultOutputDir(): string {
   return join(here, '..', '..', 'assets', 'sample');
 }
 
+/** Parses the local sample profile without allowing arbitrary package values into the release. */
+export function parseSampleTileTier(value: string | undefined): TileTier {
+  const tileTier = value?.trim();
+  if (!tileTier) return DEFAULT_SAMPLE_TILE_TIER;
+  if ((TILE_TIERS as readonly string[]).includes(tileTier)) return tileTier as TileTier;
+  throw new Error(
+    `Unsupported sample tile tier "${value}". Expected one of: ${TILE_TIERS.join(', ')}.`,
+  );
+}
+
 export async function generateSampleRelease(
   options: GenerateSampleReleaseOptions = {},
 ): Promise<GenerateSampleReleaseResult> {
   const outputDir = options.outputDir ?? defaultOutputDir();
+  const tileTier = options.tileTier ?? DEFAULT_SAMPLE_TILE_TIER;
   const releaseDir = join(outputDir, 'releases', SAMPLE_RELEASE_VERSION);
 
   const manifest = manifestSchema.parse(buildSampleManifest());
@@ -188,7 +207,7 @@ export async function generateSampleRelease(
   const projects: Project[] = [];
   for (let c = 0; c < SAMPLE_CATEGORY_COUNT; c += 1) {
     for (let p = 0; p < SAMPLE_PROJECTS_PER_CATEGORY; p += 1) {
-      projects.push(projectSchema.parse(buildSampleProject(c, p)));
+      projects.push(projectSchema.parse(buildSampleProject(c, p, tileTier)));
     }
   }
 

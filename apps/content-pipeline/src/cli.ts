@@ -1,5 +1,20 @@
 #!/usr/bin/env node
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { commands } from './commands/index.ts';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const localEnvFile = join(here, '..', '..', '..', '.env.local');
+
+/** Loads developer-local configuration while preserving explicitly exported shell values. */
+function loadLocalEnv(): void {
+  try {
+    process.loadEnvFile(localEnvFile);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+}
 
 function printHelp(): void {
   console.log('YII 2026 content-pipeline CLI\n');
@@ -12,6 +27,7 @@ function printHelp(): void {
 }
 
 async function main(): Promise<void> {
+  loadLocalEnv();
   const [, , commandName, ...rest] = process.argv;
 
   if (!commandName || commandName === '--help' || commandName === '-h') {
