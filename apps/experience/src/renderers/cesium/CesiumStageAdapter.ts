@@ -85,6 +85,11 @@ export interface CesiumStageAdapterOptions {
   onDegradation?: (event: TierDegradation) => void;
 }
 
+export interface CesiumIonConfiguration {
+  ionAccessToken?: string;
+  ionGoogleTilesAssetId?: number | string;
+}
+
 const DEFAULT_TILE_LATENCY_TIMEOUT_MS = 3_500;
 
 const DEFAULT_VIEWER_OPTIONS: CesiumViewerOptions = {
@@ -166,8 +171,8 @@ export class CesiumStageAdapter {
   private readonly viewerFactory: NonNullable<CesiumStageAdapterOptions['viewerFactory']>;
   private readonly tilesetLoader: NonNullable<CesiumStageAdapterOptions['tilesetLoader']>;
   private readonly localFallbackLoader: CesiumStageAdapterOptions['localFallbackLoader'];
-  private readonly ionAccessToken: string | undefined;
-  private readonly ionGoogleTilesAssetId: number | string | undefined;
+  private ionAccessToken: string | undefined;
+  private ionGoogleTilesAssetId: number | string | undefined;
   private readonly tileLatencyTimeoutMs: number;
   private readonly onDegradation: ((event: TierDegradation) => void) | undefined;
   private readonly fallbackSurface: FallbackSurface;
@@ -182,6 +187,7 @@ export class CesiumStageAdapter {
   private rendering = false;
   private visible = false;
   private disposed = false;
+  private viewerCreationError: Error | null = null;
 
   constructor(options: CesiumStageAdapterOptions = {}) {
     if (typeof document === 'undefined') {
@@ -218,6 +224,13 @@ export class CesiumStageAdapter {
     this.ensureViewer();
     this.syncTestAttributes();
     return once(() => this.deactivate());
+  }
+
+  /** Accepts kiosk-local runtime configuration after mount; credentials never enter the bundle. */
+  configureIon(configuration: CesiumIonConfiguration): void {
+    if (this.disposed) return;
+    this.ionAccessToken = configuration.ionAccessToken;
+    this.ionGoogleTilesAssetId = configuration.ionGoogleTilesAssetId;
   }
 
   /** Prepares a project off-screen; T032 consumes this for preview-time readiness warming. */
@@ -415,6 +428,11 @@ export class CesiumStageAdapter {
     _project: CesiumStageProject,
     operation: number,
   ): Promise<void> {
+    if (!this.viewer) {
+      throw (
+        this.viewerCreationError ?? new Error('Cesium viewer is unavailable for tile rendering.')
+      );
+    }
     const assetId = normalizeIonAssetId(this.ionGoogleTilesAssetId);
     if (!assetId || !this.ionAccessToken) {
       throw new Error('Cesium ion configuration is unavailable from kiosk runtime config.');
@@ -454,8 +472,17 @@ export class CesiumStageAdapter {
   }
 
   private ensureViewer(): void {
-    if (this.viewer || this.disposed) return;
-    this.viewer = this.viewerFactory(this.element, DEFAULT_VIEWER_OPTIONS);
+    if (this.viewer || this.viewerCreationError || this.disposed) return;
+    try {
+      this.viewer = this.viewerFactory(this.element, DEFAULT_VIEWER_OPTIONS);
+    } catch (error) {
+      // The safe/local fallback tiers are DOM-backed and remain usable if GPU/WebGL startup
+      // fails; a photorealistic request detects this error and degrades rather than blanking.
+      this.viewerCreationError =
+        error instanceof Error
+          ? error
+          : new Error(`Cesium viewer startup failed: ${String(error)}`);
+    }
   }
 
   private setRendering(rendering: boolean): void {

@@ -16,6 +16,7 @@ export type InternalEvent =
       categories: readonly { id: string; projectIds: readonly string[] }[];
     }
   | { type: 'internal.handoverToProjectComplete'; generation: number }
+  | { type: 'internal.handoverToProjectFailed'; generation: number; reason: string }
   | { type: 'internal.handoverToPreviewComplete'; generation: number }
   | { type: 'internal.sequenceComplete'; generation: number }
   | { type: 'internal.adapterFailure'; reason: string }

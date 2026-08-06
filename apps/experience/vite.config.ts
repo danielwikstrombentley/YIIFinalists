@@ -23,6 +23,7 @@ export default defineConfig({
     proxy: {
       '/content': KIOSK_DEV_URL,
       '/telemetry': KIOSK_DEV_URL,
+      '/runtime-config.json': KIOSK_DEV_URL,
       '/ws': { target: KIOSK_DEV_URL, ws: true },
     },
   },

@@ -118,6 +118,13 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
       'data-machine-state',
       '"transitionToProject"',
     );
+    // `transitionToProject` may begin while the code-split Cesium renderer is still loading.
+    // Wait for an actual controller beat so this asserts cancellation *mid-handover*, rather
+    // than merely pre-empting a queued renderer startup before it owns any visual resources.
+    await expect(page.getByTestId('handover-controller')).toHaveAttribute(
+      'data-status',
+      /^(approaching|covering|revealing)$/,
+    );
     await injectAction(page, 'category.select', { categoryId: 'cat-2' });
 
     await expect(page.locator('#stage')).toHaveAttribute(

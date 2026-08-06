@@ -69,11 +69,15 @@ class ManualTimeline implements HandoverTimeline {
   readonly pause = vi.fn(() => this);
   readonly play = vi.fn(() => this);
 
-  set(_target: unknown, _vars: unknown): this {
+  set(target: unknown, vars: unknown): this {
+    void target;
+    void vars;
     return this;
   }
 
-  to(_target: unknown, _vars: unknown): this {
+  to(target: unknown, vars: unknown): this {
+    void target;
+    void vars;
     return this;
   }
 
@@ -109,12 +113,14 @@ interface HandoverHarness {
   };
 }
 
-function createHarness(options: {
-  readiness?: readonly (Promise<CesiumPrewarmResult> | null)[];
-  preparedOperations?: readonly CesiumStageOperation[];
-  fallbackOperation?: CesiumStageOperation;
-  maxCoverDurationMs?: number;
-} = {}): HandoverHarness {
+function createHarness(
+  options: {
+    readiness?: readonly (Promise<CesiumPrewarmResult> | null)[];
+    preparedOperations?: readonly CesiumStageOperation[];
+    fallbackOperation?: CesiumStageOperation;
+    maxCoverDurationMs?: number;
+  } = {},
+): HandoverHarness {
   const stage = document.createElement('div');
   document.body.append(stage);
   const globeElement = document.createElement('div');
@@ -131,9 +137,7 @@ function createHarness(options: {
     restorePreview: vi.fn(),
   };
   const cesium = {
-    activatePreparedProject: vi.fn(
-      () => preparedOperations.shift() ?? readyStageOperation(),
-    ),
+    activatePreparedProject: vi.fn(() => preparedOperations.shift() ?? readyStageOperation()),
     showSafeComposition: vi.fn(() => fallbackOperation),
     deactivate: vi.fn(),
   };

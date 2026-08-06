@@ -101,6 +101,18 @@ export function createKioskServer(config: KioskConfig = loadKioskConfig()) {
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? '/';
 
+    if (req.method === 'GET' && url === '/runtime-config.json') {
+      // Cesium's browser client needs its local ion credentials at runtime, but the values remain
+      // environment-only kiosk configuration rather than source-controlled or bundled assets.
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(
+        JSON.stringify({
+          ionAccessToken: config.ionAccessToken,
+          ionGoogleTilesAssetId: config.ionGoogleTilesAssetId,
+        }),
+      );
+      return;
+    }
+
     if (req.method === 'POST' && url === '/telemetry') {
       try {
         const body = await readJsonBody(req);

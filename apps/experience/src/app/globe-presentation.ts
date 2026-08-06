@@ -6,7 +6,10 @@ import {
 import type { GlobePresentation } from '../state/runtime.js';
 
 /** Builds the content-driven globe boundary only after every project has been schema-validated. */
-export function createGlobePresentation(projects: readonly Project[]): GlobePresentation {
+export function createGlobePresentation(
+  projects: readonly Project[],
+  resolveAssetUrl: (packageRelativePath: string) => string = (path) => path,
+): GlobePresentation {
   const projectsById = new Map<string, Project>();
   const globeProjects: GlobeRendererAdapterProject[] = projects.map((project) => {
     if (projectsById.has(project.id)) {
@@ -28,5 +31,6 @@ export function createGlobePresentation(projects: readonly Project[]): GlobePres
     getProject(projectId) {
       return projectsById.get(projectId);
     },
+    resolveAssetUrl,
   };
 }

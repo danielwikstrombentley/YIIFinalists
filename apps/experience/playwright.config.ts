@@ -6,7 +6,11 @@ import { defineConfig, devices } from '@playwright/test';
 // than gated on a CI env var that never exists here.
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: true,
+  // Each visitor journey owns a Three.js globe plus a Cesium renderer. Running several journeys
+  // concurrently exhausts local Chromium/WebGL contexts and makes otherwise-valid stage startup
+  // nondeterministic, so the installation's single-screen runtime is verified one at a time.
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: true,
   reporter: 'list',
   use: {
