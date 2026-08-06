@@ -1006,8 +1006,8 @@ plan-recorded N/A rationale — currently none).
   - Tests: React and Playwright integration tests verify that `1` then `3` reaches `projectLanding`; idle, non-preview states, production builds, modified/repeating keys, and editable targets remain unaffected.
   - Accept: pressing `3` during local development confirms the current preview through the normal input-validation and handover path only; it has no public UI or production effect.
 
-- [~] T081 Make local Cesium ion configuration persistent and provide an opt-in photorealistic sample release profile
-  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T081-local-tiles-config` · PR — · Blockers —
+- [R] T081 Make local Cesium ion configuration persistent and provide an opt-in photorealistic sample release profile
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T081-local-tiles-config` · PR #11 · Blockers —
   - Do: Automatically load the ignored root `.env.local` for direct kiosk and content-pipeline CLI processes, without overriding explicitly exported shell values; add an explicit `YII_SAMPLE_TILE_TIER` / `seed:sample -- --tile-tier` opt-in for generated sample projects. Preserve `safe-composition` as the default and keep Playwright's generated fixture offline-safe. Provide a tracked `.env.example` and kiosk documentation for the numeric Cesium ion asset ID, token, and local photorealistic profile.
   - Files: `.env.example`, `apps/content-pipeline/src/{cli.ts,commands/index.ts,seed/sample.ts}`, `apps/content-pipeline/tests/seed.test.ts`, `apps/experience/{playwright.config.ts,src/app/{StageMount.tsx,cesium-presentation.ts},tests/e2e/us2-confirm-handover.spec.ts}`, `tools/kiosk/src/{config.ts,server.ts}`, `tools/kiosk/README.md`, `tools/kiosk/tests/{config.test.ts,server.test.ts}`
   - Deps: T018, T019, T030
