@@ -1,0 +1,104 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { GeographicFraming } from '@yii/content-schema';
+import {
+  CesiumCameraFlightAdapter,
+  type CesiumCameraLike,
+  type NativeCameraFlightOptions,
+} from '../../src/renderers/cesium/camera-flight.js';
+
+const FRAMING: GeographicFraming = {
+  scopeType: 'corridor',
+  landingCamera: {
+    destination: { lat: -55, lon: -162, height: 1_200 },
+    orientation: { heading: 10, pitch: -30, roll: 0 },
+    range: 16_000,
+  },
+  previewEmphasis: { markerScale: 1.2 },
+  tileTier: 'safe-composition',
+  canvasTreatment: { darken: 0.15 },
+};
+
+function createCamera() {
+  let lastFlight: NativeCameraFlightOptions | null = null;
+  const camera = {
+    flyTo: vi.fn((options: NativeCameraFlightOptions) => {
+      lastFlight = options;
+    }),
+    cancelFlight: vi.fn(),
+  } satisfies CesiumCameraLike;
+  return {
+    camera,
+    lastFlight: () => lastFlight,
+  };
+}
+
+describe('CesiumCameraFlightAdapter', () => {
+  it('maps approved landing framing into one native Cesium flight and resolves on completion', async () => {
+    const { camera, lastFlight } = createCamera();
+    const poseMapper = vi.fn(() => ({
+      destination: { kind: 'cesium-cartesian' },
+      orientation: { heading: 0.1, pitch: -0.5, roll: 0 },
+    }));
+    const adapter = new CesiumCameraFlightAdapter({ camera, poseMapper });
+
+    const flight = adapter.flyToFraming(FRAMING);
+    const nativeFlight = lastFlight();
+    expect(poseMapper).toHaveBeenCalledWith(FRAMING.landingCamera);
+    expect(nativeFlight).toMatchObject({
+      duration: 1.8,
+      destination: { kind: 'cesium-cartesian' },
+    });
+    expect(adapter.isNativeFlightActive).toBe(true);
+
+    nativeFlight?.complete?.();
+    await expect(flight.finished).resolves.toEqual({ status: 'completed' });
+    expect(adapter.isNativeFlightActive).toBe(false);
+  });
+
+  it('cancels mid-flight deterministically and ignores a late native complete callback', async () => {
+    const { camera, lastFlight } = createCamera();
+    const adapter = new CesiumCameraFlightAdapter({
+      camera,
+      poseMapper: () => ({ destination: {} }),
+    });
+
+    const flight = adapter.flyToFraming(FRAMING);
+    const nativeFlight = lastFlight();
+    flight.cancel();
+    nativeFlight?.complete?.();
+
+    await expect(flight.finished).resolves.toEqual({ status: 'cancelled' });
+    expect(camera.cancelFlight).toHaveBeenCalledTimes(1);
+    expect(adapter.isNativeFlightActive).toBe(false);
+  });
+
+  it('rejects GSAP camera writes while a native Cesium flight owns the camera', () => {
+    const { camera } = createCamera();
+    const adapter = new CesiumCameraFlightAdapter({
+      camera,
+      poseMapper: () => ({ destination: {} }),
+    });
+
+    adapter.assertGsapCameraWriteAllowed();
+    const flight = adapter.flyToFraming(FRAMING);
+    expect(() => adapter.assertGsapCameraWriteAllowed()).toThrow(/native Cesium flight/i);
+
+    flight.cancel();
+    expect(() => adapter.assertGsapCameraWriteAllowed()).not.toThrow();
+  });
+
+  it('cancels a superseded native flight before beginning its replacement', async () => {
+    const { camera } = createCamera();
+    const adapter = new CesiumCameraFlightAdapter({
+      camera,
+      poseMapper: () => ({ destination: {} }),
+    });
+
+    const first = adapter.flyToFraming(FRAMING);
+    const second = adapter.flyToFraming(FRAMING);
+
+    await expect(first.finished).resolves.toEqual({ status: 'cancelled' });
+    expect(camera.cancelFlight).toHaveBeenCalledTimes(1);
+    second.cancel();
+  });
+});
