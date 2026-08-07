@@ -59,6 +59,7 @@ function readyPrewarmResult(fallback = false): CesiumPrewarmResult {
     projectId: PROJECT.id,
     tier: 'safe-composition',
     fallback,
+    meaningfulFrameReady: true,
     landingAssetsReady: true,
     status: 'ready',
   };
@@ -70,6 +71,7 @@ function readyStageOperation(fallback = false): CesiumStageOperation {
       projectId: PROJECT.id,
       tier: 'safe-composition',
       fallback,
+      meaningfulFrameReady: true,
       status: 'ready',
     }),
     cancel: vi.fn(),
@@ -280,6 +282,27 @@ describe('HandoverController', () => {
     expect(harness.controller.currentStatus).toBe('fallback');
     timeline.runNextBeat();
     await expect(operation.completion).resolves.toMatchObject({ status: 'fallback' });
+    harness.controller.dispose();
+  });
+
+  it('routes resource-only prewarm through fallback instead of exposing an unrendered stage', async () => {
+    const harness = createHarness({
+      readiness: [Promise.resolve({ ...readyPrewarmResult(), meaningfulFrameReady: false })],
+    });
+    const operation = harness.controller.startForward(PROJECT);
+    const timeline = harness.timelines[0];
+    if (!timeline) throw new Error('Expected a forward handover timeline.');
+
+    timeline.runNextBeat();
+    await flushAsyncWork();
+
+    expect(harness.cesium.matchSourceCamera).not.toHaveBeenCalled();
+    expect(harness.cesium.showSafeComposition).toHaveBeenCalledWith(PROJECT);
+    timeline.runNextBeat();
+    await expect(operation.completion).resolves.toMatchObject({
+      status: 'fallback',
+      reason: 'prewarm lacks a meaningful rendered frame',
+    });
     harness.controller.dispose();
   });
 

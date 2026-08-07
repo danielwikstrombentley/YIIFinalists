@@ -305,6 +305,10 @@ export class HandoverController {
         await this.revealFallback(active, `prewarm ${warmResult.status}`);
         return;
       }
+      if (!warmResult.meaningfulFrameReady) {
+        await this.revealFallback(active, 'prewarm lacks a meaningful rendered frame');
+        return;
+      }
 
       if (!this.cesium.matchSourceCamera(active.sourcePose, active.project)) {
         await this.revealFallback(active, 'source camera matching unavailable');

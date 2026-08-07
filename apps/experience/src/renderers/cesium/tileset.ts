@@ -5,8 +5,18 @@ export const INITIAL_TILE_CACHE_BYTES = 128 * 1024 * 1024;
 export const INITIAL_TILE_CACHE_OVERFLOW_BYTES = 64 * 1024 * 1024;
 
 /** Small structural type keeps adapter tests independent of WebGL/Cesium construction. */
+export interface CesiumEventLike<Args extends unknown[] = []> {
+  addEventListener(listener: (...args: Args) => void): () => void;
+}
+
 export interface CesiumTilesetLike {
   show?: boolean;
+  /** True when all tiles meeting the current view's SSE are loaded. */
+  tilesLoaded?: boolean;
+  /** Fires once, after rendered traversal has loaded the initial target view. */
+  initialTilesLoaded?: CesiumEventLike;
+  /** Fires after one target-view tile's renderable content finishes loading. */
+  tileLoad?: CesiumEventLike<[unknown]>;
   /** Cesium collections may destroy a primitive as part of `remove()`. */
   isDestroyed?(): boolean;
   destroy?(): void;

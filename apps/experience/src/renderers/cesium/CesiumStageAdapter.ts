@@ -20,7 +20,7 @@ import {
   type CesiumStageTier,
   type TierDegradation,
 } from './fallback-tiers.js';
-import { loadIonTileset, type CesiumTilesetLike } from './tileset.js';
+import { loadIonTileset, type CesiumEventLike, type CesiumTilesetLike } from './tileset.js';
 
 export type { CesiumTilesetLike } from './tileset.js';
 
@@ -39,6 +39,7 @@ export interface CesiumViewerLike {
   scene: {
     primitives: CesiumPrimitiveCollectionLike;
     requestRender?(): void;
+    postRender?: CesiumEventLike;
     canvas?: {
       clientWidth?: number;
       clientHeight?: number;
@@ -98,6 +99,7 @@ export interface CesiumStageReady {
   projectId: string;
   tier: CesiumStageTier;
   fallback: boolean;
+  meaningfulFrameReady: boolean;
   status: 'ready' | 'cancelled';
 }
 
@@ -119,6 +121,7 @@ export interface CesiumStageAdapterOptions {
   ionAccessToken?: string;
   ionGoogleTilesAssetId?: number | string;
   tileLatencyTimeoutMs?: number;
+  meaningfulFrameTimeoutMs?: number;
   onDegradation?: (event: TierDegradation) => void;
 }
 
@@ -128,6 +131,7 @@ export interface CesiumIonConfiguration {
 }
 
 const DEFAULT_TILE_LATENCY_TIMEOUT_MS = 3_500;
+const DEFAULT_MEANINGFUL_FRAME_TIMEOUT_MS = 12_000;
 
 const DEFAULT_VIEWER_OPTIONS: CesiumViewerOptions = {
   animation: false,
@@ -193,6 +197,12 @@ function withLatencyTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
   });
 }
 
+class MeaningfulFrameWaitCancelled extends Error {
+  constructor() {
+    super('Cesium meaningful-frame wait was cancelled.');
+  }
+}
+
 /**
  * Owns the Cesium DOM/viewer/tileset resources. It has no navigation decisions: the XState
  * machine and HandoverController choose when to prewarm, show, cancel, or reset this stage.
@@ -211,6 +221,7 @@ export class CesiumStageAdapter {
   private ionAccessToken: string | undefined;
   private ionGoogleTilesAssetId: number | string | undefined;
   private readonly tileLatencyTimeoutMs: number;
+  private readonly meaningfulFrameTimeoutMs: number;
   private readonly onDegradation: ((event: TierDegradation) => void) | undefined;
   private readonly fallbackSurface: FallbackSurface;
 
@@ -232,6 +243,7 @@ export class CesiumStageAdapter {
   private matchedSourceCamera: CameraPoseProbe | null = null;
   private matchedSourceTargetProjection: TargetProjectionProbe | null = null;
   private matchedSourceFrameAtMs: number | null = null;
+  private cancelMeaningfulFrameWait: (() => void) | null = null;
   private disposed = false;
   private viewerCreationError: Error | null = null;
 
@@ -246,6 +258,8 @@ export class CesiumStageAdapter {
     this.ionAccessToken = options.ionAccessToken;
     this.ionGoogleTilesAssetId = options.ionGoogleTilesAssetId;
     this.tileLatencyTimeoutMs = options.tileLatencyTimeoutMs ?? DEFAULT_TILE_LATENCY_TIMEOUT_MS;
+    this.meaningfulFrameTimeoutMs =
+      options.meaningfulFrameTimeoutMs ?? DEFAULT_MEANINGFUL_FRAME_TIMEOUT_MS;
     this.onDegradation = options.onDegradation;
 
     this.element = document.createElement('div');
@@ -281,7 +295,7 @@ export class CesiumStageAdapter {
 
   /** Prepares a project off-screen; T032 consumes this for preview-time readiness warming. */
   prewarmProject(project: CesiumStageProject): CesiumStageOperation {
-    return this.beginProject(project, false, false);
+    return this.beginProject(project, false, true);
   }
 
   /** Starts rendering the requested project as the active geographic presentation. */
@@ -301,6 +315,7 @@ export class CesiumStageAdapter {
         projectId: project.id,
         tier: this.activeTier,
         fallback: this.activeTier !== 'photorealistic',
+        meaningfulFrameReady: this.meaningfulFrameReadyAtMs !== null,
         status: 'ready',
       }),
       cancel: () => this.deactivate(),
@@ -317,7 +332,7 @@ export class CesiumStageAdapter {
     this.activeProject = project;
     this.activeTier = 'safe-composition';
     this.resourceReadyAtMs = transitionNowMs();
-    this.meaningfulFrameReadyAtMs = null;
+    this.meaningfulFrameReadyAtMs = this.resourceReadyAtMs;
     this.clearMatchedSourceProbe();
     this.setRendering(true);
     this.setPresentationVisible(true);
@@ -328,6 +343,7 @@ export class CesiumStageAdapter {
         projectId: project.id,
         tier: 'safe-composition',
         fallback: true,
+        meaningfulFrameReady: true,
         status: 'ready',
       }),
       cancel: () => this.reset(),
@@ -496,6 +512,7 @@ export class CesiumStageAdapter {
         }
 
         if (!this.isCurrent(operation)) return this.cancelledResult(project);
+        if (tier !== 'photorealistic') this.meaningfulFrameReadyAtMs = transitionNowMs();
         this.activeTier = tier;
         this.resourceReadyAtMs = transitionNowMs();
         this.syncTestAttributes();
@@ -503,6 +520,7 @@ export class CesiumStageAdapter {
           projectId: project.id,
           tier,
           fallback: tier !== 'photorealistic',
+          meaningfulFrameReady: this.meaningfulFrameReadyAtMs !== null,
           status: 'ready',
         };
       } catch (error) {
@@ -512,11 +530,14 @@ export class CesiumStageAdapter {
           // `safe-composition` itself is local and must not fail into an empty public frame.
           this.activateSafeCompositionTier();
           this.activeTier = 'safe-composition';
+          this.resourceReadyAtMs = transitionNowMs();
+          this.meaningfulFrameReadyAtMs = this.resourceReadyAtMs;
           this.syncTestAttributes();
           return {
             projectId: project.id,
             tier: 'safe-composition',
             fallback: true,
+            meaningfulFrameReady: true,
             status: 'ready',
           };
         }
@@ -534,7 +555,7 @@ export class CesiumStageAdapter {
   }
 
   private async activatePhotorealisticTier(
-    _project: CesiumStageProject,
+    project: CesiumStageProject,
     operation: number,
   ): Promise<void> {
     if (!this.viewer) {
@@ -546,6 +567,9 @@ export class CesiumStageAdapter {
     if (!assetId || !this.ionAccessToken) {
       throw new Error('Cesium ion configuration is unavailable from kiosk runtime config.');
     }
+    if (!this.setLandingCamera(project)) {
+      throw new Error('Cesium target camera is unavailable for meaningful-frame prewarm.');
+    }
 
     const tileset = await withLatencyTimeout(
       this.tilesetLoader({ assetId, accessToken: this.ionAccessToken }),
@@ -556,11 +580,18 @@ export class CesiumStageAdapter {
       return;
     }
 
-    tileset.show = true;
-    this.viewer?.scene.primitives.add(tileset);
-    this.tileset = tileset;
-    this.fallbackSurface.hide();
-    this.viewer?.scene.requestRender?.();
+    try {
+      const meaningfulFrame = this.waitForMeaningfulFrame(tileset, operation);
+      tileset.show = true;
+      this.tileset = tileset;
+      this.viewer.scene.primitives.add(tileset);
+      this.fallbackSurface.hide();
+      this.viewer.scene.requestRender?.();
+      await meaningfulFrame;
+    } catch (error) {
+      if (this.tileset === tileset) this.releaseTileset(tileset);
+      throw error;
+    }
   }
 
   private async activateLocalFallbackTier(
@@ -578,6 +609,82 @@ export class CesiumStageAdapter {
 
   private activateSafeCompositionTier(): void {
     this.fallbackSurface.show('safe-composition');
+  }
+
+  private waitForMeaningfulFrame(tileset: CesiumTilesetLike, operation: number): Promise<void> {
+    const postRender = this.viewer?.scene.postRender;
+    const initialTilesLoaded = tileset.initialTilesLoaded;
+    const tileLoad = tileset.tileLoad;
+    if (!postRender || (!initialTilesLoaded && !tileLoad && !tileset.tilesLoaded)) {
+      return Promise.reject(
+        new Error(
+          'Cesium target-view readiness events are unavailable for photorealistic prewarm.',
+        ),
+      );
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      let removeTileListener: (() => void) | null = null;
+      let removeTileLoadListener: (() => void) | null = null;
+      let removePostRenderListener: (() => void) | null = null;
+      let postRenderQueued = false;
+      const timeout = window.setTimeout(() => {
+        settle(
+          reject,
+          new Error(
+            `Cesium target frame exceeded the ${this.meaningfulFrameTimeoutMs} ms readiness budget.`,
+          ),
+        );
+      }, this.meaningfulFrameTimeoutMs);
+
+      const cleanup = (): void => {
+        window.clearTimeout(timeout);
+        removeTileListener?.();
+        removeTileListener = null;
+        removeTileLoadListener?.();
+        removeTileLoadListener = null;
+        removePostRenderListener?.();
+        removePostRenderListener = null;
+        if (this.cancelMeaningfulFrameWait === cancel) this.cancelMeaningfulFrameWait = null;
+      };
+      const settle = <T>(callback: (value: T) => void, value: T): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback(value);
+      };
+      const waitForFollowingPostRender = (): void => {
+        if (settled || postRenderQueued || !this.isCurrent(operation)) return;
+        postRenderQueued = true;
+        removeTileListener?.();
+        removeTileListener = null;
+        removeTileLoadListener?.();
+        removeTileLoadListener = null;
+        // Queue after the tile-ready callback's frame so only a subsequent postRender can settle.
+        queueMicrotask(() => {
+          if (settled || !this.isCurrent(operation)) return;
+          removePostRenderListener = postRender.addEventListener(() => {
+            if (!this.isCurrent(operation)) return;
+            this.meaningfulFrameReadyAtMs = transitionNowMs();
+            settle(resolve, undefined);
+          });
+        });
+      };
+      const cancel = (): void => settle(reject, new MeaningfulFrameWaitCancelled());
+      this.cancelMeaningfulFrameWait = cancel;
+
+      if (tileset.tilesLoaded) {
+        waitForFollowingPostRender();
+      } else if (initialTilesLoaded) {
+        removeTileListener = initialTilesLoaded.addEventListener(waitForFollowingPostRender);
+        if (tileLoad) {
+          removeTileLoadListener = tileLoad.addEventListener(waitForFollowingPostRender);
+        }
+      } else if (tileLoad) {
+        removeTileLoadListener = tileLoad.addEventListener(waitForFollowingPostRender);
+      }
+    });
   }
 
   private ensureViewer(): void {
@@ -730,9 +837,17 @@ export class CesiumStageAdapter {
   }
 
   private clearProjectResources(): void {
+    this.cancelMeaningfulFrameWait?.();
+    this.cancelMeaningfulFrameWait = null;
     const tileset = this.tileset;
-    this.tileset = null;
-    if (tileset && !tileset.isDestroyed?.()) {
+    if (tileset) this.releaseTileset(tileset);
+    this.localFallback?.dispose();
+    this.localFallback = null;
+  }
+
+  private releaseTileset(tileset: CesiumTilesetLike): void {
+    if (this.tileset === tileset) this.tileset = null;
+    if (!tileset.isDestroyed?.()) {
       tileset.show = false;
       this.viewer?.scene.primitives.remove(tileset);
       // Cesium's default PrimitiveCollection owns its children and destroys a removed tileset.
@@ -741,8 +856,6 @@ export class CesiumStageAdapter {
       // Cesium throw DeveloperError and can stop the XState actor handling category/idle input.
       if (!tileset.isDestroyed?.()) tileset.destroy?.();
     }
-    this.localFallback?.dispose();
-    this.localFallback = null;
   }
 
   private isCurrent(operation: number): boolean {
@@ -754,6 +867,7 @@ export class CesiumStageAdapter {
       projectId: project.id,
       tier: this.activeTier ?? initialStageTier(project.geographicFraming),
       fallback: true,
+      meaningfulFrameReady: false,
       status: 'cancelled',
     };
   }

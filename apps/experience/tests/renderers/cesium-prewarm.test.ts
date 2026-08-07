@@ -38,6 +38,7 @@ function createStageOperation() {
     projectId: string;
     tier: 'safe-composition';
     fallback: true;
+    meaningfulFrameReady: true;
     status: 'ready';
   }>();
   const cancel = vi.fn();
@@ -77,11 +78,13 @@ describe('CesiumPrewarmController', () => {
       projectId: 'second-project',
       tier: 'safe-composition',
       fallback: true,
+      meaningfulFrameReady: true,
       status: 'ready',
     });
     await expect(secondWarm.ready).resolves.toMatchObject({
       projectId: 'second-project',
       status: 'ready',
+      meaningfulFrameReady: true,
       landingAssetsReady: true,
     });
   });
@@ -104,6 +107,7 @@ describe('CesiumPrewarmController', () => {
       projectId: 'first-project',
       tier: 'safe-composition',
       fallback: true,
+      meaningfulFrameReady: true,
       status: 'ready',
     });
     await firstWarm.ready;
@@ -113,6 +117,7 @@ describe('CesiumPrewarmController', () => {
       projectId: 'first-project',
       tier: 'safe-composition',
       fallback: true,
+      meaningfulFrameReady: true,
       status: 'ready',
     });
     await secondWarm.ready;

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useMachineSnapshot } from './MachineProvider.js';
+import { useMachineActor, useMachineSnapshot } from './MachineProvider.js';
 import { LandingHero } from '../ui/LandingHero.js';
 import { PreviewMetadata, type PreviewMetadataState } from '../ui/PreviewMetadata.js';
 import type { CesiumPresentation } from '../state/runtime.js';
@@ -9,6 +9,7 @@ import type { CesiumPresentation } from '../state/runtime.js';
 // `data-machine-state` is a debug/E2E hook only, never visible content. Real renderer mounting
 // (Three.js globe / Cesium stage / handover canvases) lands with PH3's renderer adapters.
 export function StageMount() {
+  const actor = useMachineActor();
   const snapshot = useMachineSnapshot();
   const stageRef = useRef<HTMLDivElement>(null);
   const globe = snapshot.context.runtime.globe;
@@ -60,6 +61,9 @@ export function StageMount() {
         }
         cesium = presentation;
         runtime.setCesium(cesium);
+        const currentPreviewId = actor.getSnapshot().context.previewedProjectId;
+        const currentPreview = currentPreviewId ? globe.getProject(currentPreviewId) : undefined;
+        if (currentPreview) cesium.prewarmPreview(currentPreview);
         resolveReady(cesium);
       })
       .catch(() => {
@@ -73,7 +77,7 @@ export function StageMount() {
       if (runtime.cesiumReady === ready) runtime.setCesiumReady(null);
       cesium?.dispose();
     };
-  }, [globe, runtime]);
+  }, [actor, globe, runtime]);
 
   return (
     <>

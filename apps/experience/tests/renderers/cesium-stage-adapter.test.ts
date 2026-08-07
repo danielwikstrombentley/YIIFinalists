@@ -151,7 +151,7 @@ describe('CesiumStageAdapter', () => {
     adapter.dispose();
   });
 
-  it('reports its ECEF camera, actual render time, and the not-yet-meaningful readiness gap', async () => {
+  it('reports its ECEF camera, actual render time, and immediate local-fallback readiness', async () => {
     const ticker = new Ticker();
     const viewer = createViewer();
     const adapter = new CesiumStageAdapter({ ticker, viewerFactory: () => viewer.viewer });
@@ -170,13 +170,11 @@ describe('CesiumStageAdapter', () => {
         verticalFovRadians: Math.PI / 4,
         aspectRatio: 16 / 9,
       },
-      readiness: {
-        meaningfulFrameReadyAtMs: null,
-      },
     });
     expect(probe.frameCount).toBeGreaterThan(0);
     expect(probe.lastRenderAtMs).not.toBeNull();
     expect(probe.readiness.resourceReadyAtMs).not.toBeNull();
+    expect(probe.readiness.meaningfulFrameReadyAtMs).not.toBeNull();
 
     adapter.dispose();
     ticker.stop();

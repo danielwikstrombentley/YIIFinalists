@@ -53,6 +53,11 @@ async function confirmPreview(
     'data-preview-motion',
     'settled',
   );
+  await expect(page.getByTestId('cesium-stage')).toHaveAttribute(
+    'data-meaningful-frame-ready-at-ms',
+    /\d/,
+    { timeout: 5_000 },
+  );
   await injectAction(page, 'project.select', {});
   await expect(page.getByTestId('handover-controller')).toHaveAttribute(
     'data-status',

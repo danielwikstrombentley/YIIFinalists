@@ -8,8 +8,8 @@
 
 **Started:** 2026-08-07
 
-**Status:** Pass 0 observability and Pass 1 exact hidden camera match implemented; Pass 2 meaningful
-frame readiness is next.
+**Status:** Passes 0–2 implemented: observability, exact hidden camera match, and meaningful target
+frame readiness. Pass 3 synchronized continuous flight is next.
 
 **Current winner:** Planned method M2 — one native Cesium camera flight, mirrored into the Three.js
 camera while both renderers overlap, with an atmospheric crossfade rather than an opaque stop.
@@ -876,6 +876,60 @@ Append every attempt below. Do not rewrite earlier verdicts after the fact.
 - **Next experiment:** Pass 2 — place the hidden camera at the target during prewarm, keep it
   rendering through the shared ticker, require target-view tile readiness plus a subsequent
   `postRender`, and preserve bounded cancellation/fallback behavior.
+
+### Experiment P2 — 2026-08-07
+
+- **Agent/model:** GitHub Copilot / GPT-5.6 Sol (OpenAI).
+- **Branch commit:** working tree after Pass 1 commit `67f8d9c`; this experiment is the next
+  reviewable commit.
+- **Method ID / hypothesis:** Pass 2 readiness foundation for M2. A hidden Cesium stage positioned
+  at the approved landing camera can traverse target tiles from the one shared ticker, and
+  readiness can require real target content plus a later completed frame without exposing tiles.
+- **Viewing condition:** fresh Chromium dev pages, photorealistic `cat-1-proj-1`, event-local ion
+  configuration, DPR 2; focused Playwright at 1280×720; normal network.
+- **Exact code/tuning changes:** preview prewarm now renders with CSS opacity `0` from the shared
+  ticker, positions the camera at the approved target/range pose before adding the tileset, and
+  resolves only after either `initialTilesLoaded` or the first target `tileLoad`, followed by a
+  queued subsequent `Scene.postRender`. Tile and post-render listeners, timeout, tileset, ticker
+  registration, and stale promises share one idempotent cancellation path. `CesiumStageReady` and
+  `CesiumPrewarmResult` carry mandatory `meaningfulFrameReady`; HandoverController refuses the
+  normal match/reveal path if false. Resource loading retains its `3,500 ms` budget; hidden target
+  traversal has a separate `12,000 ms` budget; the visible full-cover watchdog remains `1,000 ms`.
+  The code-split stage now catches up the machine's current preview on construction, closing a race
+  where category preview could precede Cesium loading and never start preview-time prewarm.
+- **Rejected intermediate variants:** (1) tileset-construction readiness is retained as rejected;
+  red-first tests proved it settled before rendering and registered no ticker/listeners. (2)
+  `initialTilesLoaded` alone with the original `3,500 ms` budget degraded a live target to
+  `local-fallback-scene`. Raising only that wait to `12,000 ms` still degraded because high-detail
+  Google target traversal did not reach all-current-view completion in time. The retained signal
+  accepts the first renderable target tile (`tileLoad`) or the stronger initial-all-tiles event,
+  but never either without the following post-render. (3) waiting inside the visible cover remains
+  rejected; an early confirmation uses the bounded opaque fallback rather than extending cover.
+- **Automated evidence:** the two Pass 2 tests were red first, then pass: construction alone stays
+  pending; tile-ready alone stays pending; following post-render settles; retarget removes every
+  listener and ticker registration and resolves cancelled. The focused readiness/stage/prewarm/
+  handover suite passes 17/17, the wider camera/Cesium set passes 27/27, strict typecheck passes,
+  and the focused US2 browser gate passes in 24.8 seconds with no-black, matched-camera, and ≤0.5%
+  target-projection assertions intact.
+- **Live-browser evidence:** photorealistic tier remained selected; prewarm was `visible=false`,
+  `rendering=true`; the readiness probe settled after 3 hidden frames with both resource and
+  meaningful-frame timestamps populated and `lastRenderAtMs` at/after readiness. No page, console,
+  or shader errors were observed. A prior initial-all-tiles-only live attempt visibly recorded
+  `local-fallback-scene`, 26 hidden frames, and no errors, confirming bounded degradation also works.
+- **What improved:** streamed content is meaningfully rendered before normal-path eligibility;
+  preview retarget owns and cancels all asynchronous listeners; late renderer startup no longer
+  misses the current preview; the fallback path stays bounded and non-blank.
+- **What remains wrong:** Cesium returns to the legacy landing hard cut after the hidden proof;
+  there is no one-flight camera motion, deterministic combined-frame ordering, or visible moving
+  crossfade yet. Off-screen prewarm cost is bounded by policy but still needs final performance
+  measurement in Pass 5/on event hardware.
+- **Human feedback:** no aesthetic verdict requested; this pass changes hidden readiness and should
+  not be judged as the final transition.
+- **Verdict:** retained. First target tile plus a subsequent completed frame is the normal
+  photorealistic readiness contract; initial-all-tiles remains an accepted stronger signal.
+- **Next experiment:** Pass 3 / M2 — wire the native Cesium flight from the retained exact source
+  pose, mirror each Cesium pose into Three in deterministic shared-ticker order, remove normal-path
+  CSS scale/pause/full-opacity cover, and preserve M0 only for fallback.
 
 ### Experiment template
 
