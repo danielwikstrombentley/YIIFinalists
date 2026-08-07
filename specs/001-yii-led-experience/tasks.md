@@ -630,11 +630,11 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
 
 ### Implementation for US4
 
-- [ ] T046 [US4] Implement reverse handover (transitionToPreview) restoring the previously previewed project in apps/experience/src/renderers/handover/HandoverController.ts
-  - Meta: Phase PH6 · Feature F001 · Owner — · Branch `task/001-T046-reverse-handover` · PR — · Blockers —
-  - Do: Mirror choreography of the forward path (same transition language — FR-008): Cesium → cover → globe with previous preview framing restored; failure destination snaps to `categoryActive.preview` per data-model; machine wiring for `nav.back` from landing/content states through `transitionToPreview`.
+- [~] T046 [US4] Implement reverse handover (transitionToPreview) restoring the previously previewed project in apps/experience/src/renderers/handover/HandoverController.ts
+  - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T046-reverse-handover` · PR — · Blockers —
+  - Do: Mirror choreography of the forward path (same transition language — FR-008): Cesium → cover → globe with previous preview framing restored; failure destination snaps to `categoryActive.preview` per data-model; machine wiring for `nav.back` from landing/content states through `transitionToPreview`. User-directed early implementation covers the live `projectLanding` return-to-idle/category paths now; T044's later content states must reuse this same route.
   - Files: `apps/experience/src/renderers/handover/HandoverController.ts`, `apps/experience/src/state/machine.ts`
-  - Deps: T033, T044
+  - Deps: T033 (the reusable reverse renderer path is implemented before T044; T044 must route its content states through it)
   - Tests: extend T036 with reverse-path cases (readiness, watchdog, cancel).
   - Accept: FR-015 complete; reverse concealment equal to forward (SC-003 both directions).
 
