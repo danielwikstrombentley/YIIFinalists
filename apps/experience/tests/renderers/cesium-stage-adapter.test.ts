@@ -54,6 +54,24 @@ function createTileset() {
   return { tileset: { show: true, destroy } satisfies CesiumTilesetLike, destroy };
 }
 
+function createCollectionOwnedTileset() {
+  let destroyed = false;
+  const destroy = vi.fn(() => {
+    if (destroyed) throw new Error('Tileset destroy() must not be called twice.');
+    destroyed = true;
+  });
+  const isDestroyed = vi.fn(() => destroyed);
+  return {
+    tileset: {
+      show: true,
+      destroy,
+      isDestroyed,
+    } satisfies CesiumTilesetLike,
+    destroy,
+    isDestroyed,
+  };
+}
+
 describe('CesiumStageAdapter', () => {
   it('disables Cesium’s default loop and renders only while its adapter is active', async () => {
     const ticker = new Ticker();
@@ -151,5 +169,29 @@ describe('CesiumStageAdapter', () => {
     expect(ticker.rendererCount).toBe(0);
     expect(stage.querySelector('[data-testid="cesium-stage"]')).toBeNull();
     ticker.stop();
+  });
+
+  it('does not double-destroy a tileset that Cesium destroys while removing its primitive', async () => {
+    const viewer = createViewer();
+    const tileset = createCollectionOwnedTileset();
+    viewer.remove.mockImplementation((primitive) => {
+      primitive.destroy?.();
+      return true;
+    });
+    const adapter = new CesiumStageAdapter({
+      viewerFactory: () => viewer.viewer,
+      ionAccessToken: 'test-token',
+      ionGoogleTilesAssetId: 123,
+      tilesetLoader: async () => tileset.tileset,
+    });
+    adapter.start(document.createElement('div'));
+    await adapter.prewarmProject(PHOTOREALISTIC_PROJECT).ready;
+
+    expect(() => adapter.reset()).not.toThrow();
+    expect(() => adapter.reset()).not.toThrow();
+    expect(viewer.remove).toHaveBeenCalledWith(tileset.tileset);
+    expect(tileset.destroy).toHaveBeenCalledTimes(1);
+    expect(tileset.isDestroyed).toHaveBeenCalled();
+    adapter.dispose();
   });
 });
