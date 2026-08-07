@@ -1030,6 +1030,14 @@ plan-recorded N/A rationale — currently none).
   - Tests: pure pose/FOV/range/projection mapping; integration readiness only after tile-ready + post-render; deterministic Cesium→Three update/render order; no normal-path full-cover hold; cancellation at every beat; repeated-cycle cleanup; E2E no-black plus target-projection/camera-continuity probes; live photorealistic hard-reload review with no console/page/shader errors.
   - Accept: press `1` then `3` reads as one continuous zoom into the selected world location; renderer crossover stays within the document's target/FOV/scale tolerances and has no visible pause or jump; Cesium is meaningfully rendered before exposure; higher-priority interruption restores the exact preview; fallback remains bounded and non-blank; one shared ticker and one Cesium camera writer are preserved; the human explicitly accepts the final visual pass and the document contains the complete experiment history.
 
+- [~] T084 Restore the rig-owned globe camera after a completed Cesium handover before returning to idle
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T084-restore-globe-camera-after-handover` · PR — · Blockers —
+  - Do: Prevent the direct Three-camera pose applied during T083's Cesium-flight mirroring from persisting when the machine re-enters idle. Reassert the camera rig's currently owned orbit before its normal idle-return motion, preserving smooth ordinary preview exits while preventing a near-surface Cesium pose from exposing an enlarged or shifted globe frame.
+  - Files: `apps/experience/src/renderers/globe/camera-rig.ts`, `apps/experience/tests/renderers/globe-camera-rig.test.ts`
+  - Deps: T083
+  - Tests: unit regression mutates the controlled Three camera to an external handover pose, invokes the idle return, and proves the rig immediately resumes its owned orbit before settling at the default idle orbit.
+  - Accept: project → idle never displays the externally mirrored Cesium camera pose; the idle globe returns to its intended full-globe composition and existing preview-to-idle motion remains intact.
+
 ---
 
 ## Dependencies & Execution Order
