@@ -1022,8 +1022,8 @@ plan-recorded N/A rationale — currently none).
   - Tests: unit simulates a `PrimitiveCollection.remove()` that destroys the tileset and proves reset/re-entry does not throw or double-destroy; browser test repeats development category selection then idle and asserts the experience remains interactive with no page errors.
   - Accept: repeated `1` category entries and `0` idle reset work during photorealistic prewarming with no `DeveloperError`, stopped XState actor, stale Cesium resource, or public error frame.
 
-- [~] T083 Refine the cinematic-globe → Cesium project-entry transition with a camera-continuous renderer handoff
-  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `feature/globe-cesium-transition-fidelity` · PR — · Blockers —
+- [R] T083 Refine the cinematic-globe → Cesium project-entry transition with a camera-continuous renderer handoff
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `feature/globe-cesium-transition-fidelity` · PR #15 · Blockers —
   - Do: Execute the iterative workstream in `Docs/GLOBE_TO_CESIUM_TRANSITION_FIDELITY.md`: establish one tested custom-sphere ↔ WGS84/ECEF camera-pose bridge; match Cesium position/direction/up/FOV and the selected target's screen position to the live Three.js preview; make preview-time prewarm wait for target-view tiles plus a completed rendered frame; wire one cancellable Cesium flight and mirror its pose into Three during a bounded shared-ticker overlap; replace the normal-path CSS scale/full-opacity pause with a human-approved moving atmospheric crossfade while retaining the opaque watchdog route for fallback; append every attempted, retained, and rejected method with exact parameters and feedback to the workstream document.
   - Files: `Docs/GLOBE_TO_CESIUM_TRANSITION_FIDELITY.md`, `apps/experience/src/renderers/{globe,cesium,handover}/**`, `apps/experience/src/app/cesium-presentation.ts`, `apps/experience/src/orchestration/{motion-tokens.ts,ticker.ts}`, `apps/experience/tests/{renderers,e2e}/**`
   - Deps: T031, T032, T033, T035, T081, T082

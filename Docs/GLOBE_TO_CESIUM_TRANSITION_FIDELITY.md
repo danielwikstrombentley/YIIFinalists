@@ -9,7 +9,7 @@
 **Started:** 2026-08-07
 
 **Status:** Runtime, automated validation, and human visual acceptance complete. M5 accepted on
-2026-08-07; PR/merge bookkeeping remains.
+2026-08-07; PR #15 is open under the user's explicit review-agent waiver.
 
 **Current winner:** Accepted M2+M5 — one native Cesium camera flight mirrored into the Three.js
 camera during a bounded overlap, with a target-following partial atmospheric crossfade rather than
