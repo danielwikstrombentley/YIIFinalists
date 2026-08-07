@@ -15,6 +15,10 @@ interface E2eRuntime {
   stateHistory(): unknown[];
 }
 
+interface ConfirmedTransitionReport extends VisibleTransitionFrameReport {
+  readyTier: string | null;
+}
+
 async function openIdleStage(page: Page): Promise<void> {
   await page.goto('/?e2e=1');
   const stage = page.locator('#stage');
@@ -48,7 +52,7 @@ async function previewProject(page: Page, projectId = 'cat-1-proj-1'): Promise<v
 async function confirmPreview(
   page: Page,
   frameOptions: VisibleFrameCheckOptions = {},
-): Promise<VisibleTransitionFrameReport> {
+): Promise<ConfirmedTransitionReport> {
   await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
     'data-preview-motion',
     'settled',
@@ -58,16 +62,21 @@ async function confirmPreview(
     /\d/,
     { timeout: 5_000 },
   );
+  const readyTier = await page.getByTestId('cesium-stage').getAttribute('data-tier');
   await injectAction(page, 'project.select', {});
   await expect(page.getByTestId('handover-controller')).toHaveAttribute(
     'data-status',
-    /^(approaching|covering|revealing)$/,
+    /^(approaching|flying|blending|covering|revealing)$/,
   );
-  const report = await expectVisibleTransitionFrames(page, frameOptions);
+  const report = await expectVisibleTransitionFrames(page, {
+    ...frameOptions,
+    maximumOpaqueStationaryHoldMs:
+      readyTier === 'photorealistic' ? 100 : frameOptions.maximumOpaqueStationaryHoldMs,
+  });
   await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"projectLanding"', {
     timeout: 5_000,
   });
-  return report;
+  return { ...report, readyTier };
 }
 
 test.describe('US2: confirm, concealed renderer handover, and geographic landing', () => {
@@ -112,15 +121,26 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
     expect(
       transitionReport.samples.some(({ handoverStatus }) => handoverStatus !== 'unavailable'),
     ).toBe(true);
-    expect(transitionReport.cameraComparison?.comparable).toBe(true);
-    expect(
-      transitionReport.cameraComparison?.aligned,
-      JSON.stringify(transitionReport.cameraComparison),
-    ).toBe(true);
-    expect(
-      transitionReport.targetProjectionDelta?.distance,
-      'matched Cesium target must stay within 0.5% of the globe viewport',
-    ).toBeLessThanOrEqual(0.005);
+    if (transitionReport.readyTier === 'photorealistic') {
+      expect(transitionReport.cameraComparison?.comparable).toBe(true);
+      expect(
+        transitionReport.cameraComparison?.aligned,
+        JSON.stringify(transitionReport.cameraComparison),
+      ).toBe(true);
+      expect(
+        transitionReport.targetProjectionDelta?.distance,
+        'matched Cesium target must stay within 0.5% of the globe viewport',
+      ).toBeLessThanOrEqual(0.005);
+      expect(
+        transitionReport.maximumLiveCameraDelta?.aligned,
+        JSON.stringify(transitionReport.maximumLiveCameraDelta),
+      ).toBe(true);
+      expect(
+        transitionReport.maximumLiveTargetProjectionDelta,
+        'selected target must remain aligned through the live renderer overlap',
+      ).toBeLessThanOrEqual(0.005);
+      expect(transitionReport.longestOpaqueStationaryHoldMs).toBeLessThanOrEqual(100);
+    }
 
     const hero = page.getByTestId('landing-hero');
     await expect(hero).toBeVisible();
@@ -188,7 +208,7 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
     // than merely pre-empting a queued renderer startup before it owns any visual resources.
     await expect(page.getByTestId('handover-controller')).toHaveAttribute(
       'data-status',
-      /^(approaching|covering|revealing)$/,
+      /^(approaching|flying|blending|covering|revealing)$/,
     );
     await injectAction(page, 'category.select', { categoryId: 'cat-2' });
 

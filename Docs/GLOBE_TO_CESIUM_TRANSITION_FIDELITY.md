@@ -8,8 +8,8 @@
 
 **Started:** 2026-08-07
 
-**Status:** Passes 0–2 implemented: observability, exact hidden camera match, and meaningful target
-frame readiness. Pass 3 synchronized continuous flight is next.
+**Status:** Passes 0–3 implemented: observability, exact hidden camera match, meaningful target
+frame readiness, and one synchronized native flight. Pass 4 human visual comparison is next.
 
 **Current winner:** Planned method M2 — one native Cesium camera flight, mirrored into the Three.js
 camera while both renderers overlap, with an atmospheric crossfade rather than an opaque stop.
@@ -535,10 +535,10 @@ Status values: `planned`, `active`, `retained`, `rejected`, `superseded`, or `ac
 |---|---|---|---|
 | M0 | CSS-scale Three canvas → fully opaque radial cover → swap → reveal | rejected for normal path; retained for fallback | Baseline B1 measured the live photorealistic path: source/landing target projections differed by 27.0% of the viewport diagonal and source/Cesium vertical FOVs by 8.22°; the near-cover frame is visually featureless. |
 | M1 | Exact matched Cesium start pose, still swapped under current full cover | retained proof | Hidden hard-cut proof now passes ECEF position/direction/up/FOV/aspect thresholds and ≤0.5% target projection in the photorealistic browser. Public M0 cover is intentionally unchanged pending M2/M5. |
-| M2 | Native Cesium flight mirrored into Three during bounded overlap | planned; current winner | Preserves one Cesium camera writer and one logical flight while allowing a camera-aligned renderer crossfade. |
+| M2 | Native Cesium flight mirrored into Three during bounded overlap | retained; current winner | One 4.2 s native flight now drives both views in deterministic Cesium→capture→Three update→Three render order under one shared-ticker callback. Live range was monotonic to the approved 800 m landing. |
 | M3 | Renderer-neutral GSAP/geodetic camera path writing both cameras | planned fallback | More control if native flight motion is rejected; more architecture and camera-writer responsibility. |
 | M4 | Plain opacity crossfade between matched live canvases | planned comparison | Diagnostic baseline for whether exact pose alone is sufficient; likely exposes texture/colour mismatch. |
-| M5 | Partial atmospheric/cloud crossfade between matched live canvases | planned; preferred treatment | Expected to hide material/LOD differences without a fully opaque stop. |
+| M5 | Partial atmospheric/cloud crossfade between matched live canvases | active candidate | Target-following radial atmosphere peaks at 0.28 opacity; renderer blend follows native-flight progress 0.12→0.62 and never reaches full cover on the ready path. Human verdict pending. |
 | M6 | Target-centered radial atmospheric dissolve | planned optional comparison | May direct attention into the selected point; reject if it reads as a wipe/UI effect rather than travel. |
 | M7 | Canvas screenshot/readback warp or frozen texture morph | deferred, not recommended | Adds GPU readback/upload cost, hides rather than solves camera mismatch, complicates DPR/colour handling, and can introduce a frozen frame. |
 | M8 | Share one WebGL context or insert Three objects into Cesium | rejected without implementation | Cesium and the existing Three renderer cannot safely share scene/context ownership; violates current adapter boundaries for little transition benefit. |
@@ -930,6 +930,68 @@ Append every attempt below. Do not rewrite earlier verdicts after the fact.
 - **Next experiment:** Pass 3 / M2 — wire the native Cesium flight from the retained exact source
   pose, mirror each Cesium pose into Three in deterministic shared-ticker order, remove normal-path
   CSS scale/pause/full-opacity cover, and preserve M0 only for fallback.
+
+### Experiment P3 — 2026-08-07
+
+- **Agent/model:** GitHub Copilot / GPT-5.6 Sol (OpenAI).
+- **Branch commit:** working tree after Pass 2 commit `523c072`; this experiment is the next
+  reviewable commit.
+- **Method ID / hypothesis:** M2 with M5 candidate treatment. Cesium can own one native camera
+  flight while Three renders a synchronized representation of the same ECEF pose until a
+  flight-progress-bound renderer blend completes.
+- **Viewing condition:** fresh Chromium development pages, photorealistic `cat-1-proj-1`, DPR 2,
+  event-local ion config, normal network; focused Playwright 1280×720; repeated hard-open/manual
+  paths and category interruption.
+- **Exact code/tuning changes:** wired `CesiumCameraFlightAdapter` into the production stage and
+  retained its one-writer guard; added handover-owned external frame-control ports to both
+  adapters; replaced their separate ticker registrations with one combined callback ordered
+  Cesium render → capture current ECEF pose → apply pose to Three → Three render. The 4,200 ms
+  native flight runs from the exact matched source to corrected content landing. Renderer blend is
+  bound to normalized source-to-target range progress `0.12→0.62`, not wall time. A radial veil
+  tracks the live selected-target projection, peaks at opacity `0.28` at progress `0.24`, and
+  returns to zero by `0.70`. Preview markers are hidden during external camera control. Three stops
+  after crossover; Cesium continues the same flight to settlement. M0's 1,800 ms CSS-scale/full-
+  cover route remains only in `beginConcealedFallback()`.
+- **Rejected intermediate variants:** (1) the first M2 implementation drove a `900 ms` GSAP
+  crossfade independently from flight progress. In a throttled/background integrated tab, native
+  camera motion could reach the 800 m landing while the blend remained active; rejected and
+  replaced with range-progress ownership so the next available frame catches up atomically. (2)
+  The first live Three target probe omitted approved target height and diverged by `0.4514`
+  normalized viewport units near landing; exact WGS84 geodetic target+height mapping reduced the
+  retained overlap maximum to `0.0004924` (0.0492%). (3) Initially passing the Cesium-backed bridge
+  through eager globe code pulled Cesium into the initial bundle; rejected. The neutral WGS84
+  scaled-space bridge is now Cesium-free and the Cesium landing mapper remains behind the lazy
+  presentation boundary. (4) Enlarged marker dots during camera approach were rejected; marker
+  instances are transition-hidden and restored idempotently. (5) A repeated idle/category cycle
+  inherited globe opacity `0`; adapter `start()` now restores opacity/transform and has a regression
+  test.
+- **Automated evidence:** red-first matched-flight test proves one flight, exact per-frame order,
+  no normal-path scale >1, no opacity-1 cover tween, and target-following veil. Focused renderer/
+  handover suites pass 33/33; strict typecheck passes. Focused Playwright scenario 1 passes with
+  no-black/no-stale, no normal-path opaque hold >100 ms, hidden-source alignment, every-frame live
+  camera alignment, and selected-target displacement ≤0.5%. Scenario 4 passes category interruption
+  during flight/crossfade and restores the new preview. Complete experience unit verification passes
+  184 tests with 4 intentional skips, and the production build passes with Cesium presentation
+  retained as a separate lazy chunk.
+- **Live-browser evidence:** a sampled ready-path run recorded 50 points: camera-to-target range
+  decreased monotonically from `13,651,170.56 m` to exactly `800.00 m` with zero increases; max
+  veil opacity `0.28`; no page/console/shader errors. Persisted 65-frame overlap metrics recorded
+  position delta `4.17e-9 m`, direction delta `0°`, up delta `1.21e-6°`, FOV/aspect delta `0`, and
+  target delta `0.0004924`. Range-progress crossover remains robust when frame delivery is
+  throttled. Local comparison captures: `/tmp/t083-m5-source.png`, `/tmp/t083-m5-05.png`, and
+  `/tmp/t083-m5-wide-blend-mid.png`; temporary files are not committed.
+- **What improved:** press `3` now starts real geographic travel immediately; cameras and selected
+  target remain matched during ownership transfer; no CSS enlargement, timeline pause, or fully
+  opaque ready-path frame remains; one shared ticker and one Cesium camera writer are preserved.
+- **What remains wrong:** human comparison of M4 plain blend versus M5 partial target-following
+  atmosphere is still required. Landing-hero timing and repeated-cycle/performance polish remain
+  Pass 5 work. Event-hardware timing remains an open release dependency.
+- **Human feedback:** not yet requested for this first complete moving candidate.
+- **Verdict:** M2 retained as the camera architecture. M5 remains the active visual candidate;
+  final acceptance is pending human review.
+- **Next experiment:** Pass 4 — compare M4 and M5 with fixed project/flight/viewport/network,
+  retain one treatment from explicit human feedback, then run Pass 5 interruption/repeat/performance
+  polish.
 
 ### Experiment template
 

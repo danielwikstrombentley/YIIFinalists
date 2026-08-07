@@ -39,9 +39,12 @@ describe('geographic camera-pose bridge', () => {
       EARTH_RADIUS,
     );
 
-    expectDirection(positiveX, new Cartesian3(-1, 0, 0));
-    expectDirection(positiveY, new Cartesian3(0, 0, 1));
-    expectDirection(positiveZ, new Cartesian3(0, 1, 0));
+    expectDirection(
+      new Cartesian3(positiveX.x, positiveX.y, positiveX.z),
+      new Cartesian3(-1, 0, 0),
+    );
+    expectDirection(new Cartesian3(positiveY.x, positiveY.y, positiveY.z), new Cartesian3(0, 0, 1));
+    expectDirection(new Cartesian3(positiveZ.x, positiveZ.y, positiveZ.z), new Cartesian3(0, 1, 0));
   });
 
   it('removes and restores the live globe-root transform during a Three ↔ ECEF round trip', () => {
@@ -110,6 +113,29 @@ describe('geographic camera-pose bridge', () => {
         Cartesian3.dot(new Cartesian3(...pose.directionEcef), new Cartesian3(...pose.upEcef)),
       ),
     ).toBeLessThan(1e-12);
+  });
+
+  it('keeps a target-centered landing at screen center after mapping the pose into Three', () => {
+    const cameraPose = {
+      destination: { lat: -55, lon: -170, height: 400 },
+      orientation: { heading: 0, pitch: -30, roll: 0 },
+      range: 800,
+    };
+    const pose = landingPoseFromCameraPose(cameraPose);
+    const root = new Matrix4().makeRotationY(0.73);
+    const camera = new PerspectiveCamera(42, 16 / 9, 0.00001, 100);
+    applyGeographicPoseToThreeCamera(camera, pose, root, EARTH_RADIUS);
+    const target = geographicToThreeSpherePoint(
+      cameraPose.destination.lat,
+      cameraPose.destination.lon,
+      EARTH_RADIUS,
+      new Vector3(),
+      cameraPose.destination.height,
+    ).applyMatrix4(root);
+    const projection = projectGeographicTarget(camera, target);
+
+    expect(projection?.x).toBeCloseTo(0.5, 3);
+    expect(projection?.y).toBeCloseTo(0.5, 3);
   });
 
   it('projects the target to equivalent normalized coordinates after a pose round trip', () => {

@@ -14,6 +14,11 @@ import {
   type GeographicCameraPose,
 } from '../handover/geographic-camera-pose.js';
 import {
+  CesiumCameraFlightAdapter,
+  type CameraFlightHandle,
+  type NativeCameraFlightOptions,
+} from './camera-flight.js';
+import {
   FallbackSurface,
   initialStageTier,
   nextStageTier,
@@ -65,6 +70,8 @@ export interface CesiumViewerLike {
       orientation: { direction: Cartesian3; up: Cartesian3 };
       endTransform?: CesiumMatrix4;
     }): void;
+    flyTo?(options: NativeCameraFlightOptions): void;
+    cancelFlight?(): void;
   };
   render(): void;
   destroy(): void;
@@ -109,6 +116,11 @@ export interface CesiumStageHandle {
 
 export interface CesiumStageOperation extends CesiumStageHandle {
   ready: Promise<CesiumStageReady>;
+}
+
+export interface CesiumExternalFrameControl {
+  render(deltaSeconds: number): void;
+  release(): void;
 }
 
 export interface CesiumStageAdapterOptions {
@@ -226,6 +238,7 @@ export class CesiumStageAdapter {
   private readonly fallbackSurface: FallbackSurface;
 
   private viewer: CesiumViewerLike | null = null;
+  private cameraFlight: CesiumCameraFlightAdapter | null = null;
   private tileset: CesiumTilesetLike | null = null;
   private localFallback: LocalFallbackHandle | null = null;
   private unregisterRenderer: (() => void) | null = null;
@@ -244,6 +257,7 @@ export class CesiumStageAdapter {
   private matchedSourceTargetProjection: TargetProjectionProbe | null = null;
   private matchedSourceFrameAtMs: number | null = null;
   private cancelMeaningfulFrameWait: (() => void) | null = null;
+  private externalFrameControl = false;
   private disposed = false;
   private viewerCreationError: Error | null = null;
 
@@ -304,12 +318,12 @@ export class CesiumStageAdapter {
   }
 
   /** Claims a previously ready prewarm at the concealed cover moment without loading it twice. */
-  activatePreparedProject(project: CesiumStageProject): CesiumStageOperation {
+  activatePreparedProject(project: CesiumStageProject, visible = true): CesiumStageOperation {
     if (this.activeProject?.id !== project.id || !this.activeTier) {
       return this.activateProject(project);
     }
     this.setRendering(true);
-    this.setPresentationVisible(true);
+    this.setPresentationVisible(visible);
     return {
       ready: Promise.resolve({
         projectId: project.id,
@@ -384,6 +398,8 @@ export class CesiumStageAdapter {
   dispose(): void {
     if (this.disposed) return;
     this.reset();
+    this.cameraFlight?.dispose();
+    this.cameraFlight = null;
     this.viewer?.destroy();
     this.viewer = null;
     this.fallbackSurface.dispose();
@@ -401,6 +417,58 @@ export class CesiumStageAdapter {
 
   get tier(): CesiumStageTier | null {
     return this.activeTier;
+  }
+
+  captureGeographicPose(): GeographicCameraPose | null {
+    const probe = this.currentCameraProbe();
+    return probe
+      ? {
+          positionEcef: probe.position,
+          directionEcef: probe.direction,
+          upEcef: probe.up,
+          verticalFovRadians: probe.verticalFovRadians,
+          aspectRatio: probe.aspectRatio,
+        }
+      : null;
+  }
+
+  captureTargetProjection(): TargetProjectionProbe | null {
+    return this.projectActiveTarget();
+  }
+
+  captureTargetRange(): number | null {
+    const project = this.activeProject;
+    const position = this.viewer?.camera?.positionWC;
+    if (!project || !position) return null;
+    const { destination } = project.geographicFraming.landingCamera;
+    const target = Cartesian3.fromDegrees(destination.lon, destination.lat, destination.height);
+    return Cartesian3.distance(new Cartesian3(position.x, position.y, position.z), target);
+  }
+
+  startLandingFlight(project: CesiumStageProject, durationMs: number): CameraFlightHandle | null {
+    if (this.disposed || this.activeProject?.id !== project.id || !this.cameraFlight) return null;
+    return this.cameraFlight.flyToFraming(project.geographicFraming, durationMs / 1_000);
+  }
+
+  beginExternalFrameControl(): CesiumExternalFrameControl {
+    if (this.disposed || !this.rendering || this.externalFrameControl) {
+      throw new Error('Cesium external frame control is unavailable.');
+    }
+    this.externalFrameControl = true;
+    this.unregisterRenderer?.();
+    this.unregisterRenderer = null;
+    let released = false;
+    return {
+      render: () => {
+        if (!released) this.render();
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        this.externalFrameControl = false;
+        this.registerTickerRenderer();
+      },
+    };
   }
 
   /**
@@ -691,6 +759,15 @@ export class CesiumStageAdapter {
     if (this.viewer || this.viewerCreationError || this.disposed) return;
     try {
       this.viewer = this.viewerFactory(this.element, DEFAULT_VIEWER_OPTIONS);
+      const camera = this.viewer.camera;
+      if (camera?.flyTo && camera.cancelFlight) {
+        this.cameraFlight = new CesiumCameraFlightAdapter({
+          camera: {
+            flyTo: (options) => camera.flyTo!(options),
+            cancelFlight: () => camera.cancelFlight!(),
+          },
+        });
+      }
     } catch (error) {
       // The safe/local fallback tiers are DOM-backed and remain usable if GPU/WebGL startup
       // fails; a photorealistic request detects this error and degrades rather than blanking.
@@ -705,13 +782,20 @@ export class CesiumStageAdapter {
     if (this.disposed || this.rendering === rendering) return;
     this.rendering = rendering;
     if (rendering) {
-      this.unregisterRenderer = this.ticker.registerRenderer(() => this.render());
-      this.ticker.start();
+      this.registerTickerRenderer();
     } else {
       this.unregisterRenderer?.();
       this.unregisterRenderer = null;
     }
     this.syncTestAttributes();
+  }
+
+  private registerTickerRenderer(): void {
+    if (this.disposed || !this.rendering || this.externalFrameControl || this.unregisterRenderer) {
+      return;
+    }
+    this.unregisterRenderer = this.ticker.registerRenderer(() => this.render());
+    this.ticker.start();
   }
 
   private render(): void {

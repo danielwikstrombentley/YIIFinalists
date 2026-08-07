@@ -7,7 +7,15 @@ export const MOTION_DURATIONS_MS = {
   categoryPreviewEntry: 1200,
   idleReturn: 1200,
   handover: 1800,
+  projectEntryFlight: 4200,
   beatDefault: 600,
+} as const;
+
+export const HANDOVER_FLIGHT_PROGRESS = {
+  rendererBlendStart: 0.12,
+  rendererBlendEnd: 0.62,
+  veilPeak: 0.24,
+  veilEnd: 0.7,
 } as const;
 
 export const MOTION_EASINGS = {

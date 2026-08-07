@@ -52,6 +52,9 @@ export interface HandoverTransitionProbe {
   startedAtMs: number | null;
   statusChangedAtMs: number;
   progressChangedAtMs: number;
+  liveAlignmentSamples: number;
+  maximumLiveCameraDelta: CameraPoseComparison | null;
+  maximumLiveTargetProjectionDelta: number | null;
 }
 
 export interface TransitionObservabilitySnapshot {

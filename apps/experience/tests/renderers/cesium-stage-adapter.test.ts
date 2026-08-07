@@ -8,6 +8,7 @@ import {
   type CesiumTilesetLike,
   type CesiumViewerLike,
 } from '../../src/renderers/cesium/CesiumStageAdapter.js';
+import type { NativeCameraFlightOptions } from '../../src/renderers/cesium/camera-flight.js';
 import { Ticker } from '../../src/orchestration/ticker.js';
 import type { GeographicCameraPose } from '../../src/renderers/handover/geographic-camera-pose.js';
 
@@ -59,6 +60,8 @@ function createViewer() {
       Object.assign(camera.directionWC, options.orientation.direction);
       Object.assign(camera.upWC, options.orientation.up);
     }),
+    flyTo: vi.fn<(options: NativeCameraFlightOptions) => void>(() => {}),
+    cancelFlight: vi.fn(),
   } satisfies NonNullable<CesiumViewerLike['camera']>;
   return {
     viewer: {
@@ -76,6 +79,8 @@ function createViewer() {
     add,
     remove,
     setView: camera.setView,
+    flyTo: camera.flyTo,
+    cancelFlight: camera.cancelFlight,
   };
 }
 
@@ -209,6 +214,32 @@ describe('CesiumStageAdapter', () => {
     expect(adapter.transitionProbe().matchedSourceCamera).not.toBeNull();
 
     adapter.dispose();
+  });
+
+  it('transfers rendering to external frame control and exposes one native landing flight', async () => {
+    const ticker = new Ticker();
+    const viewer = createViewer();
+    const adapter = new CesiumStageAdapter({ ticker, viewerFactory: () => viewer.viewer });
+    adapter.start(document.createElement('div'));
+    await adapter.activateProject(SAFE_PROJECT).ready;
+    expect(ticker.rendererCount).toBe(1);
+
+    const external = adapter.beginExternalFrameControl();
+    expect(ticker.rendererCount).toBe(0);
+    external.render(1 / 60);
+    expect(viewer.render).toHaveBeenCalledTimes(1);
+
+    const flight = adapter.startLandingFlight(SAFE_PROJECT, 4_200);
+    expect(flight).not.toBeNull();
+    expect(viewer.flyTo).toHaveBeenCalledWith(expect.objectContaining({ duration: 4.2 }));
+    const nativeOptions = viewer.flyTo.mock.calls[0]?.[0];
+    nativeOptions?.complete?.();
+    await expect(flight?.finished).resolves.toEqual({ status: 'completed' });
+
+    external.release();
+    expect(ticker.rendererCount).toBe(1);
+    adapter.dispose();
+    ticker.stop();
   });
 
   it('falls through to the safe composition when tile readiness exceeds its watchdog timeout', async () => {

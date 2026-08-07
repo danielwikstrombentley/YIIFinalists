@@ -27,6 +27,8 @@ export interface VisibleTransitionFrameReport extends TransitionFrameAnalysis {
   samples: TransitionFrameSample[];
   cameraComparison: CameraPoseComparison | null;
   targetProjectionDelta: { x: number; y: number; distance: number } | null;
+  maximumLiveCameraDelta: CameraPoseComparison | null;
+  maximumLiveTargetProjectionDelta: number | null;
 }
 
 /**
@@ -176,5 +178,62 @@ export async function expectVisibleTransitionFrames(
         }
       : null;
 
-  return { ...analysis, samples, cameraComparison, targetProjectionDelta };
+  const liveCameraComparisons = frames.flatMap((frame) => {
+    const transition = frame.transition;
+    if (
+      transition?.handover?.ownership !== 'overlap' ||
+      !transition.globe?.camera ||
+      !transition.cesium?.camera
+    ) {
+      return [];
+    }
+    return [compareCameraPoseProbes(transition.globe.camera, transition.cesium.camera)];
+  });
+  const sampledMaximumLiveCameraDelta = liveCameraComparisons.reduce<CameraPoseComparison | null>(
+    (maximum, comparison) => {
+      if (!maximum) return comparison;
+      const score =
+        comparison.positionDistance +
+        comparison.directionDeltaDegrees +
+        comparison.upDeltaDegrees +
+        comparison.verticalFovDeltaDegrees +
+        comparison.aspectRatioDelta;
+      const maximumScore =
+        maximum.positionDistance +
+        maximum.directionDeltaDegrees +
+        maximum.upDeltaDegrees +
+        maximum.verticalFovDeltaDegrees +
+        maximum.aspectRatioDelta;
+      return score > maximumScore ? comparison : maximum;
+    },
+    null,
+  );
+  const liveProjectionDeltas = frames.flatMap((frame) => {
+    const transition = frame.transition;
+    const globeTarget = transition?.globe?.targetProjection;
+    const cesiumTarget = transition?.cesium?.targetProjection;
+    if (transition?.handover?.ownership !== 'overlap' || !globeTarget || !cesiumTarget) return [];
+    return [Math.hypot(globeTarget.x - cesiumTarget.x, globeTarget.y - cesiumTarget.y)];
+  });
+  const maximumLiveTargetProjectionDelta =
+    liveProjectionDeltas.length > 0 ? Math.max(...liveProjectionDeltas) : null;
+  const persistedAlignment = frames
+    .map((frame) => frame.transition?.handover)
+    .filter((probe) => (probe?.liveAlignmentSamples ?? 0) > 0)
+    .at(-1);
+  const maximumLiveCameraDelta =
+    persistedAlignment?.maximumLiveCameraDelta ?? sampledMaximumLiveCameraDelta;
+  const persistedTargetDelta = persistedAlignment?.maximumLiveTargetProjectionDelta ?? null;
+
+  return {
+    ...analysis,
+    samples,
+    cameraComparison,
+    targetProjectionDelta,
+    maximumLiveCameraDelta,
+    maximumLiveTargetProjectionDelta:
+      persistedTargetDelta === null
+        ? maximumLiveTargetProjectionDelta
+        : Math.max(persistedTargetDelta, maximumLiveTargetProjectionDelta ?? 0),
+  };
 }

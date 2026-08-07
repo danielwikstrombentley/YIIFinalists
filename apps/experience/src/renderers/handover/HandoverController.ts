@@ -1,18 +1,33 @@
 import gsap from 'gsap';
-import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
+import {
+  HANDOVER_FLIGHT_PROGRESS,
+  MOTION_DURATIONS_MS,
+} from '../../orchestration/motion-tokens.js';
+import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
+import type { CameraFlightHandle } from '../cesium/camera-flight.js';
 import type { CesiumStageOperation, CesiumStageProject } from '../cesium/CesiumStageAdapter.js';
 import type { CesiumPrewarmHandle, CesiumPrewarmResult } from '../cesium/prewarm.js';
 import {
+  compareCameraPoseProbes,
   transitionNowMs,
+  type CameraPoseComparison,
   type CameraPoseProbe,
   type HandoverTransitionProbe,
   type RendererOwnership,
   type TargetProjectionProbe,
 } from './transition-observability.js';
-import { geographicPoseToProbe, type GeographicCameraPose } from './geographic-camera-pose.js';
+import { geographicPoseToProbe, type GeographicCameraPose } from './geographic-pose-bridge.js';
 
 export type HandoverStatus =
-  'idle' | 'approaching' | 'covering' | 'revealing' | 'settled' | 'fallback' | 'cancelled';
+  | 'idle'
+  | 'approaching'
+  | 'flying'
+  | 'blending'
+  | 'covering'
+  | 'revealing'
+  | 'settled'
+  | 'fallback'
+  | 'cancelled';
 
 export interface HandoverResult {
   projectId: string;
@@ -31,12 +46,17 @@ export interface HandoverOperation {
  * choreography tests deterministic while preserving GSAP as the only production motion engine.
  */
 export interface HandoverTimeline {
-  set(target: HTMLElement, vars: Record<string, unknown>): HandoverTimeline;
-  to(target: HTMLElement, vars: Record<string, unknown>): HandoverTimeline;
+  set(target: object, vars: Record<string, unknown>): HandoverTimeline;
+  to(target: object, vars: Record<string, unknown>, position?: string | number): HandoverTimeline;
   call(callback: () => void): HandoverTimeline;
   play(): HandoverTimeline;
   pause(): HandoverTimeline;
   kill(): void;
+}
+
+export interface HandoverFrameControl {
+  render(deltaSeconds: number): void;
+  release(): void;
 }
 
 /** The globe port makes the controller the sole owner of the two-renderer overlap window. */
@@ -44,6 +64,8 @@ export interface HandoverGlobeStage {
   element: HTMLElement;
   captureGeographicPose(): GeographicCameraPose;
   captureTargetProjection(projectId: string): TargetProjectionProbe | null;
+  applyGeographicPose(pose: GeographicCameraPose): void;
+  beginExternalFrameControl(): HandoverFrameControl;
   /** Stops its ticker callback after reveal; never called before the cover/swap window. */
   suspendRendering(): void;
   /** Reattaches its ticker callback during an interrupted forward handover. */
@@ -53,10 +75,17 @@ export interface HandoverGlobeStage {
 }
 
 export interface HandoverCesiumStage {
+  element: HTMLElement;
   matchSourceCamera(pose: GeographicCameraPose, project: CesiumStageProject): boolean;
   setLandingCamera(project: CesiumStageProject): boolean;
-  activatePreparedProject(project: CesiumStageProject): CesiumStageOperation;
+  activatePreparedProject(project: CesiumStageProject, visible?: boolean): CesiumStageOperation;
   showSafeComposition(project: CesiumStageProject): CesiumStageOperation;
+  setPresentationVisible(visible: boolean): void;
+  captureGeographicPose(): GeographicCameraPose | null;
+  captureTargetProjection(): TargetProjectionProbe | null;
+  captureTargetRange(): number | null;
+  startLandingFlight(project: CesiumStageProject, durationMs: number): CameraFlightHandle | null;
+  beginExternalFrameControl(): HandoverFrameControl;
   deactivate(): void;
 }
 
@@ -72,7 +101,9 @@ export interface HandoverControllerOptions {
   cesium: HandoverCesiumStage;
   prewarm: HandoverPrewarm;
   durationMs?: number;
+  flightDurationMs?: number;
   maxCoverDurationMs?: number;
+  ticker?: Ticker;
   onStatusChange?: (status: HandoverStatus) => void;
   timelineFactory?: () => HandoverTimeline;
 }
@@ -84,6 +115,15 @@ interface ActiveHandover {
   generation: number;
   timeline: HandoverTimeline;
   completion: Promise<HandoverResult>;
+  flight: CameraFlightHandle | null;
+  globeFrames: HandoverFrameControl | null;
+  cesiumFrames: HandoverFrameControl | null;
+  unregisterCombinedRenderer: (() => void) | null;
+  mirroring: boolean;
+  visualComplete: boolean;
+  flightComplete: boolean;
+  fallbackReason: string | null;
+  sourceTargetRange: number | null;
   settled: boolean;
   resolve(result: HandoverResult): void;
 }
@@ -99,8 +139,10 @@ function createAtmosphericCover(stage: HTMLElement): HTMLDivElement {
     zIndex: '3',
     pointerEvents: 'none',
     opacity: '0',
+    '--handover-target-x': '50%',
+    '--handover-target-y': '50%',
     background:
-      'radial-gradient(ellipse at 50% 50%, rgba(155, 205, 221, 0.98) 0%, rgba(71, 124, 151, 0.98) 42%, rgba(16, 40, 56, 1) 100%)',
+      'radial-gradient(circle at var(--handover-target-x) var(--handover-target-y), rgba(184, 228, 239, 0.98) 0%, rgba(87, 153, 180, 0.98) 28%, rgba(34, 76, 101, 0.99) 58%, rgb(16, 40, 56) 100%)',
   });
   stage.append(cover);
   return cover;
@@ -142,7 +184,9 @@ export class HandoverController {
   private readonly cesium: HandoverCesiumStage;
   private readonly prewarm: HandoverPrewarm;
   private readonly durationMs: number;
+  private readonly flightDurationMs: number;
   private readonly maxCoverDurationMs: number;
+  private readonly ticker: Ticker;
   private readonly onStatusChange: ((status: HandoverStatus) => void) | undefined;
   private readonly timelineFactory: () => HandoverTimeline;
   private active: ActiveHandover | null = null;
@@ -156,6 +200,9 @@ export class HandoverController {
   private startedAtMs: number | null = null;
   private statusChangedAtMs = transitionNowMs();
   private progressChangedAtMs = this.statusChangedAtMs;
+  private liveAlignmentSamples = 0;
+  private maximumLiveCameraDelta: CameraPoseComparison | null = null;
+  private maximumLiveTargetProjectionDelta: number | null = null;
   private disposed = false;
 
   constructor(options: HandoverControllerOptions) {
@@ -163,7 +210,9 @@ export class HandoverController {
     this.cesium = options.cesium;
     this.prewarm = options.prewarm;
     this.durationMs = options.durationMs ?? MOTION_DURATIONS_MS.handover;
+    this.flightDurationMs = options.flightDurationMs ?? MOTION_DURATIONS_MS.projectEntryFlight;
     this.maxCoverDurationMs = options.maxCoverDurationMs ?? 1_000;
+    this.ticker = options.ticker ?? sharedTicker;
     this.onStatusChange = options.onStatusChange;
     this.timelineFactory =
       options.timelineFactory ??
@@ -192,6 +241,9 @@ export class HandoverController {
       startedAtMs: this.startedAtMs,
       statusChangedAtMs: this.statusChangedAtMs,
       progressChangedAtMs: this.progressChangedAtMs,
+      liveAlignmentSamples: this.liveAlignmentSamples,
+      maximumLiveCameraDelta: this.maximumLiveCameraDelta,
+      maximumLiveTargetProjectionDelta: this.maximumLiveTargetProjectionDelta,
     };
   }
 
@@ -213,6 +265,15 @@ export class HandoverController {
       generation,
       timeline,
       completion,
+      flight: null,
+      globeFrames: null,
+      cesiumFrames: null,
+      unregisterCombinedRenderer: null,
+      mirroring: false,
+      visualComplete: false,
+      flightComplete: false,
+      fallbackReason: null,
+      sourceTargetRange: null,
       settled: false,
       resolve,
     };
@@ -221,40 +282,18 @@ export class HandoverController {
     this.lastSourceCamera = geographicPoseToProbe(sourcePose);
     this.lastSourceTargetProjection = sourceTargetProjection;
     this.startedAtMs = transitionNowMs();
+    this.liveAlignmentSamples = 0;
+    this.maximumLiveCameraDelta = null;
+    this.maximumLiveTargetProjectionDelta = null;
     this.ownership = 'globe';
     this.setProgress(active, 0);
     this.setStatus('approaching');
-
-    const approachDuration = (this.durationMs * 0.45) / 1_000;
-    const coverDuration = (this.durationMs * 0.25) / 1_000;
-    timeline
-      .set(this.cover, { opacity: 0 })
-      .set(this.globe.element, { opacity: 1, scale: 1, transformOrigin: '50% 50%' })
-      .to(this.globe.element, {
-        scale: 1.08,
-        duration: approachDuration,
-        ease: 'power2.inOut',
-        onUpdate: () => {
-          const scale = gsapNumber(this.globe.element, 'scale', 1);
-          this.setProgress(active, ((scale - 1) / 0.08) * 0.45);
-        },
-      })
-      .to(this.cover, {
-        opacity: 1,
-        duration: coverDuration,
-        ease: 'sine.in',
-        onUpdate: () => {
-          this.setProgress(active, 0.45 + styleOpacity(this.cover) * 0.25);
-        },
-      })
-      .call(() => {
-        if (!this.isCurrent(active)) return;
-        this.setProgress(active, 0.7);
-        this.setStatus('covering');
-        timeline.pause();
-        void this.swapAtFullCover(active, warm);
-      })
-      .play();
+    gsap.set(this.cover, { opacity: 0 });
+    gsap.set(this.globe.element, { opacity: 1, scale: 1, transformOrigin: '50% 50%' });
+    gsap.set(this.cesium.element, { opacity: 0 });
+    this.positionAtmosphericVeil(sourceTargetProjection);
+    this.cesium.setPresentationVisible(false);
+    void this.beginPreparedForward(active, warm);
 
     return {
       completion,
@@ -270,12 +309,21 @@ export class HandoverController {
     if (!active) return;
     this.active = null;
     active.timeline.kill();
+    active.flight?.cancel();
+    active.unregisterCombinedRenderer?.();
+    active.unregisterCombinedRenderer = null;
+    active.cesiumFrames?.release();
+    active.cesiumFrames = null;
+    active.globeFrames?.release();
+    active.globeFrames = null;
     this.prewarm.cancel();
     this.cesium.deactivate();
+    this.globe.applyGeographicPose(active.sourcePose);
     this.globe.resumeRendering();
     this.globe.restorePreview();
     gsap.set(this.cover, { opacity: 0 });
     gsap.set(this.globe.element, { opacity: 1, scale: 1 });
+    gsap.set(this.cesium.element, { opacity: 0 });
     this.ownership = 'globe';
     this.setStatus('cancelled');
     this.settle(active, {
@@ -293,54 +341,226 @@ export class HandoverController {
     this.disposed = true;
   }
 
-  private async swapAtFullCover(
+  private async beginPreparedForward(
     active: ActiveHandover,
     warm: Promise<CesiumPrewarmResult>,
   ): Promise<void> {
-    const coverStartedAt = Date.now();
     try {
-      const warmResult = await withDeadline(warm, this.remainingCoverBudget(coverStartedAt));
+      const warmResult = await withDeadline(warm, this.maxCoverDurationMs);
       if (!this.isCurrent(active)) return;
       if (warmResult.status !== 'ready') {
-        await this.revealFallback(active, `prewarm ${warmResult.status}`);
+        this.beginConcealedFallback(active, `prewarm ${warmResult.status}`);
         return;
       }
       if (!warmResult.meaningfulFrameReady) {
-        await this.revealFallback(active, 'prewarm lacks a meaningful rendered frame');
+        this.beginConcealedFallback(active, 'prewarm lacks a meaningful rendered frame');
+        return;
+      }
+      if (warmResult.fallback) {
+        this.beginConcealedFallback(active, `prewarm selected ${warmResult.tier}`);
         return;
       }
 
       if (!this.cesium.matchSourceCamera(active.sourcePose, active.project)) {
-        await this.revealFallback(active, 'source camera matching unavailable');
-        return;
-      }
-      if (!this.cesium.setLandingCamera(active.project)) {
-        await this.revealFallback(active, 'landing camera mapping unavailable');
+        this.beginConcealedFallback(active, 'source camera matching unavailable');
         return;
       }
 
-      const stageOperation = this.cesium.activatePreparedProject(active.project);
-      const stageResult = await withDeadline(
-        stageOperation.ready,
-        this.remainingCoverBudget(coverStartedAt),
-      );
+      const stageOperation = this.cesium.activatePreparedProject(active.project, false);
+      const stageResult = await withDeadline(stageOperation.ready, this.maxCoverDurationMs);
       if (!this.isCurrent(active)) return;
       if (stageResult.status !== 'ready') {
-        await this.revealFallback(active, `stage activation ${stageResult.status}`);
+        this.beginConcealedFallback(active, `stage activation ${stageResult.status}`);
+        return;
+      }
+      if (stageResult.fallback || !stageResult.meaningfulFrameReady) {
+        this.beginConcealedFallback(active, `stage activation selected ${stageResult.tier}`);
         return;
       }
 
-      this.ownership = 'overlap';
-      this.syncProbeAttributes();
-      this.beginReveal(active, {
-        projectId: active.project.id,
-        generation: active.generation,
-        status: warmResult.fallback || stageResult.fallback ? 'fallback' : 'completed',
-      });
+      this.beginMatchedFlight(active);
     } catch (error) {
       if (!this.isCurrent(active)) return;
-      await this.revealFallback(active, describeError(error));
+      this.beginConcealedFallback(active, describeError(error));
     }
+  }
+
+  private beginMatchedFlight(active: ActiveHandover): void {
+    if (!this.isCurrent(active)) return;
+    try {
+      active.globeFrames = this.globe.beginExternalFrameControl();
+      active.cesiumFrames = this.cesium.beginExternalFrameControl();
+    } catch (error) {
+      this.beginConcealedFallback(active, `external frame control failed: ${describeError(error)}`);
+      return;
+    }
+
+    this.globe.applyGeographicPose(active.sourcePose);
+    this.cesium.setPresentationVisible(true);
+    gsap.set(this.cesium.element, { opacity: 0 });
+    active.sourceTargetRange = this.cesium.captureTargetRange();
+    if (
+      active.sourceTargetRange === null ||
+      active.sourceTargetRange <= active.project.geographicFraming.landingCamera.range
+    ) {
+      this.beginConcealedFallback(active, 'native flight source range unavailable');
+      return;
+    }
+    const flight = this.cesium.startLandingFlight(active.project, this.flightDurationMs);
+    if (!flight) {
+      this.beginConcealedFallback(active, 'native Cesium camera flight unavailable');
+      return;
+    }
+
+    active.flight = flight;
+    active.mirroring = true;
+    active.unregisterCombinedRenderer = this.ticker.registerRenderer((deltaSeconds) => {
+      if (!this.isCurrent(active) || !active.cesiumFrames) return;
+      active.cesiumFrames.render(deltaSeconds);
+      this.positionAtmosphericVeil(this.cesium.captureTargetProjection());
+      if (!active.mirroring || !active.globeFrames) return;
+      const pose = this.cesium.captureGeographicPose();
+      if (!pose) return;
+      this.globe.applyGeographicPose(pose);
+      active.globeFrames.render(deltaSeconds);
+      this.recordLiveAlignment(active, pose);
+      const targetRange = this.cesium.captureTargetRange();
+      if (targetRange !== null) this.updateMatchedBlend(active, targetRange);
+    });
+    this.ticker.start();
+    this.ownership = 'overlap';
+    this.setProgress(active, 0.08);
+    this.setStatus('flying');
+
+    void flight.finished.then((result) => {
+      if (!this.isCurrent(active) || active.fallbackReason) return;
+      if (result.status !== 'completed') {
+        this.beginConcealedFallback(
+          active,
+          result.status === 'failed'
+            ? `native flight failed: ${describeError(result.error)}`
+            : 'native flight cancelled',
+        );
+        return;
+      }
+      active.flightComplete = true;
+      this.finishMatchedFlightIfReady(active);
+    });
+  }
+
+  private updateMatchedBlend(active: ActiveHandover, targetRange: number): void {
+    if (!this.isCurrent(active) || active.visualComplete || active.sourceTargetRange === null)
+      return;
+    const landingRange = active.project.geographicFraming.landingCamera.range;
+    const flightProgress = clamp01(
+      (active.sourceTargetRange - targetRange) / (active.sourceTargetRange - landingRange),
+    );
+    const blend = smoothstep(
+      HANDOVER_FLIGHT_PROGRESS.rendererBlendStart,
+      HANDOVER_FLIGHT_PROGRESS.rendererBlendEnd,
+      flightProgress,
+    );
+    const veilRise = smoothstep(0, HANDOVER_FLIGHT_PROGRESS.veilPeak, flightProgress);
+    const veilFall =
+      1 -
+      smoothstep(
+        HANDOVER_FLIGHT_PROGRESS.veilPeak,
+        HANDOVER_FLIGHT_PROGRESS.veilEnd,
+        flightProgress,
+      );
+    gsap.set(this.globe.element, { opacity: 1 - blend, scale: 1 });
+    gsap.set(this.cesium.element, { opacity: blend });
+    gsap.set(this.cover, { opacity: 0.28 * Math.min(veilRise, veilFall) });
+    this.setProgress(active, 0.08 + flightProgress * 0.57);
+    if (blend > 0 && this.status === 'flying') this.setStatus('blending');
+    if (blend >= 1) this.completeMatchedCrossfade(active);
+  }
+
+  private completeMatchedCrossfade(active: ActiveHandover): void {
+    if (!this.isCurrent(active)) return;
+    active.mirroring = false;
+    this.globe.suspendRendering();
+    active.globeFrames?.release();
+    active.globeFrames = null;
+    gsap.set(this.globe.element, { opacity: 0, scale: 1 });
+    gsap.set(this.cover, { opacity: 0 });
+    active.visualComplete = true;
+    this.setProgress(active, 0.65);
+    this.ownership = 'cesium';
+    this.syncProbeAttributes();
+    this.finishMatchedFlightIfReady(active);
+  }
+
+  private finishMatchedFlightIfReady(active: ActiveHandover): void {
+    if (!this.isCurrent(active) || !active.visualComplete || !active.flightComplete) return;
+    active.unregisterCombinedRenderer?.();
+    active.unregisterCombinedRenderer = null;
+    active.cesiumFrames?.release();
+    active.cesiumFrames = null;
+    this.cesium.setPresentationVisible(true);
+    gsap.set(this.cesium.element, { opacity: 1 });
+    this.setProgress(active, 1);
+    this.ownership = 'cesium';
+    this.setStatus('settled');
+    this.settle(active, {
+      projectId: active.project.id,
+      generation: active.generation,
+      status: 'completed',
+    });
+  }
+
+  private beginConcealedFallback(active: ActiveHandover, reason: string): void {
+    if (!this.isCurrent(active) || active.fallbackReason) return;
+    active.fallbackReason = reason;
+    active.timeline.kill();
+    active.flight?.cancel();
+    active.flight = null;
+    active.mirroring = false;
+    active.unregisterCombinedRenderer?.();
+    active.unregisterCombinedRenderer = null;
+    this.cesium.deactivate();
+    active.cesiumFrames?.release();
+    active.cesiumFrames = null;
+    this.globe.suspendRendering();
+    active.globeFrames?.release();
+    active.globeFrames = null;
+    this.prewarm.cancel();
+    this.globe.applyGeographicPose(active.sourcePose);
+    this.globe.resumeRendering();
+    this.globe.restorePreview();
+    gsap.set(this.cesium.element, { opacity: 0 });
+    gsap.set(this.cover, { opacity: 0 });
+    gsap.set(this.globe.element, { opacity: 1, scale: 1, transformOrigin: '50% 50%' });
+    this.ownership = 'globe';
+    this.setStatus('approaching');
+
+    active.timeline = this.timelineFactory();
+    const approachDuration = (this.durationMs * 0.45) / 1_000;
+    const coverDuration = (this.durationMs * 0.25) / 1_000;
+    active.timeline
+      .to(this.globe.element, {
+        scale: 1.08,
+        duration: approachDuration,
+        ease: 'power2.inOut',
+        onUpdate: () => {
+          const scale = gsapNumber(this.globe.element, 'scale', 1);
+          this.setProgress(active, ((scale - 1) / 0.08) * 0.45);
+        },
+      })
+      .to(this.cover, {
+        opacity: 1,
+        duration: coverDuration,
+        ease: 'sine.in',
+        onUpdate: () => this.setProgress(active, 0.45 + styleOpacity(this.cover) * 0.25),
+      })
+      .call(() => {
+        if (!this.isCurrent(active)) return;
+        this.setProgress(active, 0.7);
+        this.setStatus('covering');
+        active.timeline.pause();
+        void this.revealFallback(active, reason);
+      })
+      .play();
   }
 
   private async revealFallback(active: ActiveHandover, reason: string): Promise<void> {
@@ -410,10 +630,6 @@ export class HandoverController {
       .play();
   }
 
-  private remainingCoverBudget(coverStartedAt: number): number {
-    return this.maxCoverDurationMs - (Date.now() - coverStartedAt);
-  }
-
   private isCurrent(active: ActiveHandover): boolean {
     return !this.disposed && this.active === active && active.generation === this.generation;
   }
@@ -449,6 +665,41 @@ export class HandoverController {
     }
   }
 
+  private positionAtmosphericVeil(projection: TargetProjectionProbe | null): void {
+    if (!projection || !Number.isFinite(projection.x) || !Number.isFinite(projection.y)) return;
+    const x = Math.max(0, Math.min(1, projection.x)) * 100;
+    const y = Math.max(0, Math.min(1, projection.y)) * 100;
+    this.cover.style.setProperty('--handover-target-x', `${x}%`);
+    this.cover.style.setProperty('--handover-target-y', `${y}%`);
+  }
+
+  private recordLiveAlignment(active: ActiveHandover, cesiumPose: GeographicCameraPose): void {
+    if (!this.isCurrent(active)) return;
+    const globePose = this.globe.captureGeographicPose();
+    const comparison = compareCameraPoseProbes(
+      geographicPoseToProbe(globePose),
+      geographicPoseToProbe(cesiumPose),
+    );
+    this.liveAlignmentSamples += 1;
+    if (
+      !this.maximumLiveCameraDelta ||
+      cameraComparisonScore(comparison) > cameraComparisonScore(this.maximumLiveCameraDelta)
+    ) {
+      this.maximumLiveCameraDelta = comparison;
+    }
+
+    const globeTarget = this.globe.captureTargetProjection(active.project.id);
+    const cesiumTarget = this.cesium.captureTargetProjection();
+    if (globeTarget && cesiumTarget) {
+      const delta = Math.hypot(globeTarget.x - cesiumTarget.x, globeTarget.y - cesiumTarget.y);
+      this.maximumLiveTargetProjectionDelta = Math.max(
+        this.maximumLiveTargetProjectionDelta ?? 0,
+        delta,
+      );
+    }
+    this.syncProbeAttributes();
+  }
+
   private settle(active: ActiveHandover, result: HandoverResult): void {
     if (active.settled) return;
     active.settled = true;
@@ -465,4 +716,24 @@ function styleOpacity(element: HTMLElement): number {
 function gsapNumber(element: HTMLElement, property: string, fallback: number): number {
   const value = Number(gsap.getProperty(element, property));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function cameraComparisonScore(comparison: CameraPoseComparison): number {
+  return (
+    comparison.positionDistance +
+    comparison.directionDeltaDegrees +
+    comparison.upDeltaDegrees +
+    comparison.verticalFovDeltaDegrees +
+    comparison.aspectRatioDelta
+  );
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function smoothstep(start: number, end: number, value: number): number {
+  if (start === end) return value >= end ? 1 : 0;
+  const progress = clamp01((value - start) / (end - start));
+  return progress * progress * (3 - 2 * progress);
 }
