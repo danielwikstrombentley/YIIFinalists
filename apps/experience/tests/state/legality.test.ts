@@ -122,6 +122,29 @@ describe('Experience machine legality (@xstate/graph exhaustive traversal)', () 
 
     actor.stop();
   });
+
+  it('returns from a landing through the reverse handover before completing the idle reset', () => {
+    const actor = createActor(experienceMachine).start();
+    actor.send({ type: 'internal.assetsVerified' });
+    actor.send({ type: 'category.select', payload: { categoryId: 'cat-1' } });
+    actor.send({ type: 'preview.hover', payload: { projectId: 'proj-1' } });
+    actor.send({ type: 'project.select', payload: {} });
+    actor.send({
+      type: 'internal.handoverToProjectComplete',
+      generation: actor.getSnapshot().context.generation,
+    });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('projectLanding');
+
+    actor.send({ type: 'nav.idle', payload: {} });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('transitionToPreview');
+
+    actor.send({
+      type: 'internal.handoverToPreviewComplete',
+      generation: actor.getSnapshot().context.generation,
+    });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('idle');
+    actor.stop();
+  });
 });
 
 describe('Reverse-handover category-switch does not strand the machine (PH2 review round 1, finding #3)', () => {

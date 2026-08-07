@@ -85,6 +85,9 @@ export interface HandoverCesiumStage {
   captureTargetProjection(): TargetProjectionProbe | null;
   captureTargetRange(): number | null;
   startLandingFlight(project: CesiumStageProject, durationMs: number): CameraFlightHandle | null;
+  /** Optional while legacy/fallback test ports are upgraded; enables the continuous reverse path. */
+  startGeographicFlight?(pose: GeographicCameraPose, durationMs: number): CameraFlightHandle | null;
+  targetRangeForPose?(pose: GeographicCameraPose, project: CesiumStageProject): number | null;
   beginExternalFrameControl(): HandoverFrameControl;
   deactivate(): void;
 }
@@ -109,6 +112,7 @@ export interface HandoverControllerOptions {
 }
 
 interface ActiveHandover {
+  direction: 'forward' | 'reverse';
   project: CesiumStageProject;
   sourcePose: GeographicCameraPose;
   sourceTargetProjection: TargetProjectionProbe | null;
@@ -124,6 +128,7 @@ interface ActiveHandover {
   flightComplete: boolean;
   fallbackReason: string | null;
   sourceTargetRange: number | null;
+  reverseDestinationTargetRange: number | null;
   settled: boolean;
   resolve(result: HandoverResult): void;
 }
@@ -195,6 +200,7 @@ export class HandoverController {
   private progress = 0;
   private ownership: RendererOwnership = 'globe';
   private lastProjectId: string | null = null;
+  private lastSourcePose: GeographicCameraPose | null = null;
   private lastSourceCamera: CameraPoseProbe | null = null;
   private lastSourceTargetProjection: TargetProjectionProbe | null = null;
   private startedAtMs: number | null = null;
@@ -259,6 +265,7 @@ export class HandoverController {
     });
     const timeline = this.timelineFactory();
     const active: ActiveHandover = {
+      direction: 'forward',
       project,
       sourcePose,
       sourceTargetProjection,
@@ -274,11 +281,13 @@ export class HandoverController {
       flightComplete: false,
       fallbackReason: null,
       sourceTargetRange: null,
+      reverseDestinationTargetRange: null,
       settled: false,
       resolve,
     };
     this.active = active;
     this.lastProjectId = project.id;
+    this.lastSourcePose = sourcePose;
     this.lastSourceCamera = geographicPoseToProbe(sourcePose);
     this.lastSourceTargetProjection = sourceTargetProjection;
     this.startedAtMs = transitionNowMs();
@@ -294,6 +303,98 @@ export class HandoverController {
     this.positionAtmosphericVeil(sourceTargetProjection);
     this.cesium.setPresentationVisible(false);
     void this.beginPreparedForward(active, warm);
+
+    return {
+      completion,
+      cancel: () => {
+        if (this.isCurrent(active)) this.cancel();
+      },
+    };
+  }
+
+  /**
+   * Reverses a completed project entry back to the exact globe preview captured before entry.
+   * The normal path mirrors the native Cesium flight into Three under the same shared ticker;
+   * a covered fallback preserves a non-blank return when that camera path is unavailable.
+   */
+  startReverse(project: CesiumStageProject): HandoverOperation {
+    this.cancel();
+    const generation = ++this.generation;
+    const sourcePose = this.lastProjectId === project.id ? this.lastSourcePose : null;
+
+    if (!sourcePose) {
+      // A reverse request without a completed forward source cannot maintain camera continuity.
+      // Restore the rig's own safe preview rather than trapping navigation or exposing Cesium.
+      this.globe.resumeRendering();
+      this.globe.restorePreview();
+      this.cesium.deactivate();
+      gsap.set(this.cover, { opacity: 0 });
+      gsap.set(this.globe.element, { opacity: 1, scale: 1, transformOrigin: '50% 50%' });
+      gsap.set(this.cesium.element, { opacity: 0 });
+      this.ownership = 'globe';
+      this.setStatus('fallback');
+      return {
+        completion: Promise.resolve({
+          projectId: project.id,
+          generation,
+          status: 'fallback',
+          reason: 'No captured globe preview pose is available for reverse handover.',
+        }),
+        cancel: () => {},
+      };
+    }
+
+    let resolve!: (result: HandoverResult) => void;
+    const completion = new Promise<HandoverResult>((resolveCompletion) => {
+      resolve = resolveCompletion;
+    });
+    const active: ActiveHandover = {
+      direction: 'reverse',
+      project,
+      sourcePose,
+      sourceTargetProjection: this.lastSourceTargetProjection,
+      generation,
+      timeline: this.timelineFactory(),
+      completion,
+      flight: null,
+      globeFrames: null,
+      cesiumFrames: null,
+      unregisterCombinedRenderer: null,
+      mirroring: false,
+      visualComplete: false,
+      flightComplete: false,
+      fallbackReason: null,
+      sourceTargetRange: null,
+      reverseDestinationTargetRange: null,
+      settled: false,
+      resolve,
+    };
+    this.active = active;
+    this.lastProjectId = project.id;
+    this.lastSourceCamera = geographicPoseToProbe(sourcePose);
+    this.startedAtMs = transitionNowMs();
+    this.liveAlignmentSamples = 0;
+    this.maximumLiveCameraDelta = null;
+    this.maximumLiveTargetProjectionDelta = null;
+    this.ownership = 'cesium';
+    this.setProgress(active, 0);
+    this.setStatus('approaching');
+    gsap.set(this.cover, { opacity: 0 });
+    gsap.set(this.globe.element, { opacity: 0, scale: 1, transformOrigin: '50% 50%' });
+    this.cesium.setPresentationVisible(true);
+    gsap.set(this.cesium.element, { opacity: 1 });
+    this.positionAtmosphericVeil(active.sourceTargetProjection);
+
+    const landingPose = this.cesium.captureGeographicPose();
+    this.globe.resumeRendering();
+    if (!landingPose) {
+      this.beginConcealedReverseFallback(active, 'landing camera is unavailable');
+    } else {
+      // Ensure the hidden Three scene begins in exact visual alignment before the first reverse
+      // flight frame is rendered into it.
+      this.globe.applyGeographicPose(landingPose);
+      this.beginMatchedReverse(active);
+    }
 
     return {
       completion,
@@ -507,6 +608,227 @@ export class HandoverController {
       generation: active.generation,
       status: 'completed',
     });
+  }
+
+  /** Begins the inverse native Cesium flight, mirroring each frame into the hidden Three globe. */
+  private beginMatchedReverse(active: ActiveHandover): void {
+    if (!this.isCurrent(active) || active.direction !== 'reverse') return;
+    const startRange = this.cesium.captureTargetRange();
+    const destinationRange =
+      this.cesium.targetRangeForPose?.(active.sourcePose, active.project) ?? null;
+    if (
+      startRange === null ||
+      destinationRange === null ||
+      destinationRange <= startRange ||
+      !this.cesium.startGeographicFlight
+    ) {
+      this.beginConcealedReverseFallback(active, 'reverse native flight range is unavailable');
+      return;
+    }
+
+    try {
+      active.globeFrames = this.globe.beginExternalFrameControl();
+      active.cesiumFrames = this.cesium.beginExternalFrameControl();
+    } catch (error) {
+      this.beginConcealedReverseFallback(
+        active,
+        `reverse external frame control failed: ${describeError(error)}`,
+      );
+      return;
+    }
+
+    const flight = this.cesium.startGeographicFlight(active.sourcePose, this.flightDurationMs);
+    if (!flight) {
+      this.beginConcealedReverseFallback(
+        active,
+        'reverse native Cesium camera flight is unavailable',
+      );
+      return;
+    }
+
+    active.sourceTargetRange = startRange;
+    active.reverseDestinationTargetRange = destinationRange;
+    active.flight = flight;
+    active.mirroring = true;
+    active.unregisterCombinedRenderer = this.ticker.registerRenderer((deltaSeconds) => {
+      if (!this.isCurrent(active) || !active.cesiumFrames) return;
+      active.cesiumFrames.render(deltaSeconds);
+      this.positionAtmosphericVeil(this.cesium.captureTargetProjection());
+      if (!active.mirroring || !active.globeFrames) return;
+      const pose = this.cesium.captureGeographicPose();
+      if (!pose) return;
+      this.globe.applyGeographicPose(pose);
+      active.globeFrames.render(deltaSeconds);
+      this.recordLiveAlignment(active, pose);
+      const targetRange = this.cesium.captureTargetRange();
+      if (targetRange !== null) this.updateMatchedReverseBlend(active, targetRange);
+    });
+    this.ticker.start();
+    this.ownership = 'overlap';
+    this.setProgress(active, 0.08);
+    this.setStatus('flying');
+
+    void flight.finished.then((result) => {
+      if (!this.isCurrent(active) || active.fallbackReason) return;
+      if (result.status !== 'completed') {
+        this.beginConcealedReverseFallback(
+          active,
+          result.status === 'failed'
+            ? `reverse native flight failed: ${describeError(result.error)}`
+            : 'reverse native flight cancelled',
+        );
+        return;
+      }
+      active.flightComplete = true;
+      this.finishMatchedReverseIfReady(active);
+    });
+  }
+
+  private updateMatchedReverseBlend(active: ActiveHandover, targetRange: number): void {
+    if (
+      !this.isCurrent(active) ||
+      active.direction !== 'reverse' ||
+      active.visualComplete ||
+      active.sourceTargetRange === null ||
+      active.reverseDestinationTargetRange === null
+    ) {
+      return;
+    }
+    const flightProgress = clamp01(
+      (targetRange - active.sourceTargetRange) /
+        (active.reverseDestinationTargetRange - active.sourceTargetRange),
+    );
+    const blend = smoothstep(
+      HANDOVER_FLIGHT_PROGRESS.rendererBlendStart,
+      HANDOVER_FLIGHT_PROGRESS.rendererBlendEnd,
+      flightProgress,
+    );
+    const veilRise = smoothstep(0, HANDOVER_FLIGHT_PROGRESS.veilPeak, flightProgress);
+    const veilFall =
+      1 -
+      smoothstep(
+        HANDOVER_FLIGHT_PROGRESS.veilPeak,
+        HANDOVER_FLIGHT_PROGRESS.veilEnd,
+        flightProgress,
+      );
+    gsap.set(this.cesium.element, { opacity: 1 - blend });
+    gsap.set(this.globe.element, { opacity: blend, scale: 1 });
+    gsap.set(this.cover, { opacity: 0.28 * Math.min(veilRise, veilFall) });
+    this.setProgress(active, 0.08 + flightProgress * 0.92);
+    if (blend > 0 && this.status === 'flying') this.setStatus('blending');
+    if (blend >= 1) this.completeMatchedReverseCrossfade(active);
+  }
+
+  /** Keeps mirroring after the crossfade so the fully visible globe completes the outward zoom. */
+  private completeMatchedReverseCrossfade(active: ActiveHandover): void {
+    if (!this.isCurrent(active) || active.visualComplete) return;
+    gsap.set(this.cesium.element, { opacity: 0 });
+    gsap.set(this.globe.element, { opacity: 1, scale: 1 });
+    gsap.set(this.cover, { opacity: 0 });
+    active.visualComplete = true;
+    // Cesium remains the single native-camera writer until its outward flight ends; it continues
+    // to render invisibly so Three can mirror the remaining movement. Keep ownership as overlap
+    // instead of falsely reporting a completed globe-only handoff.
+    this.ownership = 'overlap';
+    this.syncProbeAttributes();
+    this.finishMatchedReverseIfReady(active);
+  }
+
+  private finishMatchedReverseIfReady(active: ActiveHandover): void {
+    if (!this.isCurrent(active) || !active.flightComplete) return;
+    if (!active.visualComplete) this.completeMatchedReverseCrossfade(active);
+    if (!this.isCurrent(active) || !active.visualComplete) return;
+
+    active.mirroring = false;
+    active.unregisterCombinedRenderer?.();
+    active.unregisterCombinedRenderer = null;
+    // Restore the exact rig-owned orbit before transferring the globe back to its normal ticker.
+    // This prevents numerical bridge differences from leaving a visible one-frame jump at reveal.
+    this.globe.restorePreview();
+    active.cesiumFrames?.release();
+    active.cesiumFrames = null;
+    active.globeFrames?.release();
+    active.globeFrames = null;
+    this.cesium.deactivate();
+    gsap.set(this.cesium.element, { opacity: 0 });
+    gsap.set(this.globe.element, { opacity: 1, scale: 1, transformOrigin: '50% 50%' });
+    gsap.set(this.cover, { opacity: 0 });
+    this.setProgress(active, 1);
+    this.ownership = 'globe';
+    this.setStatus('settled');
+    this.settle(active, {
+      projectId: active.project.id,
+      generation: active.generation,
+      status: 'completed',
+    });
+  }
+
+  /** Covered inverse path used only when a native reverse flight cannot be safely established. */
+  private beginConcealedReverseFallback(active: ActiveHandover, reason: string): void {
+    if (!this.isCurrent(active) || active.fallbackReason) return;
+    active.fallbackReason = reason;
+    active.timeline.kill();
+    active.flight?.cancel();
+    active.flight = null;
+    active.mirroring = false;
+    active.unregisterCombinedRenderer?.();
+    active.unregisterCombinedRenderer = null;
+    active.cesiumFrames?.release();
+    active.cesiumFrames = null;
+    active.globeFrames?.release();
+    active.globeFrames = null;
+    this.prewarm.cancel();
+    this.globe.resumeRendering();
+    this.globe.applyGeographicPose(active.sourcePose);
+    this.globe.restorePreview();
+    this.cesium.setPresentationVisible(true);
+    gsap.set(this.cesium.element, { opacity: 1 });
+    gsap.set(this.globe.element, { opacity: 0, scale: 1, transformOrigin: '50% 50%' });
+    gsap.set(this.cover, { opacity: 0 });
+    this.ownership = 'cesium';
+    this.setStatus('approaching');
+
+    active.timeline = this.timelineFactory();
+    const coverDuration = (this.durationMs * 0.25) / 1_000;
+    const revealDuration = (this.durationMs * 0.3) / 1_000;
+    active.timeline
+      .to(this.cover, {
+        opacity: 1,
+        duration: coverDuration,
+        ease: 'sine.in',
+        onUpdate: () => this.setProgress(active, styleOpacity(this.cover) * 0.45),
+      })
+      .call(() => {
+        if (!this.isCurrent(active)) return;
+        this.setProgress(active, 0.5);
+        this.setStatus('covering');
+        this.cesium.deactivate();
+      })
+      .to(this.globe.element, {
+        opacity: 1,
+        duration: revealDuration,
+        ease: 'sine.out',
+      })
+      .to(this.cover, {
+        opacity: 0,
+        duration: revealDuration,
+        ease: 'sine.out',
+        onUpdate: () => this.setProgress(active, 0.5 + (1 - styleOpacity(this.cover)) * 0.5),
+      })
+      .call(() => {
+        if (!this.isCurrent(active)) return;
+        gsap.set(this.cesium.element, { opacity: 0 });
+        this.setProgress(active, 1);
+        this.ownership = 'globe';
+        this.setStatus('settled');
+        this.settle(active, {
+          projectId: active.project.id,
+          generation: active.generation,
+          status: 'fallback',
+          reason,
+        });
+      })
+      .play();
   }
 
   private beginConcealedFallback(active: ActiveHandover, reason: string): void {

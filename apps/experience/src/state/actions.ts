@@ -20,6 +20,7 @@ export const resetToIdle = assign<
 >(({ context }) => ({
   activeCategoryId: null,
   pendingCategoryId: null,
+  returnToIdleAfterReverse: false,
   previewedProjectId: null,
   selectedProjectId: null,
   activeContentPosition: null,
@@ -60,6 +61,7 @@ export const enterCategoryPreview = assign<
   return {
     activeCategoryId: categoryId ?? null,
     pendingCategoryId: null,
+    returnToIdleAfterReverse: false,
     previewedProjectId: firstProjectId,
     selectedProjectId: null,
     activeContentPosition: null,
@@ -213,6 +215,28 @@ function launchConfiguredForwardHandover(
   void presentation.configurationReady.then(launchIfCurrent, launchIfCurrent);
 }
 
+function launchReverseHandover(
+  context: ExperienceContext,
+  self: HandoverActionSelf,
+  generation: number,
+): void {
+  const projectId = context.selectedProjectId ?? context.previewedProjectId;
+  const project = projectId ? context.runtime.globe?.getProject(projectId) : undefined;
+  const handover = context.runtime.cesium?.handover;
+  if (!project || !handover) return;
+
+  const operation = handover.startReverse(project);
+  context.cleanup.register('handover-reverse', () => operation.cancel());
+  void operation.completion.then((result) => {
+    if (
+      (result.status === 'completed' || result.status === 'fallback') &&
+      isCurrentHandoverGeneration(self, generation)
+    ) {
+      self.send({ type: 'internal.handoverToPreviewComplete', generation });
+    }
+  });
+}
+
 /** Starts the state-owned forward handover and reports only generation-checked terminal events. */
 export function startForwardHandover({
   context,
@@ -239,6 +263,17 @@ export function startForwardHandover({
     return;
   }
   launchConfiguredForwardHandover(context, self, generation, context.runtime.cesium);
+}
+
+/** Starts the state-owned reverse handover back to the saved globe preview. */
+export function startReverseHandover({
+  context,
+  self,
+}: {
+  context: ExperienceContext;
+  self: HandoverActionSelf;
+}): void {
+  launchReverseHandover(context, self, context.generation);
 }
 
 export const enterProjectLanding = assign<
@@ -290,12 +325,22 @@ export const returnToPreview = assign<
   ExperienceEvent,
   never
 >(({ context }) => ({
+  returnToIdleAfterReverse: false,
   selectedProjectId: null,
   activeContentPosition: null,
   activeSequenceId: null,
   activeVoiceoverId: null,
   generation: nextGeneration(context.generation),
 }));
+
+/** Defers idle reset until the active project has animated back to its globe preview. */
+export const requestReturnToIdle = assign<
+  ExperienceContext,
+  ExperienceEvent,
+  undefined,
+  ExperienceEvent,
+  never
+>(() => ({ returnToIdleAfterReverse: true }));
 
 export const beginContentPlaying = assign<
   ExperienceContext,
@@ -357,6 +402,7 @@ export const completeTransitionToPreview = assign<
   return {
     activeCategoryId: categoryId,
     pendingCategoryId: null,
+    returnToIdleAfterReverse: false,
     previewedProjectId: switchingCategory
       ? (context.categoryProjectIds[categoryId ?? '']?.[0] ?? null)
       : context.previewedProjectId,

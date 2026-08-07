@@ -88,7 +88,10 @@ export const INTERRUPTION_MATRIX: Record<
   },
   projectLanding: {
     'operator.reset': { destination: 'idle' },
-    'nav.idle': { destination: 'idle' },
+    'nav.idle': {
+      destination: 'transitionToPreview',
+      note: 'reverse handover animates back through the saved globe preview before idle',
+    },
     'category.select': {
       destination: 'transitionToPreview',
       note: 'reverse handover, lands in the newly selected category',
@@ -97,7 +100,10 @@ export const INTERRUPTION_MATRIX: Record<
   },
   contentPlaying: {
     'operator.reset': { destination: 'idle' },
-    'nav.idle': { destination: 'idle' },
+    'nav.idle': {
+      destination: 'transitionToPreview',
+      note: 'reverse handover animates back through the saved globe preview before idle',
+    },
     'category.select': {
       destination: 'transitionToPreview',
       note: 'reverse handover, lands in the newly selected category',
@@ -107,13 +113,19 @@ export const INTERRUPTION_MATRIX: Record<
   contentFinalHold: {
     // data-model.md: "same as contentPlaying"
     'operator.reset': { destination: 'idle' },
-    'nav.idle': { destination: 'idle' },
+    'nav.idle': {
+      destination: 'transitionToPreview',
+      note: 'reverse handover animates back through the saved globe preview before idle',
+    },
     'category.select': { destination: 'transitionToPreview' },
     'nav.back': { destination: 'transitionToPreview' },
   },
   transitionToPreview: {
     'operator.reset': { destination: 'idle' },
-    'nav.idle': { destination: 'idle' },
+    'nav.idle': {
+      destination: 'self',
+      note: 'an already-active reverse handover continues and resolves to idle on completion',
+    },
     'category.select': {
       destination: 'self',
       note: 'updates the pending category (context.pendingCategoryId); applied when the reverse handover completes. Immediate snap to categoryActive.preview is the FAILURE destination only (data-model.md: "categoryActive.preview (snap)"), not this interruption path.',

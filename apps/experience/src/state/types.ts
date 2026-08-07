@@ -34,6 +34,8 @@ export interface ExperienceContext {
   activeCategoryId: string | null;
   /** Set when a category switch is requested while landed/playing; applied on reverse-handover completion. */
   pendingCategoryId: string | null;
+  /** Keeps `nav.idle` pending until the visual reverse handover has restored the globe. */
+  returnToIdleAfterReverse: boolean;
   previewedProjectId: string | null;
   selectedProjectId: string | null;
   activeContentPosition: ContentOptionPosition | null;
@@ -52,6 +54,7 @@ export const INITIAL_CONTEXT: Omit<ExperienceContext, 'cleanup' | 'runtime'> = {
   categoryProjectIds: {},
   activeCategoryId: null,
   pendingCategoryId: null,
+  returnToIdleAfterReverse: false,
   previewedProjectId: null,
   selectedProjectId: null,
   activeContentPosition: null,

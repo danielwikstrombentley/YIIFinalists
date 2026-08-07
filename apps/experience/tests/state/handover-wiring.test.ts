@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Project } from '@yii/content-schema';
-import { startForwardHandover } from '../../src/state/actions.js';
+import { startForwardHandover, startReverseHandover } from '../../src/state/actions.js';
 import { createCleanupRegistry } from '../../src/state/cleanup-registry.js';
 import {
   createExperienceRuntime,
@@ -48,7 +48,10 @@ function createContext() {
 }
 
 function createPresentation(
-  handover: { startForward: ReturnType<typeof vi.fn> },
+  handover: {
+    startForward: ReturnType<typeof vi.fn>;
+    startReverse?: ReturnType<typeof vi.fn>;
+  },
   configurationReady: Promise<void> = Promise.resolve(),
 ): CesiumPresentation {
   return {
@@ -143,5 +146,36 @@ describe('forward handover machine wiring', () => {
       type: 'internal.handoverToProjectComplete',
       generation: 17,
     });
+  });
+
+  it('runs the reverse handover for the selected landing and reports its current completion token', async () => {
+    const context = createContext();
+    const completion = deferred<{
+      projectId: string;
+      generation: number;
+      status: 'completed';
+    }>();
+    const operation = { completion: completion.promise, cancel: vi.fn() };
+    const handover = {
+      startForward: vi.fn(),
+      startReverse: vi.fn(() => operation),
+    };
+    context.runtime.setCesium(createPresentation(handover));
+    const send = vi.fn<(event: ExperienceEvent) => void>();
+    const self = { send, getSnapshot: () => ({ context }) };
+
+    startReverseHandover({ context, self });
+
+    expect(handover.startReverse).toHaveBeenCalledWith(PROJECT);
+    expect(context.cleanup.size).toBe(1);
+    completion.resolve({ projectId: PROJECT.id, generation: 2, status: 'completed' });
+    await flushAsyncWork();
+    expect(send).toHaveBeenCalledWith({
+      type: 'internal.handoverToPreviewComplete',
+      generation: 17,
+    });
+
+    context.cleanup.cancelAll();
+    expect(operation.cancel).toHaveBeenCalledTimes(1);
   });
 });

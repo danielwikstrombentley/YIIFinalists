@@ -150,10 +150,10 @@ shape (single nullable refs, never collections).
 | `idle` | start globe idle loop, show 36 markers | none needed (loop is idle-owned, keeps running visuals until next entry) | — (idle is the sink) | `recovering` |
 | `categoryActive.preview` | filter markers, retarget preview tween, show metadata | kill preview tweens, clear metadata overlay | `idle` (return/reset) or re-entry via routed idle (category) | `idle` |
 | `transitionToProject` | run HandoverController forward sequence | cancel handover, restore known renderer state, discard stale completions | per priority: `idle` / new `categoryActive.preview` | R4 fallback tier → `projectLanding` (fallback) or `categoryActive.preview` |
-| `projectLanding` | Cesium stage active, hero overlay, preload option assets | stop preloads, clear overlay | `idle` / category / `transitionToPreview` (back) | fallback landing composition |
-| `contentPlaying` | orchestrator plays sequence + voiceover | cancel timeline, stop voiceover, dispose beat overlays | landing (option switch = restart path), back/category/idle per priority | in-composition media fallback; sequence failure → safe composition (`contentFinalHold` variant) |
+| `projectLanding` | Cesium stage active, hero overlay, preload option assets | stop preloads, clear overlay | `transitionToPreview` for back, category, or idle; completion then enters the requested destination | fallback landing composition |
+| `contentPlaying` | orchestrator plays sequence + voiceover | cancel timeline, stop voiceover, dispose beat overlays | landing (option switch = restart path); back/category/idle use `transitionToPreview` before their destination | in-composition media fallback; sequence failure → safe composition (`contentFinalHold` variant) |
 | `contentFinalHold` | hold final frame indefinitely | clear held composition | same as `contentPlaying` | `projectLanding` |
-| `transitionToPreview` | reverse handover | as `transitionToProject` | category / idle | `categoryActive.preview` (snap) |
+| `transitionToPreview` | reverse Cesium → globe handover, mirroring the native camera flight into Three | as `transitionToProject` | repeated category updates pending destination; idle remains pending until the reverse completes | `categoryActive.preview` (snap) |
 | `recovering` | rebuild failed adapter(s), operator notified | — | — | fallback idle (static safe visual) |
 
 ### Event priority (FR-019, machine-enforced guard order)

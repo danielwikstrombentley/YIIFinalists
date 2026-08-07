@@ -232,6 +232,12 @@ export class GlobeCameraRig {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Reasserts the rig-owned orbit after an external handover temporarily controls the camera. */
+  restoreControlledCamera(): void {
+    if (this.disposed) return;
+    this.syncCamera();
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.cancelActiveMotion();

@@ -205,8 +205,10 @@ between stories.
 At any point — during preview, transition, landing, content playback, or final-frame hold — the
 visitor can go back to project preview, select a different category, or return to idle. Back
 navigation reverses the concealed transition and restores the previously previewed project.
-Category change stops everything, routes through idle, and previews the new category's first
-project. Return to idle restores all 36 markers. No inactivity timer ever changes the state.
+Category change stops everything, reverses the Cesium entry animation back through the prior
+globe preview, and then previews the new category's first project. Return to idle performs that
+same inverse animation before restoring all 36 markers. No inactivity timer ever changes the
+state.
 
 **Why this priority**: Interruptibility and predictable return navigation make the installation
 resilient to real visitor behaviour, but they refine journeys established by Stories 1–3.
@@ -223,11 +225,11 @@ transitions cancel safely, and the destination state is correct with no residual
 2. **Given** any major state (idle, preview, transition, landing, content, final-frame hold),
    **When** a category selection arrives — including a deliberate re-press of the currently
    active category — **Then** all active media, voiceover, and sequences stop safely, the
-   experience routes through idle, and the (re-)selected category's first project enters
-   preview.
+  experience reverses through the prior globe preview, and the (re-)selected category's first
+  project enters preview.
 3. **Given** any major state, **When** the return-to-idle action is received, **Then** all
-   category, project, and content presentation clears, all 36 finalist markers are restored, and
-   the idle loop resumes gracefully.
+  category, project, and content presentation clears through the inverse Cesium-to-globe
+  animation, all 36 finalist markers are restored, and the idle loop resumes gracefully.
 4. **Given** the application has received no input for hours, **When** the state is inspected,
    **Then** it remains exactly where the last visitor left it — no inactivity-based reset has
    occurred.
@@ -447,7 +449,8 @@ content.
   reverse concealed transition, and restore the previously previewed project in preview.
 - **FR-016**: A manual return-to-idle action MUST stop all playback, clear category/project/
   content presentation, restore all 36 markers, and resume the idle loop; the experience MUST
-  NOT apply any inactivity-based automatic reset.
+  NOT apply any inactivity-based automatic reset. When invoked from a geographic landing or
+  content state, it MUST first play the inverse Cesium-to-globe handover before clearing to idle.
 - **FR-017**: Category selection and return-to-idle MUST be honoured from every major state,
   including during transitions and content playback.
 

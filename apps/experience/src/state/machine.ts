@@ -14,11 +14,13 @@ import {
   preloadLandingOptionAssets,
   registerReleaseCategories,
   requestCategorySwitch,
+  requestReturnToIdle,
   resetToIdle,
   retargetPreview,
   returnToPreview,
   returnToPreviewAfterHandoverFailure,
   startForwardHandover,
+  startReverseHandover,
 } from './actions.js';
 import { createCleanupRegistry } from './cleanup-registry.js';
 import { isCurrentGeneration, outranks } from './guards.js';
@@ -31,9 +33,9 @@ import { INITIAL_CONTEXT, type ExperienceContext, type ExperienceEvent } from '.
 // resources; those are wired in by the tasks that build the real adapters (PH3+) without changing
 // this machine's states, events, or guard order.
 //
-// FR-019 priority order is enforced two ways: (1) `operator.reset` / `nav.idle` are declared once
-// at the root and bubble to every leaf state (XState event bubbling) so the two highest-priority
-// actions always reach `idle` regardless of what is active; (2) exclusive/transitional states
+// FR-019 priority order is enforced two ways: (1) root-level `operator.reset` / `nav.idle`
+// handlers cover every state, while project-space states override `nav.idle` only to preserve the
+// required reverse handover before reaching idle; (2) exclusive/transitional states
 // (`transitionToProject`, `transitionToPreview`) explicitly guard lower-priority-vs-current-action
 // interruptions with `outranks()` so a stray lower-priority action arriving mid-transition is a
 // structural no-op even if it somehow reached the machine (defense in depth — the input boundary,
@@ -52,8 +54,9 @@ export const experienceMachine = setup({
     cleanup: createCleanupRegistry(),
     runtime: createExperienceRuntime(),
   }),
-  // Root-level handlers bubble to every state that doesn't define its own (XState event
-  // bubbling): the two highest FR-019 priorities always resolve to a full reset, from anywhere.
+  // Root-level handlers bubble to every state that doesn't define its own (XState event bubbling).
+  // `operator.reset` always resets immediately; project-space states override `nav.idle` to run
+  // their camera-continuous reverse first, then complete the same reset.
   on: {
     'internal.releaseLoaded': { actions: [registerReleaseCategories] },
     'operator.reset': { target: '.idle', actions: [resetToIdle] },
@@ -127,6 +130,10 @@ export const experienceMachine = setup({
       on: {
         'content.select': { target: 'contentPlaying', actions: [beginContentPlaying] },
         'nav.back': { target: 'transitionToPreview', actions: [beginTransitionToPreview] },
+        'nav.idle': {
+          target: 'transitionToPreview',
+          actions: [requestReturnToIdle, beginTransitionToPreview],
+        },
         'category.select': {
           target: 'transitionToPreview',
           actions: [requestCategorySwitch, beginTransitionToPreview],
@@ -146,6 +153,10 @@ export const experienceMachine = setup({
           actions: [beginContentPlaying],
         },
         'nav.back': { target: 'transitionToPreview', actions: [beginTransitionToPreview] },
+        'nav.idle': {
+          target: 'transitionToPreview',
+          actions: [requestReturnToIdle, beginTransitionToPreview],
+        },
         'category.select': {
           target: 'transitionToPreview',
           actions: [requestCategorySwitch, beginTransitionToPreview],
@@ -157,6 +168,10 @@ export const experienceMachine = setup({
       on: {
         'content.select': { target: 'contentPlaying', actions: [beginContentPlaying] },
         'nav.back': { target: 'transitionToPreview', actions: [beginTransitionToPreview] },
+        'nav.idle': {
+          target: 'transitionToPreview',
+          actions: [requestReturnToIdle, beginTransitionToPreview],
+        },
         'category.select': {
           target: 'transitionToPreview',
           actions: [requestCategorySwitch, beginTransitionToPreview],
@@ -164,13 +179,25 @@ export const experienceMachine = setup({
       },
     },
     transitionToPreview: {
+      entry: [startReverseHandover],
       exit: [cancelOwnedHandles],
       on: {
-        'internal.handoverToPreviewComplete': {
-          target: 'categoryActive.preview',
-          guard: ({ context, event }) => isCurrentGeneration(context, event),
-          actions: [completeTransitionToPreview],
-        },
+        'internal.handoverToPreviewComplete': [
+          {
+            target: 'idle',
+            guard: ({ context, event }) =>
+              context.returnToIdleAfterReverse && isCurrentGeneration(context, event),
+            actions: [resetToIdle],
+          },
+          {
+            target: 'categoryActive.preview',
+            guard: ({ context, event }) => isCurrentGeneration(context, event),
+            actions: [completeTransitionToPreview],
+          },
+        ],
+        // Preserve the already-running inverse animation when idle is pressed again. The pending
+        // destination switches to idle, but no second camera flight or visual jump is introduced.
+        'nav.idle': { actions: [requestReturnToIdle] },
         'category.select': { actions: [requestCategorySwitch] },
       },
     },

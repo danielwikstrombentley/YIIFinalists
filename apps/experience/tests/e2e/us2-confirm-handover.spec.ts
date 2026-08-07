@@ -228,6 +228,80 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
     await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(3);
   });
 
+  test('T046: a landed project reverses visibly back to the whole-globe idle composition', async ({
+    page,
+  }, testInfo) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    await openIdleStage(page);
+    await previewProject(page);
+    await confirmPreview(page);
+
+    await injectAction(page, 'nav.idle', {});
+    await expect(page.locator('#stage')).toHaveAttribute(
+      'data-machine-state',
+      '"transitionToPreview"',
+    );
+    await expect(page.getByTestId('handover-controller')).toHaveAttribute(
+      'data-status',
+      /^(approaching|flying|blending|covering|revealing)$/,
+    );
+    const reverseReport = await expectVisibleTransitionFrames(page, {
+      frameCount: 12,
+      intervalMs: 80,
+    });
+    await testInfo.attach('reverse-transition-observability', {
+      body: JSON.stringify(reverseReport, null, 2),
+      contentType: 'application/json',
+    });
+    expect(
+      reverseReport.samples.some(({ handoverStatus }) => handoverStatus !== 'unavailable'),
+    ).toBe(true);
+
+    await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"idle"', {
+      timeout: 7_000,
+    });
+    await expect(page.getByTestId('globe-renderer')).toHaveCSS('opacity', '1');
+    await expect(page.getByTestId('cesium-stage')).toHaveCSS('opacity', '0');
+    expect(errors).toEqual([]);
+  });
+
+  test('T046: selecting a new category from a landing reverses before revealing its first preview', async ({
+    page,
+  }) => {
+    await openIdleStage(page);
+    await previewProject(page, 'cat-1-proj-1');
+    await confirmPreview(page);
+
+    await injectAction(page, 'category.select', { categoryId: 'cat-2' });
+    await expect(page.locator('#stage')).toHaveAttribute(
+      'data-machine-state',
+      '"transitionToPreview"',
+    );
+    await expect(page.getByTestId('handover-controller')).toHaveAttribute(
+      'data-status',
+      /^(approaching|flying|blending|covering|revealing)$/,
+    );
+    await expect(page.getByTestId('handover-controller')).toHaveAttribute(
+      'data-ownership',
+      /^(overlap|globe)$/,
+      { timeout: 5_000 },
+    );
+
+    await expect(page.locator('#stage')).toHaveAttribute(
+      'data-machine-state',
+      '{"categoryActive":"preview"}',
+      { timeout: 7_000 },
+    );
+    await expect(page.getByTestId('preview-metadata')).toHaveAttribute(
+      'data-project-id',
+      'cat-2-proj-1',
+    );
+  });
+
   test('T083 repeated project-entry cycles restore one ticker owner and one reusable cover', async ({
     page,
   }) => {

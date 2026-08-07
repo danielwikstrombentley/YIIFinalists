@@ -252,6 +252,13 @@ export class GlobeRendererAdapter {
     this.scene.resize(width, height);
   }
 
+  /** Restores the orbit parameters owned by the preview rig after external handover control. */
+  restorePreviewCamera(): void {
+    if (this.disposed) return;
+    this.cameraRig.restoreControlledCamera();
+    this.syncTestAttributes();
+  }
+
   /** Full, idempotent ownership cleanup for renderer, DOM, scene, markers, rig, and ticker hook. */
   dispose(): void {
     if (this.disposed) return;

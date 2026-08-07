@@ -111,6 +111,7 @@ export function createCesiumPresentation(
       // interruption. This immediate resume preserves the existing canvas meanwhile.
       restorePreview: () => {
         globe.adapter.start(stageElement);
+        globe.adapter.restorePreviewCamera();
       },
     },
     cesium: stage,

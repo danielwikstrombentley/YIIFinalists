@@ -633,10 +633,10 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
 - [~] T046 [US4] Implement reverse handover (transitionToPreview) restoring the previously previewed project in apps/experience/src/renderers/handover/HandoverController.ts
   - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T046-reverse-handover` · PR — · Blockers —
   - Do: Mirror choreography of the forward path (same transition language — FR-008): Cesium → cover → globe with previous preview framing restored; failure destination snaps to `categoryActive.preview` per data-model; machine wiring for `nav.back` from landing/content states through `transitionToPreview`. User-directed early implementation covers the live `projectLanding` return-to-idle/category paths now; T044's later content states must reuse this same route.
-  - Files: `apps/experience/src/renderers/handover/HandoverController.ts`, `apps/experience/src/state/machine.ts`
+  - Files: `apps/experience/src/renderers/{handover/HandoverController.ts,cesium/{camera-flight.ts,CesiumStageAdapter.ts},globe/{camera-rig.ts,GlobeRendererAdapter.ts}`, `apps/experience/src/{app/cesium-presentation.ts,state/{actions.ts,machine.ts,types.ts}}`, `apps/experience/tests/{renderers/{camera-flight.test.ts,cesium-stage-adapter.test.ts,handover.test.ts,handover-flight.test.ts},state/{handover-wiring.test.ts,legality.test.ts},e2e/us2-confirm-handover.spec.ts}`
   - Deps: T033 (the reusable reverse renderer path is implemented before T044; T044 must route its content states through it)
-  - Tests: extend T036 with reverse-path cases (readiness, watchdog, cancel).
-  - Accept: FR-015 complete; reverse concealment equal to forward (SC-003 both directions).
+  - Tests: extend T036 with native reverse-flight, fallback, and cancellation cases; browser regressions sample the Cesium → globe idle and Cesium → new-category routes for non-blank, non-stale animation frames.
+  - Accept: FR-015 complete; landing/content exits to idle or a category first use the camera-continuous inverse handover, then reveal idle or the requested first preview; reverse concealment equal to forward (SC-003 both directions).
 
 - [ ] T047 [US4] Complete global priority interruption wiring + stale-event hardening across all states in apps/experience/src/state/machine.ts
   - Meta: Phase PH6 · Feature F001 · Owner — · Branch `task/001-T047-priority-wiring` · PR — · Blockers —

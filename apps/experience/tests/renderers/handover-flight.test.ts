@@ -196,4 +196,105 @@ describe('matched-flight handover', () => {
     controller.dispose();
     ticker.stop();
   });
+
+  it('reverses from the landing camera to the saved globe preview while mirroring Cesium into Three', async () => {
+    const ticker = new Ticker();
+    const timeline = new InspectTimeline();
+    const forwardFlight = deferred<CameraFlightResult>();
+    const reverseFlight = deferred<CameraFlightResult>();
+    const frameOrder: string[] = [];
+    let targetRange = 1_000_000;
+    const globeElement = document.createElement('canvas');
+    const cesiumElement = document.createElement('div');
+    const stage = document.createElement('div');
+    stage.append(globeElement, cesiumElement);
+    const globe = {
+      element: globeElement,
+      captureGeographicPose: vi.fn(() => SOURCE_POSE),
+      captureTargetProjection: vi.fn(() => ({
+        projectId: PROJECT.id,
+        x: 0.7,
+        y: 0.6,
+        visible: true,
+      })),
+      applyGeographicPose: vi.fn(() => frameOrder.push('globe-apply')),
+      beginExternalFrameControl: vi.fn(() => ({
+        render: () => frameOrder.push('globe-render'),
+        release: vi.fn(),
+      })),
+      suspendRendering: vi.fn(),
+      resumeRendering: vi.fn(),
+      restorePreview: vi.fn(),
+    };
+    const cesium = {
+      element: cesiumElement,
+      matchSourceCamera: vi.fn(() => true),
+      setLandingCamera: vi.fn(() => true),
+      activatePreparedProject: vi.fn(() => readyStageOperation()),
+      showSafeComposition: vi.fn(() => readyStageOperation()),
+      setPresentationVisible: vi.fn(),
+      beginExternalFrameControl: vi.fn(() => ({
+        render: () => frameOrder.push('cesium-render'),
+        release: vi.fn(),
+      })),
+      captureGeographicPose: vi.fn(() => {
+        frameOrder.push('cesium-capture');
+        return FLIGHT_POSE;
+      }),
+      captureTargetProjection: vi.fn(() => null),
+      captureTargetRange: vi.fn(() => targetRange),
+      targetRangeForPose: vi.fn(() => 1_000_000),
+      startLandingFlight: vi.fn(() => ({ finished: forwardFlight.promise, cancel: vi.fn() })),
+      startGeographicFlight: vi.fn(() => ({ finished: reverseFlight.promise, cancel: vi.fn() })),
+      deactivate: vi.fn(),
+    };
+    const ready: CesiumPrewarmResult = {
+      projectId: PROJECT.id,
+      tier: 'photorealistic',
+      fallback: false,
+      meaningfulFrameReady: true,
+      landingAssetsReady: true,
+      status: 'ready',
+    };
+    const prewarm = {
+      warm: vi.fn(() => ({ ready: Promise.resolve(ready), cancel: vi.fn() })),
+      readinessFor: vi.fn(() => Promise.resolve(ready)),
+      cancel: vi.fn(),
+    };
+    const controller = new HandoverController({
+      stage,
+      globe,
+      cesium,
+      prewarm,
+      ticker,
+      timelineFactory: () => timeline,
+    });
+    const reverseController = controller as HandoverController & {
+      startReverse(project: CesiumStageProject): ReturnType<HandoverController['startForward']>;
+    };
+
+    const forward = controller.startForward(PROJECT);
+    await flushAsyncWork();
+    targetRange = FRAMING.landingCamera.range;
+    gsap.ticker.tick();
+    forwardFlight.resolve({ status: 'completed' });
+    await expect(forward.completion).resolves.toMatchObject({ status: 'completed' });
+
+    const reverse = reverseController.startReverse(PROJECT);
+    await flushAsyncWork();
+    expect(cesium.startGeographicFlight).toHaveBeenCalledWith(SOURCE_POSE, 4_200);
+
+    targetRange = 1_000_000;
+    frameOrder.length = 0;
+    gsap.ticker.tick();
+    expect(frameOrder).toEqual(['cesium-render', 'cesium-capture', 'globe-apply', 'globe-render']);
+
+    reverseFlight.resolve({ status: 'completed' });
+    await expect(reverse.completion).resolves.toMatchObject({ status: 'completed' });
+    expect(globe.restorePreview).toHaveBeenCalled();
+    expect(cesium.deactivate).toHaveBeenCalled();
+
+    controller.dispose();
+    ticker.stop();
+  });
 });

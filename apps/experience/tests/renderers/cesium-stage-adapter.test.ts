@@ -236,6 +236,21 @@ describe('CesiumStageAdapter', () => {
     nativeOptions?.complete?.();
     await expect(flight?.finished).resolves.toEqual({ status: 'completed' });
 
+    const reverseFlight = adapter.startGeographicFlight(SOURCE_POSE, 4_200);
+    expect(reverseFlight).not.toBeNull();
+    expect(viewer.flyTo).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        destination: new Cartesian3(...SOURCE_POSE.positionEcef),
+        duration: 4.2,
+      }),
+    );
+    const reverseOptions = viewer.flyTo.mock.calls[1]?.[0];
+    reverseOptions?.complete?.();
+    await expect(reverseFlight?.finished).resolves.toEqual({ status: 'completed' });
+    expect(adapter.targetRangeForPose(SOURCE_POSE, SAFE_PROJECT)).toBeGreaterThan(
+      SAFE_PROJECT.geographicFraming.landingCamera.range,
+    );
+
     external.release();
     expect(ticker.rendererCount).toBe(1);
     adapter.dispose();

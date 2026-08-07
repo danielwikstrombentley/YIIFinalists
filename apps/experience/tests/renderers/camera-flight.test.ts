@@ -5,8 +5,10 @@ import {
   CesiumCameraFlightAdapter,
   mapCameraPoseToCesium,
   type CesiumCameraLike,
+  type CameraFlightHandle,
   type NativeCameraFlightOptions,
 } from '../../src/renderers/cesium/camera-flight.js';
+import type { GeographicCameraPose } from '../../src/renderers/handover/geographic-camera-pose.js';
 
 const FRAMING: GeographicFraming = {
   scopeType: 'corridor',
@@ -18,6 +20,14 @@ const FRAMING: GeographicFraming = {
   previewEmphasis: { markerScale: 1.2 },
   tileTier: 'safe-composition',
   canvasTreatment: { darken: 0.15 },
+};
+
+const PREVIEW_POSE: GeographicCameraPose = {
+  positionEcef: [14_000_000, 2_000_000, -9_000_000],
+  directionEcef: [-0.8, -0.1, 0.6],
+  upEcef: [0.1, 0.98, 0.15],
+  verticalFovRadians: (42 * Math.PI) / 180,
+  aspectRatio: 16 / 9,
 };
 
 function createCamera() {
@@ -118,5 +128,30 @@ describe('CesiumCameraFlightAdapter', () => {
     await expect(first.finished).resolves.toEqual({ status: 'cancelled' });
     expect(camera.cancelFlight).toHaveBeenCalledTimes(1);
     second.cancel();
+  });
+
+  it('flies back to an exact captured globe-preview pose through the same native camera owner', async () => {
+    const { camera, lastFlight } = createCamera();
+    const adapter = new CesiumCameraFlightAdapter({
+      camera,
+      poseMapper: () => ({ destination: {} }),
+    });
+    const reverseAdapter = adapter as CesiumCameraFlightAdapter & {
+      flyToGeographicPose(pose: GeographicCameraPose, durationSeconds: number): CameraFlightHandle;
+    };
+
+    const flight = reverseAdapter.flyToGeographicPose(PREVIEW_POSE, 4.2);
+    const nativeFlight = lastFlight();
+
+    expect(nativeFlight).toMatchObject({
+      duration: 4.2,
+      destination: new Cartesian3(...PREVIEW_POSE.positionEcef),
+      orientation: {
+        direction: new Cartesian3(...PREVIEW_POSE.directionEcef),
+        up: new Cartesian3(...PREVIEW_POSE.upEcef),
+      },
+    });
+    nativeFlight?.complete?.();
+    await expect(flight.finished).resolves.toEqual({ status: 'completed' });
   });
 });
