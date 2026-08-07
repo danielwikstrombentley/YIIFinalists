@@ -362,6 +362,18 @@ describe('HandoverController', () => {
     await flushAsyncWork();
     revealing.controller.cancel();
     await expect(revealingOperation.completion).resolves.toMatchObject({ status: 'cancelled' });
+    const flightHandle = revealing.cesium.startLandingFlight.mock.results[0]?.value as
+      { cancel: ReturnType<typeof vi.fn> } | undefined;
+    expect(flightHandle?.cancel).toHaveBeenCalledTimes(1);
+    expect(
+      (revealing.globe.beginExternalFrameControl.mock.results[0]?.value as { release(): void })
+        .release,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      (revealing.cesium.beginExternalFrameControl.mock.results[0]?.value as { release(): void })
+        .release,
+    ).toHaveBeenCalledTimes(1);
+    expect(revealing.ticker.rendererCount).toBe(0);
 
     for (const harness of [approach, covering, revealing]) {
       expect(harness.cesium.deactivate).toHaveBeenCalledTimes(1);
@@ -410,6 +422,8 @@ describe('HandoverController', () => {
 
     expect(harness.stage.querySelectorAll('[data-testid="handover-controller"]')).toHaveLength(1);
     expect(harness.globe.suspendRendering).toHaveBeenCalledTimes(2);
+    expect(harness.cesium.startLandingFlight).toHaveBeenCalledTimes(2);
+    expect(harness.ticker.rendererCount).toBe(0);
     harness.controller.dispose();
     expect(harness.stage.querySelector('[data-testid="handover-controller"]')).toBeNull();
     harness.ticker.stop();

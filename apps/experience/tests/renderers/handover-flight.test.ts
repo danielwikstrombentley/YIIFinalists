@@ -173,6 +173,7 @@ describe('matched-flight handover', () => {
     await flushAsyncWork();
 
     expect(cesium.startLandingFlight).toHaveBeenCalledTimes(1);
+    expect(ticker.rendererCount).toBe(1);
     frameOrder.length = 0;
     gsap.ticker.tick();
     expect(frameOrder).toEqual(['cesium-render', 'cesium-capture', 'globe-apply', 'globe-render']);
@@ -191,6 +192,7 @@ describe('matched-flight handover', () => {
     timeline.runAllCalls();
     flight.resolve({ status: 'completed' });
     await expect(operation.completion).resolves.toMatchObject({ status: 'completed' });
+    expect(ticker.rendererCount).toBe(0);
     controller.dispose();
     ticker.stop();
   });

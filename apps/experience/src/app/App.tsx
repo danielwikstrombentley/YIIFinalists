@@ -7,6 +7,7 @@ import {
   transitionNowMs,
   type TransitionObservabilitySnapshot,
 } from '../renderers/handover/transition-observability.js';
+import { sharedTicker } from '../orchestration/ticker.js';
 import { StageMount } from './StageMount.js';
 
 // App shell (T020): kiosk bootstrap + machine provider + public stage + operator overlay mount
@@ -199,6 +200,7 @@ function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: Bootst
       return {
         capturedAtMs: transitionNowMs(),
         targetProjectId,
+        sharedTickerRendererCount: sharedTicker.rendererCount,
         globe: runtime.globe?.adapter.transitionProbe(targetProjectId) ?? null,
         cesium: runtime.cesium?.stage.transitionProbe() ?? null,
         handover: runtime.cesium?.handover.transitionProbe ?? null,

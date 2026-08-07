@@ -60,6 +60,7 @@ export interface HandoverTransitionProbe {
 export interface TransitionObservabilitySnapshot {
   capturedAtMs: number;
   targetProjectId: string | null;
+  sharedTickerRendererCount: number;
   globe: RendererTransitionProbe | null;
   cesium: RendererTransitionProbe | null;
   handover: HandoverTransitionProbe | null;

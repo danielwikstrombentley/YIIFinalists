@@ -8,8 +8,8 @@
 
 **Started:** 2026-08-07
 
-**Status:** Passes 0–3 implemented: observability, exact hidden camera match, meaningful target
-frame readiness, and one synchronized native flight. Pass 4 human visual comparison is next.
+**Status:** Runtime and automated Passes 0–5 complete. M5 is the engineering-recommended final
+candidate; explicit human visual acceptance remains the only open T083 gate.
 
 **Current winner:** Planned method M2 — one native Cesium camera flight, mirrored into the Three.js
 camera while both renderers overlap, with an atmospheric crossfade rather than an opaque stop.
@@ -537,7 +537,7 @@ Status values: `planned`, `active`, `retained`, `rejected`, `superseded`, or `ac
 | M1 | Exact matched Cesium start pose, still swapped under current full cover | retained proof | Hidden hard-cut proof now passes ECEF position/direction/up/FOV/aspect thresholds and ≤0.5% target projection in the photorealistic browser. Public M0 cover is intentionally unchanged pending M2/M5. |
 | M2 | Native Cesium flight mirrored into Three during bounded overlap | retained; current winner | One 4.2 s native flight now drives both views in deterministic Cesium→capture→Three update→Three render order under one shared-ticker callback. Live range was monotonic to the approved 800 m landing. |
 | M3 | Renderer-neutral GSAP/geodetic camera path writing both cameras | planned fallback | More control if native flight motion is rejected; more architecture and camera-writer responsibility. |
-| M4 | Plain opacity crossfade between matched live canvases | planned comparison | Diagnostic baseline for whether exact pose alone is sufficient; likely exposes texture/colour mismatch. |
+| M4 | Plain opacity crossfade between matched live canvases | tested comparison; not recommended | Temporary local CSS removed the veil without adding a production selector. Cameras stayed aligned, but the direct cinematic-texture → photogrammetry/material handoff retained the renderer/material seam. Human verdict pending. |
 | M5 | Partial atmospheric/cloud crossfade between matched live canvases | active candidate | Target-following radial atmosphere peaks at 0.28 opacity; renderer blend follows native-flight progress 0.12→0.62 and never reaches full cover on the ready path. Human verdict pending. |
 | M6 | Target-centered radial atmospheric dissolve | planned optional comparison | May direct attention into the selected point; reject if it reads as a wipe/UI effect rather than travel. |
 | M7 | Canvas screenshot/readback warp or frozen texture morph | deferred, not recommended | Adds GPU readback/upload cost, hides rather than solves camera mismatch, complicates DPR/colour handling, and can introduce a frozen frame. |
@@ -992,6 +992,76 @@ Append every attempt below. Do not rewrite earlier verdicts after the fact.
 - **Next experiment:** Pass 4 — compare M4 and M5 with fixed project/flight/viewport/network,
   retain one treatment from explicit human feedback, then run Pass 5 interruption/repeat/performance
   polish.
+
+### Experiment P4 — 2026-08-07
+
+- **Agent/model:** GitHub Copilot / GPT-5.6 Sol (OpenAI).
+- **Branch commit:** comparison performed on top of `538bdbb`; no permanent M4 selector or variant
+  was added.
+- **Method ID / hypothesis:** controlled M4 plain crossfade versus M5 target-following atmosphere.
+  Camera path, 4,200 ms native flight, `cat-1-proj-1`, viewport, DPR, network, and target readiness
+  were held fixed.
+- **Viewing condition:** fresh Chromium development pages, photorealistic tier, event-local ion
+  config, normal network. M4 was isolated with a temporary browser-injected local style hiding only
+  the atmospheric cover; it was removed with the disposable page.
+- **Exact code/tuning changes:** no M4 production code. M5 tuning retained: renderer blend over
+  native-flight range progress `0.12→0.62`; target-centered radial veil peak `0.28` at progress
+  `0.24`, zero by `0.70`. The veil center updates from Cesium's selected-target projection every
+  combined frame.
+- **Automated evidence:** M4 retained camera alignment (`1.86e-9 m` position, ~`1.21e-6°`
+  direction/up) and target delta `0.00321`; no page/console errors. M5's strengthened Playwright gate
+  passes hidden-source and every-frame overlap camera alignment, target delta ≤`0.005`, no black/
+  stale frame, and no ready-path opaque stationary hold >100 ms.
+- **Live-browser evidence:** M4 capture `/tmp/t083-m4-crossfade.png`; M5 source and veil captures
+  `/tmp/t083-m5-source.png` and `/tmp/t083-m5-05.png`. M4 makes the material/colour-source change
+  directly readable as the opacity ownership flips. M5 preserves the same geography/motion but
+  gives the eye a moving atmospheric bridge centered on the destination; it never becomes a card
+  or full-frame stop.
+- **What improved:** the comparison did not require a public query parameter, debug control, second
+  code path, or different camera motion.
+- **What remains wrong:** only a human can make the final aesthetic selection. Engineering evidence
+  recommends M5; that recommendation is not recorded as human acceptance.
+- **Human feedback:** pending.
+- **Verdict:** M4 tested but not recommended. M5 remains the sole production candidate pending the
+  human verdict.
+- **Next experiment:** Pass 5 production-safety polish, then present M5 for explicit acceptance.
+
+### Experiment P5 — 2026-08-07
+
+- **Agent/model:** GitHub Copilot / GPT-5.6 Sol (OpenAI).
+- **Branch commit:** working tree after `538bdbb`; final polish commit pending human verdict.
+- **Method ID / hypothesis:** production hardening of M2+M5.
+- **Viewing condition:** deterministic safe-composition Playwright plus two repeated live
+  photorealistic project-entry cycles (`cat-1`, `cat-2`) on fresh development pages at DPR 2.
+- **Exact code/tuning changes:** renderer crossover now follows measured camera-to-target range,
+  not wall time, so throttling cannot let a native flight outrun canvas ownership. The exact
+  WGS84 target-height point is carried into globe probes. The neutral Three/WGS84 bridge was split
+  from the Cesium-only landing mapper to preserve lazy loading. Globe reactivation restores canvas
+  opacity/transform; transition external control hides/restores markers; landing hero remains
+  absent until the machine reaches `projectLanding`. E2E snapshots expose only a non-visible shared-
+  ticker callback count. Repeated-cycle tests require one ticker owner at landing and idle, one
+  reusable cover, restored globe opacity, and zero page/console errors.
+- **Automated evidence:** `pnpm run verify` passes: all workspace typechecks, ESLint, Prettier,
+  content-schema 30/30, semantic-actions 30/30, kiosk 13/13, pipeline 8/8, experience 184 passed +
+  4 intentional skips, and all builds. Complete serial Playwright passes 14/14 in 1.7 minutes.
+  Focused renderer/handover polish passes 34/34. Browser coverage includes cancellation during
+  flight/blend, delayed/fallback readiness, stale generation, resource-only fallback, target/FOV/
+  pose continuity, no-black frames, landing-hero timing, and repeated cleanup.
+- **Live-browser evidence:** two photorealistic confirm→landing→idle cycles ended with ticker
+  callback count `1`, globe opacity `1`, cover count `1`, and no page/console/shader errors. Cycle
+  maxima: camera position ≤`3.84e-9 m`, angular basis ≤`1.71e-6°`, FOV/aspect `0`; selected-target
+  delta `0.00341` then `0.000203`. Expected aborted package-media preload requests occurred only
+  when `nav.idle` cancelled landing preloads; no public or console error was emitted.
+- **What improved:** cancellation and repeated execution leave no stale native flight, combined
+  callback, adapter callback, cover, canvas opacity, or marker state. The landing hero enters only
+  after camera settlement. Normal and fallback routes are explicit and independently tested.
+- **What remains wrong:** event-hardware frame-time measurement remains the documented release-level
+  dependency, not a T083 implementation blocker. Human visual acceptance of M5 is still mandatory.
+- **Human feedback:** pending.
+- **Verdict:** engineering implementation and automated acceptance pass. Do not mark T083 accepted
+  or ready for PR until the human explicitly accepts M5 (or requests one final tuning pass).
+- **Next experiment:** human M5 review using press `0` → `1`, wait for preview, then `3` on the
+  photorealistic dev page. Record the verbatim verdict and exact final tuning before PR/review.
 
 ### Experiment template
 

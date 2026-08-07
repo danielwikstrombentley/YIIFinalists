@@ -68,6 +68,7 @@ async function confirmPreview(
     'data-status',
     /^(approaching|flying|blending|covering|revealing)$/,
   );
+  await expect(page.getByTestId('landing-hero')).toHaveCount(0);
   const report = await expectVisibleTransitionFrames(page, {
     ...frameOptions,
     maximumOpaqueStationaryHoldMs:
@@ -225,5 +226,52 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
       'cancelled',
     );
     await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(3);
+  });
+
+  test('T083 repeated project-entry cycles restore one ticker owner and one reusable cover', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    await openIdleStage(page);
+
+    for (const categoryId of ['cat-1', 'cat-2']) {
+      await injectAction(page, 'category.select', { categoryId });
+      await expect(page.locator('#stage')).toHaveAttribute(
+        'data-machine-state',
+        '{"categoryActive":"preview"}',
+      );
+      await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+        'data-preview-motion',
+        'settled',
+      );
+      await expect(page.getByTestId('cesium-stage')).toHaveAttribute(
+        'data-meaningful-frame-ready-at-ms',
+        /\d/,
+      );
+
+      await injectAction(page, 'project.select', {});
+      await expect(page.locator('#stage')).toHaveAttribute(
+        'data-machine-state',
+        '"projectLanding"',
+        {
+          timeout: 10_000,
+        },
+      );
+      const landingSnapshot = await page.evaluate(() => window.__YII_E2E__?.transitionSnapshot());
+      expect(landingSnapshot?.sharedTickerRendererCount).toBe(1);
+
+      await injectAction(page, 'nav.idle', {});
+      await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"idle"');
+      await expect(page.getByTestId('globe-renderer')).toHaveCSS('opacity', '1');
+      const idleSnapshot = await page.evaluate(() => window.__YII_E2E__?.transitionSnapshot());
+      expect(idleSnapshot?.sharedTickerRendererCount).toBe(1);
+    }
+
+    await expect(page.locator('[data-testid="handover-controller"]')).toHaveCount(1);
+    expect(errors).toEqual([]);
   });
 });
