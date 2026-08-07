@@ -269,6 +269,13 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
       await expect(page.getByTestId('globe-renderer')).toHaveCSS('opacity', '1');
       const idleSnapshot = await page.evaluate(() => window.__YII_E2E__?.transitionSnapshot());
       expect(idleSnapshot?.sharedTickerRendererCount).toBe(1);
+      const idleCameraPosition = idleSnapshot?.globe?.camera?.position;
+      if (!idleCameraPosition) throw new Error('Idle globe camera probe is unavailable.');
+      // A Cesium landing pose sits close to the WGS84 surface (about 6.4 Mm from the centre),
+      // whereas the rig-owned whole-globe presentation is intentionally at space-level range.
+      // Assert immediately after `nav.idle` so a stale external handover pose cannot hide behind
+      // a later GSAP camera update.
+      expect(Math.hypot(...idleCameraPosition)).toBeGreaterThan(10_000_000);
     }
 
     await expect(page.locator('[data-testid="handover-controller"]')).toHaveCount(1);
