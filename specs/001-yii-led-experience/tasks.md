@@ -1014,7 +1014,7 @@ plan-recorded N/A rationale — currently none).
   - Tests: sample generator accepts `photorealistic` and rejects invalid tiers; kiosk local-env loader preserves shell precedence; E2E fixture seed explicitly remains `safe-composition`.
   - Accept: after filling `.env.local` with a long ion token, a positive numeric asset ID, and `YII_SAMPLE_TILE_TIER=photorealistic`, `pnpm --filter content-pipeline seed:sample` then `pnpm --filter experience dev` streams tiles for sample landings; absent/invalid credentials retain the approved fallback and no secrets are committed or logged.
 
-- [R] T082 Fix Cesium tileset cleanup during repeated category selection and return-to-idle
+- [x] T082 Fix Cesium tileset cleanup during repeated category selection and return-to-idle
   - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T082-tileset-reset` · PR #13 · Blockers —
   - Do: Ensure `CesiumStageAdapter` never invokes a tileset after Cesium's primitive collection has already destroyed it during removal. Preserve explicit cleanup when a collection does not auto-destroy primitives; ensure cancellation/reset remains idempotent across repeated prewarm/category/idle cycles and does not terminate the XState actor.
   - Files: `apps/experience/src/renderers/cesium/{CesiumStageAdapter.ts,tileset.ts}`, `apps/experience/tests/{renderers/cesium-stage-adapter.test.ts,e2e/us1-category-preview.spec.ts}`
