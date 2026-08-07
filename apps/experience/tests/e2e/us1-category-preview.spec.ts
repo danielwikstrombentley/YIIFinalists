@@ -104,6 +104,43 @@ test.describe('US1: category and cinematic globe preview', () => {
     await expect(page.getByTestId('globe-renderer')).toHaveAttribute('data-idle-loop', 'running');
   });
 
+  test('repeated development category entry and idle reset keep the actor interactive', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await openIdleStage(page);
+    await page.evaluate(() => {
+      Math.random = () => 0;
+    });
+
+    const stage = page.locator('#stage');
+    await page.keyboard.press('1');
+    await expect(stage).toHaveAttribute('data-machine-state', '{"categoryActive":"preview"}');
+    await expect(page.getByTestId('preview-metadata')).toHaveAttribute(
+      'data-project-id',
+      'cat-1-proj-1',
+    );
+    await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+      'data-preview-motion',
+      'settled',
+    );
+
+    // The semantic input boundary intentionally drops accidental bounce signals for one second;
+    // this is a deliberate repeat and must be processed as a fresh category entry.
+    await page.waitForTimeout(1_100);
+    await page.keyboard.press('1');
+    await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+      'data-preview-motion',
+      'settled',
+    );
+
+    await page.keyboard.press('0');
+    await expect(stage).toHaveAttribute('data-machine-state', '"idle"');
+    await expect(page.getByTestId('globe-renderer')).toHaveAttribute('data-idle-loop', 'running');
+    expect(pageErrors).toEqual([]);
+  });
+
   test('US1 scenario 2: wheel navigation reframes at space level and updates metadata without flicker', async ({
     page,
   }) => {

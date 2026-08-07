@@ -506,10 +506,14 @@ export class CesiumStageAdapter {
   private clearProjectResources(): void {
     const tileset = this.tileset;
     this.tileset = null;
-    if (tileset) {
+    if (tileset && !tileset.isDestroyed?.()) {
       tileset.show = false;
       this.viewer?.scene.primitives.remove(tileset);
-      tileset.destroy?.();
+      // Cesium's default PrimitiveCollection owns its children and destroys a removed tileset.
+      // Test/mocked collections and an intentionally non-owning collection may not, so destroy
+      // explicitly only if the collection did not already do so. Calling `destroy()` twice makes
+      // Cesium throw DeveloperError and can stop the XState actor handling category/idle input.
+      if (!tileset.isDestroyed?.()) tileset.destroy?.();
     }
     this.localFallback?.dispose();
     this.localFallback = null;

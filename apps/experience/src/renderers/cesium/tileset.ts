@@ -7,6 +7,8 @@ export const INITIAL_TILE_CACHE_OVERFLOW_BYTES = 64 * 1024 * 1024;
 /** Small structural type keeps adapter tests independent of WebGL/Cesium construction. */
 export interface CesiumTilesetLike {
   show?: boolean;
+  /** Cesium collections may destroy a primitive as part of `remove()`. */
+  isDestroyed?(): boolean;
   destroy?(): void;
 }
 
