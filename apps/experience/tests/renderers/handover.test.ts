@@ -5,6 +5,7 @@ import type {
   CesiumStageProject,
 } from '../../src/renderers/cesium/CesiumStageAdapter.js';
 import type { CesiumPrewarmResult } from '../../src/renderers/cesium/prewarm.js';
+import type { GeographicCameraPose } from '../../src/renderers/handover/geographic-camera-pose.js';
 import {
   HandoverController,
   type HandoverCesiumStage,
@@ -26,6 +27,19 @@ const FRAMING: GeographicFraming = {
 };
 
 const PROJECT: CesiumStageProject = { id: 'corridor-project', geographicFraming: FRAMING };
+const SOURCE_POSE: GeographicCameraPose = {
+  positionEcef: [6_500_000, 1_000, 2_000],
+  directionEcef: [-1, 0, 0],
+  upEcef: [0, 0, 1],
+  verticalFovRadians: Math.PI / 4,
+  aspectRatio: 16 / 9,
+};
+const SOURCE_PROJECTION = {
+  projectId: PROJECT.id,
+  x: 0.6,
+  y: 0.7,
+  visible: true,
+} as const;
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -98,11 +112,15 @@ interface HandoverHarness {
   stage: HTMLDivElement;
   timelines: ManualTimeline[];
   globe: HandoverGlobeStage & {
+    captureGeographicPose: ReturnType<typeof vi.fn>;
+    captureTargetProjection: ReturnType<typeof vi.fn>;
     suspendRendering: ReturnType<typeof vi.fn>;
     resumeRendering: ReturnType<typeof vi.fn>;
     restorePreview: ReturnType<typeof vi.fn>;
   };
   cesium: HandoverCesiumStage & {
+    matchSourceCamera: ReturnType<typeof vi.fn>;
+    setLandingCamera: ReturnType<typeof vi.fn>;
     activatePreparedProject: ReturnType<typeof vi.fn>;
     showSafeComposition: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
@@ -132,11 +150,15 @@ function createHarness(
 
   const globe = {
     element: globeElement,
+    captureGeographicPose: vi.fn(() => SOURCE_POSE),
+    captureTargetProjection: vi.fn(() => SOURCE_PROJECTION),
     suspendRendering: vi.fn(),
     resumeRendering: vi.fn(),
     restorePreview: vi.fn(),
   };
   const cesium = {
+    matchSourceCamera: vi.fn(() => true),
+    setLandingCamera: vi.fn(() => true),
     activatePreparedProject: vi.fn(() => preparedOperations.shift() ?? readyStageOperation()),
     showSafeComposition: vi.fn(() => fallbackOperation),
     deactivate: vi.fn(),
@@ -197,6 +219,8 @@ describe('HandoverController', () => {
 
     expect(harness.controller.transitionProbe).toMatchObject({
       projectId: PROJECT.id,
+      sourceCamera: { coordinateSpace: 'ecef', position: SOURCE_POSE.positionEcef },
+      sourceTargetProjection: SOURCE_PROJECTION,
       status: 'approaching',
       progress: 0,
       ownership: 'globe',
@@ -212,7 +236,16 @@ describe('HandoverController', () => {
 
     warm.resolve(readyPrewarmResult());
     await flushAsyncWork();
+    expect(harness.globe.captureGeographicPose).toHaveBeenCalledTimes(1);
+    expect(harness.cesium.matchSourceCamera).toHaveBeenCalledWith(SOURCE_POSE, PROJECT);
+    expect(harness.cesium.setLandingCamera).toHaveBeenCalledWith(PROJECT);
     expect(harness.cesium.activatePreparedProject).toHaveBeenCalledWith(PROJECT);
+    expect(harness.cesium.matchSourceCamera.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.cesium.activatePreparedProject.mock.invocationCallOrder[0]!,
+    );
+    expect(harness.cesium.setLandingCamera.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.cesium.activatePreparedProject.mock.invocationCallOrder[0]!,
+    );
     expect(harness.controller.transitionProbe.ownership).toBe('overlap');
 
     timeline.runNextBeat();

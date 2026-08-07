@@ -8,7 +8,8 @@
 
 **Started:** 2026-08-07
 
-**Status:** Pass 0 baseline and observability implemented; Pass 1 camera-pose bridge is next.
+**Status:** Pass 0 observability and Pass 1 exact hidden camera match implemented; Pass 2 meaningful
+frame readiness is next.
 
 **Current winner:** Planned method M2 — one native Cesium camera flight, mirrored into the Three.js
 camera while both renderers overlap, with an atmospheric crossfade rather than an opaque stop.
@@ -533,7 +534,7 @@ Status values: `planned`, `active`, `retained`, `rejected`, `superseded`, or `ac
 | ID | Method | Status | Finding / reason |
 |---|---|---|---|
 | M0 | CSS-scale Three canvas → fully opaque radial cover → swap → reveal | rejected for normal path; retained for fallback | Baseline B1 measured the live photorealistic path: source/landing target projections differed by 27.0% of the viewport diagonal and source/Cesium vertical FOVs by 8.22°; the near-cover frame is visually featureless. |
-| M1 | Exact matched Cesium start pose, still swapped under current full cover | planned proof | Lowest-risk alignment proof. Useful before exposing a crossfade, but not the final fluid choreography. |
+| M1 | Exact matched Cesium start pose, still swapped under current full cover | retained proof | Hidden hard-cut proof now passes ECEF position/direction/up/FOV/aspect thresholds and ≤0.5% target projection in the photorealistic browser. Public M0 cover is intentionally unchanged pending M2/M5. |
 | M2 | Native Cesium flight mirrored into Three during bounded overlap | planned; current winner | Preserves one Cesium camera writer and one logical flight while allowing a camera-aligned renderer crossfade. |
 | M3 | Renderer-neutral GSAP/geodetic camera path writing both cameras | planned fallback | More control if native flight motion is rejected; more architecture and camera-writer responsibility. |
 | M4 | Plain opacity crossfade between matched live canvases | planned comparison | Diagnostic baseline for whether exact pose alone is sufficient; likely exposes texture/colour mismatch. |
@@ -822,6 +823,59 @@ Append every attempt below. Do not rewrite earlier verdicts after the fact.
 - **Next experiment:** Pass 1 / M1 — implement and test the cinematic-sphere ↔ WGS84/ECEF bridge,
   corrected target/range landing pose, and exact hidden Cesium source-pose/FOV match while keeping
   the existing cover for a hard-cut alignment proof.
+
+### Experiment P1 — 2026-08-07
+
+- **Agent/model:** GitHub Copilot / GPT-5.6 Sol (OpenAI).
+- **Branch commit:** working tree after Pass 0 commit `e98699f`; this experiment is the next
+  reviewable commit.
+- **Method ID / hypothesis:** M1. A tested WGS84/ECEF bridge plus an exact hidden Cesium proof frame
+  can make the source cameras and selected target align before any public blend is attempted.
+- **Viewing condition:** Chromium development stack, 1280×720 Playwright viewport for the focused
+  gate plus fresh integrated-browser photorealistic checks at DPR 2; `cat-1-proj-1`; event-local ion
+  configuration; hard-opened pages rather than relying on HMR.
+- **Exact code/tuning changes:** added the pure cinematic sphere ↔ WGS84 scaled-space bridge,
+  including live globe-root removal/restoration, ECEF position/direction/up, basis
+  re-orthonormalization, vertical↔Cesium FOV conversion, and normalized geographic-target
+  projection. The globe captures the exact confirmation-time pose and surface target. While
+  Cesium is still hidden, the controller sets that pose/frustum, renders one completed proof frame,
+  retains the actual applied pose/projection, resets to the approved landing view, then uses the
+  unchanged cover reveal. Landing mapping now treats content `destination` as the target and
+  `range` as exact camera-to-target distance; heading/pitch/roll produce explicit direction/up.
+- **Rejected intermediate variants:** (1) mapping range to cartographic height remained rejected by
+  its red-first test (`14,800 m` camera-to-target for a declared `16,000 m`); (2) an initial
+  mean-radius geodetic altitude mapping had `0.02864` cinematic-unit round-trip error and was
+  replaced by exact ellipsoid scaled-space conversion; (3) comparing the elevated radius-`5.09`
+  marker glow to a surface target introduced a false ~114 km altitude offset, so continuity probes
+  now use the radius-`5` geographic surface while the visible glow remains unchanged; (4) Cesium's
+  `setView({direction,up})` direction→HPR→direction round trip introduced `2.59193°` direction and
+  up drift. The retained implementation first establishes `Matrix4.IDENTITY` through `setView`,
+  then writes Cesium's documented mutable position/direction/up/right vectors exactly from the one
+  handover camera owner.
+- **Automated evidence:** Pass 1 tests were red first on the absent bridge and the old range
+  semantics. Pure bridge/flight tests pass 10/10; the combined camera/adapter/handover focused set
+  passes 33/33; strict experience typecheck passes; ESLint and Prettier pass on all touched files.
+  The focused US2 scenario passes in 24.3 seconds with no black/stale frame regression, camera
+  comparison `comparable: true, aligned: true`, and normalized target displacement ≤`0.005`.
+- **Live-browser evidence:** source and retained matched camera probes are both ECEF; position,
+  direction, up, vertical FOV, and aspect satisfy the document's thresholds. A completed hidden
+  matched-source frame timestamp is present before activation. The project still reaches the
+  corrected close landing view and renders its landing hero. The photorealistic resource timestamp
+  is present while `meaningfulFrameReadyAtMs` deliberately remains `null`, preserving the Pass 2
+  readiness gap instead of making a false claim.
+- **What improved:** the two renderers now have one tested coordinate/projection contract; source
+  evidence is frozen at confirmation instead of drifting with the globe root; Cesium proves an
+  aligned hidden frame before visibility; every landing field has correct semantics.
+- **What remains wrong:** the matched frame is immediately reset to landing behind M0's near-opaque
+  cover; no continuous camera flight is wired; prewarm still resolves on tileset construction; the
+  normal path still CSS-scales and may visually stop.
+- **Human feedback:** no new aesthetic verdict requested because M1 intentionally leaves the public
+  cover unchanged. The original continuous-zoom brief remains unsatisfied until M2/M5.
+- **Verdict:** M1 retained as the hard-cut alignment proof and foundation for M2. It is not the
+  final effect.
+- **Next experiment:** Pass 2 — place the hidden camera at the target during prewarm, keep it
+  rendering through the shared ticker, require target-view tile readiness plus a subsequent
+  `postRender`, and preserve bounded cancellation/fallback behavior.
 
 ### Experiment template
 

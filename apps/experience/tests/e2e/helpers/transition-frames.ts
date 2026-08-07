@@ -144,19 +144,26 @@ export async function expectVisibleTransitionFrames(
   }
 
   const cameraFrame = frames.find(
-    (frame) => frame.transition?.globe?.camera && frame.transition.cesium?.camera,
+    (frame) =>
+      (frame.transition?.handover?.sourceCamera ?? frame.transition?.globe?.camera) &&
+      frame.transition.cesium?.matchedSourceCamera,
   );
-  const globeCamera = cameraFrame?.transition?.globe?.camera;
-  const cesiumCamera = cameraFrame?.transition?.cesium?.camera;
+  const globeCamera =
+    cameraFrame?.transition?.handover?.sourceCamera ?? cameraFrame?.transition?.globe?.camera;
+  const cesiumCamera = cameraFrame?.transition?.cesium?.matchedSourceCamera;
   const cameraComparison =
     globeCamera && cesiumCamera ? compareCameraPoseProbes(globeCamera, cesiumCamera) : null;
 
   const projectionFrame = frames.find(
     (frame) =>
-      frame.transition?.globe?.targetProjection && frame.transition.cesium?.targetProjection,
+      (frame.transition?.handover?.sourceTargetProjection ??
+        frame.transition?.globe?.targetProjection) &&
+      frame.transition.cesium?.matchedSourceTargetProjection,
   );
-  const globeProjection = projectionFrame?.transition?.globe?.targetProjection;
-  const cesiumProjection = projectionFrame?.transition?.cesium?.targetProjection;
+  const globeProjection =
+    projectionFrame?.transition?.handover?.sourceTargetProjection ??
+    projectionFrame?.transition?.globe?.targetProjection;
+  const cesiumProjection = projectionFrame?.transition?.cesium?.matchedSourceTargetProjection;
   const targetProjectionDelta =
     globeProjection && cesiumProjection
       ? {

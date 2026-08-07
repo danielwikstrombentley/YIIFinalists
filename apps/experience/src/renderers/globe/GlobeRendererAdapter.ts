@@ -1,10 +1,17 @@
-import { AgXToneMapping, Quaternion, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { AgXToneMapping, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
 import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
 import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
 import {
   transitionNowMs,
   type RendererTransitionProbe,
 } from '../handover/transition-observability.js';
+import {
+  applyGeographicPoseToThreeCamera,
+  captureThreeGeographicPose,
+  geographicToThreeSpherePoint,
+  geographicPoseToProbe,
+  type GeographicCameraPose,
+} from '../handover/geographic-camera-pose.js';
 import { GlobeCameraRig, type GlobePreviewProject } from './camera-rig.js';
 import { GlobeMarkerSystem, type GlobeMarkerProject } from './markers.js';
 import { GlobeScene, type GlobeSceneOptions } from './GlobeScene.js';
@@ -109,11 +116,7 @@ export class GlobeRendererAdapter {
   private renderedFrame = 0;
   private firstRenderAtMs: number | null = null;
   private lastRenderAtMs: number | null = null;
-  private readonly probePosition = new Vector3();
-  private readonly probeDirection = new Vector3();
-  private readonly probeUp = new Vector3();
   private readonly probeProjection = new Vector3();
-  private readonly probeQuaternion = new Quaternion();
   private active = false;
   private disposed = false;
 
@@ -272,24 +275,40 @@ export class GlobeRendererAdapter {
     return this.disposed;
   }
 
+  captureGeographicPose(): GeographicCameraPose {
+    if (this.disposed) throw new Error('Cannot capture a disposed globe camera.');
+    this.scene.globe.updateWorldMatrix(true, false);
+    return captureThreeGeographicPose(this.scene.camera, this.scene.globe.matrixWorld);
+  }
+
+  /** Pass 3 uses this temporary external-camera port only inside handover-owned frame control. */
+  applyGeographicPose(pose: GeographicCameraPose): void {
+    if (this.disposed) return;
+    this.scene.globe.updateWorldMatrix(true, false);
+    applyGeographicPoseToThreeCamera(this.scene.camera, pose, this.scene.globe.matrixWorld);
+  }
+
   /**
-   * Non-visible transition diagnostic. Pass 0 reports the live Three world basis explicitly;
-   * Pass 1 will convert this same narrow port to the renderer-neutral ECEF bridge.
+   * Non-visible transition diagnostic expressed in the same WGS84 ECEF basis as Cesium.
    */
   transitionProbe(projectId: string | null = this.emphasizedProjectId): RendererTransitionProbe {
     const camera = this.scene.camera;
-    camera.getWorldPosition(this.probePosition);
-    camera.getWorldDirection(this.probeDirection).normalize();
-    camera.getWorldQuaternion(this.probeQuaternion);
-    this.probeUp.copy(camera.up).applyQuaternion(this.probeQuaternion).normalize();
+    const geographicPose = this.captureGeographicPose();
 
     let targetProjection: RendererTransitionProbe['targetProjection'] = null;
-    if (projectId && this.markers.copyMarkerPosition(projectId, this.probeProjection)) {
+    const project = projectId ? this.projectsById.get(projectId) : undefined;
+    if (project) {
+      geographicToThreeSpherePoint(
+        project.marker.lat,
+        project.marker.lon,
+        undefined,
+        this.probeProjection,
+      );
       this.scene.scene.updateMatrixWorld(true);
-      this.markers.mesh.localToWorld(this.probeProjection);
+      this.scene.globe.localToWorld(this.probeProjection);
       this.probeProjection.project(camera);
       targetProjection = {
-        projectId,
+        projectId: project.id,
         x: (this.probeProjection.x + 1) / 2,
         y: (1 - this.probeProjection.y) / 2,
         visible:
@@ -310,15 +329,11 @@ export class GlobeRendererAdapter {
       opacity,
       frameCount: this.renderedFrame,
       lastRenderAtMs: this.lastRenderAtMs,
-      camera: {
-        coordinateSpace: 'three-world',
-        position: [this.probePosition.x, this.probePosition.y, this.probePosition.z],
-        direction: [this.probeDirection.x, this.probeDirection.y, this.probeDirection.z],
-        up: [this.probeUp.x, this.probeUp.y, this.probeUp.z],
-        verticalFovRadians: (camera.getEffectiveFOV() * Math.PI) / 180,
-        aspectRatio: camera.aspect,
-      },
+      camera: geographicPoseToProbe(geographicPose),
       targetProjection,
+      matchedSourceCamera: null,
+      matchedSourceTargetProjection: null,
+      matchedSourceFrameAtMs: null,
       readiness: {
         resourceReadyAtMs: this.firstRenderAtMs,
         meaningfulFrameReadyAtMs: this.firstRenderAtMs,

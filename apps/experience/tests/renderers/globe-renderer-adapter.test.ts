@@ -186,7 +186,7 @@ describe('GlobeRendererAdapter', () => {
       rendering: true,
       visible: true,
       camera: {
-        coordinateSpace: 'three-world',
+        coordinateSpace: 'ecef',
         aspectRatio: 16 / 9,
       },
       targetProjection: {

@@ -33,6 +33,9 @@ export interface RendererTransitionProbe {
   lastRenderAtMs: number | null;
   camera: CameraPoseProbe | null;
   targetProjection: TargetProjectionProbe | null;
+  matchedSourceCamera: CameraPoseProbe | null;
+  matchedSourceTargetProjection: TargetProjectionProbe | null;
+  matchedSourceFrameAtMs: number | null;
   readiness: RendererReadinessProbe;
 }
 
@@ -40,6 +43,8 @@ export type RendererOwnership = 'none' | 'globe' | 'overlap' | 'cesium' | 'fallb
 
 export interface HandoverTransitionProbe {
   projectId: string | null;
+  sourceCamera: CameraPoseProbe | null;
+  sourceTargetProjection: TargetProjectionProbe | null;
   status: string;
   progress: number;
   coverOpacity: number;

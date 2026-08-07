@@ -1,10 +1,18 @@
-import { Cartesian3, SceneTransforms, Viewer } from 'cesium';
+import { Cartesian3, Matrix4 as CesiumMatrix4, SceneTransforms, Viewer } from 'cesium';
 import type { GeographicFraming } from '@yii/content-schema';
 import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
 import {
   transitionNowMs,
+  type CameraPoseProbe,
   type RendererTransitionProbe,
+  type TargetProjectionProbe,
 } from '../handover/transition-observability.js';
+import {
+  geographicPoseToProbe,
+  landingPoseFromCameraPose,
+  threeFovToCesium,
+  type GeographicCameraPose,
+} from '../handover/geographic-camera-pose.js';
 import {
   FallbackSurface,
   initialStageTier,
@@ -39,6 +47,10 @@ export interface CesiumViewerLike {
     };
   };
   camera?: {
+    position?: Cartesian3;
+    direction?: Cartesian3;
+    up?: Cartesian3;
+    right?: Cartesian3;
     positionWC?: { x: number; y: number; z: number };
     directionWC?: { x: number; y: number; z: number };
     upWC?: { x: number; y: number; z: number };
@@ -47,6 +59,11 @@ export interface CesiumViewerLike {
       fovy?: number;
       aspectRatio?: number;
     };
+    setView?(options: {
+      destination: Cartesian3;
+      orientation: { direction: Cartesian3; up: Cartesian3 };
+      endTransform?: CesiumMatrix4;
+    }): void;
   };
   render(): void;
   destroy(): void;
@@ -212,6 +229,9 @@ export class CesiumStageAdapter {
   // Pass 0 intentionally exposes this missing readiness signal. Pass 2 sets it only after
   // target-view tile readiness followed by a completed Scene.postRender frame.
   private meaningfulFrameReadyAtMs: number | null = null;
+  private matchedSourceCamera: CameraPoseProbe | null = null;
+  private matchedSourceTargetProjection: TargetProjectionProbe | null = null;
+  private matchedSourceFrameAtMs: number | null = null;
   private disposed = false;
   private viewerCreationError: Error | null = null;
 
@@ -298,6 +318,7 @@ export class CesiumStageAdapter {
     this.activeTier = 'safe-composition';
     this.resourceReadyAtMs = transitionNowMs();
     this.meaningfulFrameReadyAtMs = null;
+    this.clearMatchedSourceProbe();
     this.setRendering(true);
     this.setPresentationVisible(true);
     this.activateSafeCompositionTier();
@@ -337,6 +358,7 @@ export class CesiumStageAdapter {
     this.activeTier = null;
     this.resourceReadyAtMs = null;
     this.meaningfulFrameReadyAtMs = null;
+    this.clearMatchedSourceProbe();
     this.deactivate();
     this.fallbackSurface.hide();
     this.syncTestAttributes();
@@ -366,28 +388,37 @@ export class CesiumStageAdapter {
   }
 
   /**
+   * Sets Cesium to the exact captured globe pose while it is still hidden, renders one completed
+   * proof frame, and retains that frame's camera/projection diagnostics after the landing reset.
+   */
+  matchSourceCamera(pose: GeographicCameraPose, project: CesiumStageProject): boolean {
+    if (this.disposed || this.visible || this.activeProject?.id !== project.id) return false;
+    if (!this.applyCameraPose(pose, true)) return false;
+    if (!this.viewer) return false;
+    this.viewer.render();
+    this.recordRenderedFrame();
+    this.matchedSourceCamera = this.currentCameraProbe() ?? geographicPoseToProbe(pose);
+    this.matchedSourceTargetProjection = this.projectActiveTarget();
+    this.matchedSourceFrameAtMs = this.lastRenderAtMs;
+    this.syncTestAttributes();
+    return true;
+  }
+
+  /** Resets the hidden camera to the approved target/range pose before the legacy cover reveal. */
+  setLandingCamera(project: CesiumStageProject): boolean {
+    if (this.disposed || this.activeProject?.id !== project.id) return false;
+    return this.applyCameraPose(
+      landingPoseFromCameraPose(project.geographicFraming.landingCamera),
+      false,
+    );
+  }
+
+  /**
    * Non-visible transition diagnostic. It captures Cesium's native ECEF basis and reports the
    * currently absent meaningful-frame timestamp rather than treating tileset construction as a
    * rendered target view.
    */
   transitionProbe(): RendererTransitionProbe {
-    const camera = this.viewer?.camera;
-    const position = camera?.positionWC;
-    const direction = camera?.directionWC;
-    const up = camera?.upWC;
-    const aspectRatio = this.cameraAspectRatio();
-    const verticalFovRadians = this.cameraVerticalFovRadians(aspectRatio);
-    const cameraProbe =
-      position && direction && up && aspectRatio && verticalFovRadians
-        ? {
-            coordinateSpace: 'ecef' as const,
-            position: [position.x, position.y, position.z] as const,
-            direction: [direction.x, direction.y, direction.z] as const,
-            up: [up.x, up.y, up.z] as const,
-            verticalFovRadians,
-            aspectRatio,
-          }
-        : null;
     const opacity = styleOpacity(this.element);
 
     return {
@@ -397,8 +428,11 @@ export class CesiumStageAdapter {
       opacity,
       frameCount: this.renderedFrame,
       lastRenderAtMs: this.lastRenderAtMs,
-      camera: cameraProbe,
+      camera: this.currentCameraProbe(),
       targetProjection: this.projectActiveTarget(),
+      matchedSourceCamera: this.matchedSourceCamera,
+      matchedSourceTargetProjection: this.matchedSourceTargetProjection,
+      matchedSourceFrameAtMs: this.matchedSourceFrameAtMs,
       readiness: {
         resourceReadyAtMs: this.resourceReadyAtMs,
         meaningfulFrameReadyAtMs: this.meaningfulFrameReadyAtMs,
@@ -423,6 +457,7 @@ export class CesiumStageAdapter {
     this.activeTier = null;
     this.resourceReadyAtMs = null;
     this.meaningfulFrameReadyAtMs = null;
+    this.clearMatchedSourceProbe();
     this.setRendering(rendering);
     this.setPresentationVisible(visible);
     // The safe surface is visible behind the opaque handover cover while remote readiness is
@@ -576,10 +611,50 @@ export class CesiumStageAdapter {
     if (!this.rendering || this.disposed) return;
     if (this.viewer) {
       this.viewer.render();
-      this.renderedFrame += 1;
-      this.lastRenderAtMs = transitionNowMs();
+      this.recordRenderedFrame();
     }
     this.syncTestAttributes();
+  }
+
+  private recordRenderedFrame(): void {
+    this.renderedFrame += 1;
+    this.lastRenderAtMs = transitionNowMs();
+  }
+
+  private applyCameraPose(pose: GeographicCameraPose, matchFrustum: boolean): boolean {
+    const camera = this.viewer?.camera;
+    if (!camera?.setView) return false;
+    const basis = orthonormalCameraBasis(pose);
+    const destination = new Cartesian3(...pose.positionEcef);
+    if (matchFrustum && camera.frustum) {
+      camera.frustum.aspectRatio = pose.aspectRatio;
+      camera.frustum.fov = threeFovToCesium(pose.verticalFovRadians, pose.aspectRatio);
+    }
+    camera.setView({
+      destination,
+      orientation: basis,
+      endTransform: CesiumMatrix4.IDENTITY,
+    });
+    // Cesium's public setView direction/up path converts through local HPR and can introduce a
+    // measurable basis drift at whole-Earth range. With the identity transform established above,
+    // assign the documented mutable camera vectors directly so the hard-cut proof is exact.
+    if (camera.position && camera.direction && camera.up && camera.right) {
+      Cartesian3.clone(destination, camera.position);
+      Cartesian3.clone(basis.direction, camera.direction);
+      Cartesian3.clone(basis.up, camera.up);
+      Cartesian3.normalize(
+        Cartesian3.cross(camera.direction, camera.up, camera.right),
+        camera.right,
+      );
+    }
+    this.viewer?.scene.requestRender?.();
+    return true;
+  }
+
+  private clearMatchedSourceProbe(): void {
+    this.matchedSourceCamera = null;
+    this.matchedSourceTargetProjection = null;
+    this.matchedSourceFrameAtMs = null;
   }
 
   private cameraAspectRatio(): number | null {
@@ -591,6 +666,25 @@ export class CesiumStageAdapter {
     const width = canvas?.clientWidth ?? canvas?.width ?? this.element.clientWidth;
     const height = canvas?.clientHeight ?? canvas?.height ?? this.element.clientHeight;
     return width > 0 && height > 0 ? width / height : null;
+  }
+
+  private currentCameraProbe(): CameraPoseProbe | null {
+    const camera = this.viewer?.camera;
+    const position = camera?.positionWC;
+    const direction = camera?.directionWC;
+    const up = camera?.upWC;
+    const aspectRatio = this.cameraAspectRatio();
+    const verticalFovRadians = this.cameraVerticalFovRadians(aspectRatio);
+    return position && direction && up && aspectRatio && verticalFovRadians
+      ? {
+          coordinateSpace: 'ecef',
+          position: [position.x, position.y, position.z],
+          direction: [direction.x, direction.y, direction.z],
+          up: [up.x, up.y, up.z],
+          verticalFovRadians,
+          aspectRatio,
+        }
+      : null;
   }
 
   private cameraVerticalFovRadians(aspectRatio: number | null): number | null {
@@ -685,6 +779,11 @@ export class CesiumStageAdapter {
     } else {
       this.element.dataset.meaningfulFrameReadyAtMs = String(this.meaningfulFrameReadyAtMs);
     }
+    if (this.matchedSourceFrameAtMs === null) {
+      delete this.element.dataset.matchedSourceFrameAtMs;
+    } else {
+      this.element.dataset.matchedSourceFrameAtMs = String(this.matchedSourceFrameAtMs);
+    }
     if (this.activeProject) {
       this.element.dataset.framing = JSON.stringify(this.activeProject.geographicFraming);
     } else {
@@ -696,4 +795,20 @@ export class CesiumStageAdapter {
 function styleOpacity(element: HTMLElement): number {
   const opacity = Number.parseFloat(element.style.opacity);
   return Number.isFinite(opacity) ? opacity : 1;
+}
+
+function orthonormalCameraBasis(pose: GeographicCameraPose): {
+  direction: Cartesian3;
+  up: Cartesian3;
+} {
+  const direction = Cartesian3.normalize(new Cartesian3(...pose.directionEcef), new Cartesian3());
+  const right = Cartesian3.normalize(
+    Cartesian3.cross(direction, new Cartesian3(...pose.upEcef), new Cartesian3()),
+    new Cartesian3(),
+  );
+  const up = Cartesian3.normalize(
+    Cartesian3.cross(right, direction, new Cartesian3()),
+    new Cartesian3(),
+  );
+  return { direction, up };
 }

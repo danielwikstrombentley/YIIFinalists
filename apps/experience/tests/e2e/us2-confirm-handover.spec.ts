@@ -107,6 +107,15 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
     expect(
       transitionReport.samples.some(({ handoverStatus }) => handoverStatus !== 'unavailable'),
     ).toBe(true);
+    expect(transitionReport.cameraComparison?.comparable).toBe(true);
+    expect(
+      transitionReport.cameraComparison?.aligned,
+      JSON.stringify(transitionReport.cameraComparison),
+    ).toBe(true);
+    expect(
+      transitionReport.targetProjectionDelta?.distance,
+      'matched Cesium target must stay within 0.5% of the globe viewport',
+    ).toBeLessThanOrEqual(0.005);
 
     const hero = page.getByTestId('landing-hero');
     await expect(hero).toBeVisible();

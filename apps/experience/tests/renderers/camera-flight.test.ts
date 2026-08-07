@@ -1,7 +1,9 @@
+import { Cartesian3 } from 'cesium';
 import { describe, expect, it, vi } from 'vitest';
 import type { GeographicFraming } from '@yii/content-schema';
 import {
   CesiumCameraFlightAdapter,
+  mapCameraPoseToCesium,
   type CesiumCameraLike,
   type NativeCameraFlightOptions,
 } from '../../src/renderers/cesium/camera-flight.js';
@@ -33,6 +35,22 @@ function createCamera() {
 }
 
 describe('CesiumCameraFlightAdapter', () => {
+  it('maps range as target distance rather than replacing cartographic target height', () => {
+    const mapped = mapCameraPoseToCesium(FRAMING.landingCamera);
+    const target = Cartesian3.fromDegrees(
+      FRAMING.landingCamera.destination.lon,
+      FRAMING.landingCamera.destination.lat,
+      FRAMING.landingCamera.destination.height,
+    );
+    const cameraPosition = mapped.destination as Cartesian3;
+
+    expect(Cartesian3.distance(cameraPosition, target)).toBeCloseTo(FRAMING.landingCamera.range, 5);
+    expect(mapped.orientation).toMatchObject({
+      direction: expect.any(Cartesian3),
+      up: expect.any(Cartesian3),
+    });
+  });
+
   it('maps approved landing framing into one native Cesium flight and resolves on completion', async () => {
     const { camera, lastFlight } = createCamera();
     const poseMapper = vi.fn(() => ({

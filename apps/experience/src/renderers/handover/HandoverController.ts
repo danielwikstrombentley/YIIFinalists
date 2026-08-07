@@ -4,9 +4,12 @@ import type { CesiumStageOperation, CesiumStageProject } from '../cesium/CesiumS
 import type { CesiumPrewarmHandle, CesiumPrewarmResult } from '../cesium/prewarm.js';
 import {
   transitionNowMs,
+  type CameraPoseProbe,
   type HandoverTransitionProbe,
   type RendererOwnership,
+  type TargetProjectionProbe,
 } from './transition-observability.js';
+import { geographicPoseToProbe, type GeographicCameraPose } from './geographic-camera-pose.js';
 
 export type HandoverStatus =
   'idle' | 'approaching' | 'covering' | 'revealing' | 'settled' | 'fallback' | 'cancelled';
@@ -39,6 +42,8 @@ export interface HandoverTimeline {
 /** The globe port makes the controller the sole owner of the two-renderer overlap window. */
 export interface HandoverGlobeStage {
   element: HTMLElement;
+  captureGeographicPose(): GeographicCameraPose;
+  captureTargetProjection(projectId: string): TargetProjectionProbe | null;
   /** Stops its ticker callback after reveal; never called before the cover/swap window. */
   suspendRendering(): void;
   /** Reattaches its ticker callback during an interrupted forward handover. */
@@ -48,6 +53,8 @@ export interface HandoverGlobeStage {
 }
 
 export interface HandoverCesiumStage {
+  matchSourceCamera(pose: GeographicCameraPose, project: CesiumStageProject): boolean;
+  setLandingCamera(project: CesiumStageProject): boolean;
   activatePreparedProject(project: CesiumStageProject): CesiumStageOperation;
   showSafeComposition(project: CesiumStageProject): CesiumStageOperation;
   deactivate(): void;
@@ -72,6 +79,8 @@ export interface HandoverControllerOptions {
 
 interface ActiveHandover {
   project: CesiumStageProject;
+  sourcePose: GeographicCameraPose;
+  sourceTargetProjection: TargetProjectionProbe | null;
   generation: number;
   timeline: HandoverTimeline;
   completion: Promise<HandoverResult>;
@@ -142,6 +151,8 @@ export class HandoverController {
   private progress = 0;
   private ownership: RendererOwnership = 'globe';
   private lastProjectId: string | null = null;
+  private lastSourceCamera: CameraPoseProbe | null = null;
+  private lastSourceTargetProjection: TargetProjectionProbe | null = null;
   private startedAtMs: number | null = null;
   private statusChangedAtMs = transitionNowMs();
   private progressChangedAtMs = this.statusChangedAtMs;
@@ -172,6 +183,8 @@ export class HandoverController {
   get transitionProbe(): HandoverTransitionProbe {
     return {
       projectId: this.active?.project.id ?? this.lastProjectId,
+      sourceCamera: this.lastSourceCamera,
+      sourceTargetProjection: this.lastSourceTargetProjection,
       status: this.status,
       progress: this.progress,
       coverOpacity: styleOpacity(this.cover),
@@ -185,6 +198,8 @@ export class HandoverController {
   startForward(project: CesiumStageProject): HandoverOperation {
     this.cancel();
     const generation = ++this.generation;
+    const sourcePose = this.globe.captureGeographicPose();
+    const sourceTargetProjection = this.globe.captureTargetProjection(project.id);
     const warm = this.prewarm.readinessFor(project.id) ?? this.prewarm.warm(project).ready;
     let resolve!: (result: HandoverResult) => void;
     const completion = new Promise<HandoverResult>((resolveCompletion) => {
@@ -193,6 +208,8 @@ export class HandoverController {
     const timeline = this.timelineFactory();
     const active: ActiveHandover = {
       project,
+      sourcePose,
+      sourceTargetProjection,
       generation,
       timeline,
       completion,
@@ -201,6 +218,8 @@ export class HandoverController {
     };
     this.active = active;
     this.lastProjectId = project.id;
+    this.lastSourceCamera = geographicPoseToProbe(sourcePose);
+    this.lastSourceTargetProjection = sourceTargetProjection;
     this.startedAtMs = transitionNowMs();
     this.ownership = 'globe';
     this.setProgress(active, 0);
@@ -284,6 +303,15 @@ export class HandoverController {
       if (!this.isCurrent(active)) return;
       if (warmResult.status !== 'ready') {
         await this.revealFallback(active, `prewarm ${warmResult.status}`);
+        return;
+      }
+
+      if (!this.cesium.matchSourceCamera(active.sourcePose, active.project)) {
+        await this.revealFallback(active, 'source camera matching unavailable');
+        return;
+      }
+      if (!this.cesium.setLandingCamera(active.project)) {
+        await this.revealFallback(active, 'landing camera mapping unavailable');
         return;
       }
 

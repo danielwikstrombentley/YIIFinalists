@@ -98,6 +98,9 @@ export function createCesiumPresentation(
     stage: stageElement,
     globe: {
       element: globe.adapter.canvas,
+      captureGeographicPose: () => globe.adapter.captureGeographicPose(),
+      captureTargetProjection: (projectId) =>
+        globe.adapter.transitionProbe(projectId).targetProjection,
       suspendRendering: () => globe.adapter.stop(),
       resumeRendering: () => {
         globe.adapter.start(stageElement);
