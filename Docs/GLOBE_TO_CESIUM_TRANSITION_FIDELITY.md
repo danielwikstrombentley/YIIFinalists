@@ -8,11 +8,12 @@
 
 **Started:** 2026-08-07
 
-**Status:** Runtime and automated Passes 0–5 complete. M5 is the engineering-recommended final
-candidate; explicit human visual acceptance remains the only open T083 gate.
+**Status:** Runtime, automated validation, and human visual acceptance complete. M5 accepted on
+2026-08-07; PR/merge bookkeeping remains.
 
-**Current winner:** Planned method M2 — one native Cesium camera flight, mirrored into the Three.js
-camera while both renderers overlap, with an atmospheric crossfade rather than an opaque stop.
+**Current winner:** Accepted M2+M5 — one native Cesium camera flight mirrored into the Three.js
+camera during a bounded overlap, with a target-following partial atmospheric crossfade rather than
+an opaque stop.
 
 This document is the durable handoff and append-only experiment log for one narrowly scoped visual
 workstream: the forward transition from a finalist preview on the cinematic Three.js globe to the
@@ -537,8 +538,8 @@ Status values: `planned`, `active`, `retained`, `rejected`, `superseded`, or `ac
 | M1 | Exact matched Cesium start pose, still swapped under current full cover | retained proof | Hidden hard-cut proof now passes ECEF position/direction/up/FOV/aspect thresholds and ≤0.5% target projection in the photorealistic browser. Public M0 cover is intentionally unchanged pending M2/M5. |
 | M2 | Native Cesium flight mirrored into Three during bounded overlap | retained; current winner | One 4.2 s native flight now drives both views in deterministic Cesium→capture→Three update→Three render order under one shared-ticker callback. Live range was monotonic to the approved 800 m landing. |
 | M3 | Renderer-neutral GSAP/geodetic camera path writing both cameras | planned fallback | More control if native flight motion is rejected; more architecture and camera-writer responsibility. |
-| M4 | Plain opacity crossfade between matched live canvases | tested comparison; not recommended | Temporary local CSS removed the veil without adding a production selector. Cameras stayed aligned, but the direct cinematic-texture → photogrammetry/material handoff retained the renderer/material seam. Human verdict pending. |
-| M5 | Partial atmospheric/cloud crossfade between matched live canvases | active candidate | Target-following radial atmosphere peaks at 0.28 opacity; renderer blend follows native-flight progress 0.12→0.62 and never reaches full cover on the ready path. Human verdict pending. |
+| M4 | Plain opacity crossfade between matched live canvases | superseded | Temporary local CSS removed the veil without adding a production selector. Cameras stayed aligned, but the direct cinematic-texture → photogrammetry/material handoff retained the renderer/material seam. Superseded by the human-accepted M5 treatment. |
+| M5 | Partial atmospheric/cloud crossfade between matched live canvases | accepted | Human explicitly selected “Accept final M5” on 2026-08-07. Target-following radial atmosphere peaks at 0.28 opacity; renderer blend follows native-flight progress 0.12→0.62 and never reaches full cover on the ready path. |
 | M6 | Target-centered radial atmospheric dissolve | planned optional comparison | May direct attention into the selected point; reject if it reads as a wipe/UI effect rather than travel. |
 | M7 | Canvas screenshot/readback warp or frozen texture morph | deferred, not recommended | Adds GPU readback/upload cost, hides rather than solves camera mismatch, complicates DPR/colour handling, and can introduce a frozen frame. |
 | M8 | Share one WebGL context or insert Three objects into Cesium | rejected without implementation | Cesium and the existing Three renderer cannot safely share scene/context ownership; violates current adapter boundaries for little transition benefit. |
@@ -1062,6 +1063,34 @@ Append every attempt below. Do not rewrite earlier verdicts after the fact.
   or ready for PR until the human explicitly accepts M5 (or requests one final tuning pass).
 - **Next experiment:** human M5 review using press `0` → `1`, wait for preview, then `3` on the
   photorealistic dev page. Record the verbatim verdict and exact final tuning before PR/review.
+
+### Experiment P6 — 2026-08-07
+
+- **Agent/model:** GitHub Copilot / GPT-5.6 Sol (OpenAI).
+- **Branch commit:** `6d1bc85` candidate presented from `feature/globe-cesium-transition-fidelity`.
+- **Method ID / hypothesis:** final human review of M2+M5 after complete automated verification.
+- **Viewing condition:** fresh development page `/?t083-review=1`, photorealistic local profile;
+  reviewer instructed to press `1`, wait for preview settlement, press `3`, and optionally repeat
+  through `0` → `1` → `3`.
+- **Exact code/tuning changes:** none after presentation. Accepted values remain: native flight
+  `4,200 ms`; renderer blend over target-range progress `0.12→0.62`; target-following atmosphere
+  peak opacity `0.28` at progress `0.24`, returning to zero by `0.70`; opaque M0 route fallback-only.
+- **Automated evidence:** `pnpm run verify` passed all workspace typechecks/lint/format/unit/build
+  gates; experience unit suite passed 184 with 4 intentional skips; full serial Playwright passed
+  14/14, including camera/target continuity, no-black frames, interruption, and repeated cleanup.
+- **Live-browser evidence:** the accepted candidate retained one continuous camera flight, no
+  normal-path full-cover pause, one shared ticker owner, one Cesium camera writer, meaningful-frame
+  readiness, and bounded concealed fallback.
+- **What improved:** the complete creative and engineering acceptance statement is now satisfied.
+- **What remains wrong:** no T083 implementation gap remains. Event-hardware frame-time validation
+  remains a separate release-level dependency already tracked by the project quality gates.
+- **Human feedback:** reviewer explicitly selected **“Accept final M5”**. Immediately afterward,
+  the user stated **“no need to review agent”**, explicitly waiving an additional agent review for
+  this task after human visual acceptance and complete local verification.
+- **Verdict:** **accepted**. M2 is the retained camera architecture; M5 is the accepted production
+  visual treatment. No additional tuning or review-agent run is required by the user.
+- **Next experiment:** none. Open the task PR, record the human-review waiver, merge, and complete
+  the T083 registry entry.
 
 ### Experiment template
 
