@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectVisibleTransitionFrames } from './helpers/transition-frames.js';
+import {
+  expectVisibleTransitionFrames,
+  type VisibleFrameCheckOptions,
+  type VisibleTransitionFrameReport,
+} from './helpers/transition-frames.js';
 
 // T029 (red-first): This specification defines the public, screenshot-derived handover contract
 // that T030–T035 must satisfy. It uses the normal SimulatorTransport bridge, never direct machine
@@ -41,7 +45,10 @@ async function previewProject(page: Page, projectId = 'cat-1-proj-1'): Promise<v
   await expect(page.getByTestId('preview-metadata')).toHaveAttribute('data-project-id', projectId);
 }
 
-async function confirmPreview(page: Page): Promise<void> {
+async function confirmPreview(
+  page: Page,
+  frameOptions: VisibleFrameCheckOptions = {},
+): Promise<VisibleTransitionFrameReport> {
   await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
     'data-preview-motion',
     'settled',
@@ -51,10 +58,11 @@ async function confirmPreview(page: Page): Promise<void> {
     'data-status',
     /^(approaching|covering|revealing)$/,
   );
-  await expectVisibleTransitionFrames(page);
+  const report = await expectVisibleTransitionFrames(page, frameOptions);
   await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"projectLanding"', {
     timeout: 5_000,
   });
+  return report;
 }
 
 test.describe('US2: confirm, concealed renderer handover, and geographic landing', () => {
@@ -88,10 +96,17 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
 
   test('US2 scenario 1: confirm samples no black or stale frames and reveals a landing hero only', async ({
     page,
-  }) => {
+  }, testInfo) => {
     await openIdleStage(page);
     await previewProject(page);
-    await confirmPreview(page);
+    const transitionReport = await confirmPreview(page, { frameCount: 20, intervalMs: 70 });
+    await testInfo.attach('transition-observability', {
+      body: JSON.stringify(transitionReport, null, 2),
+      contentType: 'application/json',
+    });
+    expect(
+      transitionReport.samples.some(({ handoverStatus }) => handoverStatus !== 'unavailable'),
+    ).toBe(true);
 
     const hero = page.getByTestId('landing-hero');
     await expect(hero).toBeVisible();

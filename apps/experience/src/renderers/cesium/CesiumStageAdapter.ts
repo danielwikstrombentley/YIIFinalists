@@ -1,6 +1,10 @@
-import { Viewer } from 'cesium';
+import { Cartesian3, SceneTransforms, Viewer } from 'cesium';
 import type { GeographicFraming } from '@yii/content-schema';
 import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
+import {
+  transitionNowMs,
+  type RendererTransitionProbe,
+} from '../handover/transition-observability.js';
 import {
   FallbackSurface,
   initialStageTier,
@@ -27,6 +31,22 @@ export interface CesiumViewerLike {
   scene: {
     primitives: CesiumPrimitiveCollectionLike;
     requestRender?(): void;
+    canvas?: {
+      clientWidth?: number;
+      clientHeight?: number;
+      width?: number;
+      height?: number;
+    };
+  };
+  camera?: {
+    positionWC?: { x: number; y: number; z: number };
+    directionWC?: { x: number; y: number; z: number };
+    upWC?: { x: number; y: number; z: number };
+    frustum?: {
+      fov?: number;
+      fovy?: number;
+      aspectRatio?: number;
+    };
   };
   render(): void;
   destroy(): void;
@@ -186,6 +206,12 @@ export class CesiumStageAdapter {
   private operation = 0;
   private rendering = false;
   private visible = false;
+  private renderedFrame = 0;
+  private lastRenderAtMs: number | null = null;
+  private resourceReadyAtMs: number | null = null;
+  // Pass 0 intentionally exposes this missing readiness signal. Pass 2 sets it only after
+  // target-view tile readiness followed by a completed Scene.postRender frame.
+  private meaningfulFrameReadyAtMs: number | null = null;
   private disposed = false;
   private viewerCreationError: Error | null = null;
 
@@ -270,6 +296,8 @@ export class CesiumStageAdapter {
     this.clearProjectResources();
     this.activeProject = project;
     this.activeTier = 'safe-composition';
+    this.resourceReadyAtMs = transitionNowMs();
+    this.meaningfulFrameReadyAtMs = null;
     this.setRendering(true);
     this.setPresentationVisible(true);
     this.activateSafeCompositionTier();
@@ -307,6 +335,8 @@ export class CesiumStageAdapter {
     this.clearProjectResources();
     this.activeProject = null;
     this.activeTier = null;
+    this.resourceReadyAtMs = null;
+    this.meaningfulFrameReadyAtMs = null;
     this.deactivate();
     this.fallbackSurface.hide();
     this.syncTestAttributes();
@@ -335,6 +365,47 @@ export class CesiumStageAdapter {
     return this.activeTier;
   }
 
+  /**
+   * Non-visible transition diagnostic. It captures Cesium's native ECEF basis and reports the
+   * currently absent meaningful-frame timestamp rather than treating tileset construction as a
+   * rendered target view.
+   */
+  transitionProbe(): RendererTransitionProbe {
+    const camera = this.viewer?.camera;
+    const position = camera?.positionWC;
+    const direction = camera?.directionWC;
+    const up = camera?.upWC;
+    const aspectRatio = this.cameraAspectRatio();
+    const verticalFovRadians = this.cameraVerticalFovRadians(aspectRatio);
+    const cameraProbe =
+      position && direction && up && aspectRatio && verticalFovRadians
+        ? {
+            coordinateSpace: 'ecef' as const,
+            position: [position.x, position.y, position.z] as const,
+            direction: [direction.x, direction.y, direction.z] as const,
+            up: [up.x, up.y, up.z] as const,
+            verticalFovRadians,
+            aspectRatio,
+          }
+        : null;
+    const opacity = styleOpacity(this.element);
+
+    return {
+      renderer: 'cesium',
+      rendering: this.rendering && !this.disposed,
+      visible: this.visible && !this.disposed && opacity > 0,
+      opacity,
+      frameCount: this.renderedFrame,
+      lastRenderAtMs: this.lastRenderAtMs,
+      camera: cameraProbe,
+      targetProjection: this.projectActiveTarget(),
+      readiness: {
+        resourceReadyAtMs: this.resourceReadyAtMs,
+        meaningfulFrameReadyAtMs: this.meaningfulFrameReadyAtMs,
+      },
+    };
+  }
+
   private beginProject(
     project: CesiumStageProject,
     visible: boolean,
@@ -350,6 +421,8 @@ export class CesiumStageAdapter {
     this.clearProjectResources();
     this.activeProject = project;
     this.activeTier = null;
+    this.resourceReadyAtMs = null;
+    this.meaningfulFrameReadyAtMs = null;
     this.setRendering(rendering);
     this.setPresentationVisible(visible);
     // The safe surface is visible behind the opaque handover cover while remote readiness is
@@ -389,6 +462,7 @@ export class CesiumStageAdapter {
 
         if (!this.isCurrent(operation)) return this.cancelledResult(project);
         this.activeTier = tier;
+        this.resourceReadyAtMs = transitionNowMs();
         this.syncTestAttributes();
         return {
           projectId: project.id,
@@ -500,7 +574,65 @@ export class CesiumStageAdapter {
 
   private render(): void {
     if (!this.rendering || this.disposed) return;
-    this.viewer?.render();
+    if (this.viewer) {
+      this.viewer.render();
+      this.renderedFrame += 1;
+      this.lastRenderAtMs = transitionNowMs();
+    }
+    this.syncTestAttributes();
+  }
+
+  private cameraAspectRatio(): number | null {
+    const frustumAspect = this.viewer?.camera?.frustum?.aspectRatio;
+    if (frustumAspect && Number.isFinite(frustumAspect) && frustumAspect > 0) {
+      return frustumAspect;
+    }
+    const canvas = this.viewer?.scene.canvas;
+    const width = canvas?.clientWidth ?? canvas?.width ?? this.element.clientWidth;
+    const height = canvas?.clientHeight ?? canvas?.height ?? this.element.clientHeight;
+    return width > 0 && height > 0 ? width / height : null;
+  }
+
+  private cameraVerticalFovRadians(aspectRatio: number | null): number | null {
+    const frustum = this.viewer?.camera?.frustum;
+    if (frustum?.fovy && Number.isFinite(frustum.fovy) && frustum.fovy > 0) {
+      return frustum.fovy;
+    }
+    if (!frustum?.fov || !Number.isFinite(frustum.fov) || frustum.fov <= 0 || !aspectRatio) {
+      return null;
+    }
+    // Cesium's perspective `fov` is horizontal for landscape viewports and vertical otherwise.
+    return aspectRatio > 1 ? 2 * Math.atan(Math.tan(frustum.fov / 2) / aspectRatio) : frustum.fov;
+  }
+
+  private projectActiveTarget(): RendererTransitionProbe['targetProjection'] {
+    const project = this.activeProject;
+    const scene = this.viewer?.scene;
+    if (!project || !scene) return null;
+
+    try {
+      const { destination } = project.geographicFraming.landingCamera;
+      const target = Cartesian3.fromDegrees(destination.lon, destination.lat, destination.height);
+      const point = SceneTransforms.worldToWindowCoordinates(
+        scene as unknown as Parameters<typeof SceneTransforms.worldToWindowCoordinates>[0],
+        target,
+      );
+      const canvas = scene.canvas;
+      const width = canvas?.clientWidth ?? canvas?.width ?? this.element.clientWidth;
+      const height = canvas?.clientHeight ?? canvas?.height ?? this.element.clientHeight;
+      if (!point || width <= 0 || height <= 0) return null;
+      const x = point.x / width;
+      const y = point.y / height;
+      return {
+        projectId: project.id,
+        x,
+        y,
+        visible: x >= 0 && x <= 1 && y >= 0 && y <= 1,
+      };
+    } catch {
+      // A structural test double or a scene before its first render may not support projection.
+      return null;
+    }
   }
 
   private clearProjectResources(): void {
@@ -537,10 +669,31 @@ export class CesiumStageAdapter {
     this.element.dataset.tier = this.activeTier ?? 'uninitialized';
     this.element.dataset.visible = String(this.visible);
     this.element.dataset.rendering = String(this.rendering);
+    this.element.dataset.frameCount = String(this.renderedFrame);
+    if (this.lastRenderAtMs === null) {
+      delete this.element.dataset.lastRenderAtMs;
+    } else {
+      this.element.dataset.lastRenderAtMs = String(this.lastRenderAtMs);
+    }
+    if (this.resourceReadyAtMs === null) {
+      delete this.element.dataset.resourceReadyAtMs;
+    } else {
+      this.element.dataset.resourceReadyAtMs = String(this.resourceReadyAtMs);
+    }
+    if (this.meaningfulFrameReadyAtMs === null) {
+      delete this.element.dataset.meaningfulFrameReadyAtMs;
+    } else {
+      this.element.dataset.meaningfulFrameReadyAtMs = String(this.meaningfulFrameReadyAtMs);
+    }
     if (this.activeProject) {
       this.element.dataset.framing = JSON.stringify(this.activeProject.geographicFraming);
     } else {
       delete this.element.dataset.framing;
     }
   }
+}
+
+function styleOpacity(element: HTMLElement): number {
+  const opacity = Number.parseFloat(element.style.opacity);
+  return Number.isFinite(opacity) ? opacity : 1;
 }

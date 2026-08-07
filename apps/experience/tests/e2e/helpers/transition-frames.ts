@@ -1,14 +1,32 @@
 import { expect, type Page } from '@playwright/test';
+import {
+  analyzeTransitionFrameSamples,
+  compareCameraPoseProbes,
+  frameSignatureDistance,
+  type CameraPoseComparison,
+  type TransitionFrameAnalysis,
+  type TransitionFrameSample,
+  type TransitionObservabilitySnapshot,
+} from '../../../src/renderers/handover/transition-observability.js';
 
 interface CapturedFrame {
   meanLuma: number;
   litPixelRatio: number;
   signature: number[];
+  transition: TransitionObservabilitySnapshot | null;
 }
 
 export interface VisibleFrameCheckOptions {
   frameCount?: number;
   intervalMs?: number;
+  /** Pass 3 enables this after the normal path no longer pauses behind a fully opaque cover. */
+  maximumOpaqueStationaryHoldMs?: number;
+}
+
+export interface VisibleTransitionFrameReport extends TransitionFrameAnalysis {
+  samples: TransitionFrameSample[];
+  cameraComparison: CameraPoseComparison | null;
+  targetProjectionDelta: { x: number; y: number; distance: number } | null;
 }
 
 /**
@@ -58,19 +76,18 @@ async function captureStageFrame(page: Page): Promise<CapturedFrame> {
       }
     }
 
+    const runtime = (
+      window as Window & {
+        __YII_E2E__?: { transitionSnapshot(): TransitionObservabilitySnapshot };
+      }
+    ).__YII_E2E__;
     return {
       meanLuma: totalLuma / (width * height),
       litPixelRatio: litPixels / (width * height),
       signature: cellTotals.map((total, index) => total / (cellCounts[index] ?? 1)),
+      transition: runtime?.transitionSnapshot() ?? null,
     };
   }, screenshot.toString('base64'));
-}
-
-function signatureDistance(first: readonly number[], second: readonly number[]): number {
-  return (
-    first.reduce((total, value, index) => total + Math.abs(value - (second[index] ?? value)), 0) /
-    first.length
-  );
 }
 
 /**
@@ -81,7 +98,7 @@ function signatureDistance(first: readonly number[], second: readonly number[]):
 export async function expectVisibleTransitionFrames(
   page: Page,
   options: VisibleFrameCheckOptions = {},
-): Promise<void> {
+): Promise<VisibleTransitionFrameReport> {
   const frameCount = options.frameCount ?? 7;
   const intervalMs = options.intervalMs ?? 65;
   const frames: CapturedFrame[] = [];
@@ -101,7 +118,56 @@ export async function expectVisibleTransitionFrames(
   const first = frames[0];
   if (!first) throw new Error('Expected at least one transition frame.');
   const largestDifference = Math.max(
-    ...frames.slice(1).map((frame) => signatureDistance(first.signature, frame.signature)),
+    ...frames.slice(1).map((frame) => frameSignatureDistance(first.signature, frame.signature)),
   );
   expect(largestDifference, 'handover frames must not remain visually stale').toBeGreaterThan(0.15);
+
+  const firstTimestamp = first.transition?.capturedAtMs ?? 0;
+  const samples = frames.map<TransitionFrameSample>((frame, index) => {
+    const transition = frame.transition;
+    return {
+      elapsedMs: (transition?.capturedAtMs ?? firstTimestamp + index * intervalMs) - firstTimestamp,
+      signature: frame.signature,
+      handoverStatus: transition?.handover?.status ?? 'unavailable',
+      handoverProgress: transition?.handover?.progress ?? 0,
+      coverOpacity: transition?.handover?.coverOpacity ?? 0,
+      globeFrame: transition?.globe?.frameCount ?? 0,
+      cesiumFrame: transition?.cesium?.frameCount ?? 0,
+    };
+  });
+  const analysis = analyzeTransitionFrameSamples(samples);
+  if (options.maximumOpaqueStationaryHoldMs !== undefined) {
+    expect(
+      analysis.longestOpaqueStationaryHoldMs,
+      'normal handover path must not pause behind a fully opaque stationary cover',
+    ).toBeLessThanOrEqual(options.maximumOpaqueStationaryHoldMs);
+  }
+
+  const cameraFrame = frames.find(
+    (frame) => frame.transition?.globe?.camera && frame.transition.cesium?.camera,
+  );
+  const globeCamera = cameraFrame?.transition?.globe?.camera;
+  const cesiumCamera = cameraFrame?.transition?.cesium?.camera;
+  const cameraComparison =
+    globeCamera && cesiumCamera ? compareCameraPoseProbes(globeCamera, cesiumCamera) : null;
+
+  const projectionFrame = frames.find(
+    (frame) =>
+      frame.transition?.globe?.targetProjection && frame.transition.cesium?.targetProjection,
+  );
+  const globeProjection = projectionFrame?.transition?.globe?.targetProjection;
+  const cesiumProjection = projectionFrame?.transition?.cesium?.targetProjection;
+  const targetProjectionDelta =
+    globeProjection && cesiumProjection
+      ? {
+          x: Math.abs(globeProjection.x - cesiumProjection.x),
+          y: Math.abs(globeProjection.y - cesiumProjection.y),
+          distance: Math.hypot(
+            globeProjection.x - cesiumProjection.x,
+            globeProjection.y - cesiumProjection.y,
+          ),
+        }
+      : null;
+
+  return { ...analysis, samples, cameraComparison, targetProjectionDelta };
 }

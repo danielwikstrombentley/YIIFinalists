@@ -37,9 +37,16 @@ function createViewer() {
     viewer: {
       render,
       destroy,
+      camera: {
+        positionWC: { x: 6_378_137, y: 0, z: 0 },
+        directionWC: { x: -1, y: 0, z: 0 },
+        upWC: { x: 0, y: 0, z: 1 },
+        frustum: { fovy: Math.PI / 4, aspectRatio: 16 / 9 },
+      },
       scene: {
         primitives: { add, remove },
         requestRender,
+        canvas: { clientWidth: 1_600, clientHeight: 900 },
       },
     } satisfies CesiumViewerLike,
     render,
@@ -119,6 +126,37 @@ describe('CesiumStageAdapter', () => {
     expect(adapter.element.dataset.visible).toBe('true');
     expect(adapter.element.querySelector('[data-testid="cesium-fallback-surface"]')).not.toBeNull();
     adapter.dispose();
+  });
+
+  it('reports its ECEF camera, actual render time, and the not-yet-meaningful readiness gap', async () => {
+    const ticker = new Ticker();
+    const viewer = createViewer();
+    const adapter = new CesiumStageAdapter({ ticker, viewerFactory: () => viewer.viewer });
+    adapter.start(document.createElement('div'));
+    await adapter.activateProject(SAFE_PROJECT).ready;
+    gsap.ticker.tick();
+
+    const probe = adapter.transitionProbe();
+    expect(probe).toMatchObject({
+      renderer: 'cesium',
+      rendering: true,
+      visible: true,
+      camera: {
+        coordinateSpace: 'ecef',
+        position: [6_378_137, 0, 0],
+        verticalFovRadians: Math.PI / 4,
+        aspectRatio: 16 / 9,
+      },
+      readiness: {
+        meaningfulFrameReadyAtMs: null,
+      },
+    });
+    expect(probe.frameCount).toBeGreaterThan(0);
+    expect(probe.lastRenderAtMs).not.toBeNull();
+    expect(probe.readiness.resourceReadyAtMs).not.toBeNull();
+
+    adapter.dispose();
+    ticker.stop();
   });
 
   it('falls through to the safe composition when tile readiness exceeds its watchdog timeout', async () => {

@@ -8,7 +8,7 @@
 
 **Started:** 2026-08-07
 
-**Status:** Research and implementation plan prepared. Runtime implementation has not started.
+**Status:** Pass 0 baseline and observability implemented; Pass 1 camera-pose bridge is next.
 
 **Current winner:** Planned method M2 — one native Cesium camera flight, mirrored into the Three.js
 camera while both renderers overlap, with an atmospheric crossfade rather than an opaque stop.
@@ -532,7 +532,7 @@ Status values: `planned`, `active`, `retained`, `rejected`, `superseded`, or `ac
 
 | ID | Method | Status | Finding / reason |
 |---|---|---|---|
-| M0 | CSS-scale Three canvas → fully opaque radial cover → swap → reveal | rejected for normal path; retained for fallback | Current implementation. Prevents black frames but does not move either camera, can pause up to 1 s at full cover, and visibly restarts in another renderer. |
+| M0 | CSS-scale Three canvas → fully opaque radial cover → swap → reveal | rejected for normal path; retained for fallback | Baseline B1 measured the live photorealistic path: source/landing target projections differed by 27.0% of the viewport diagonal and source/Cesium vertical FOVs by 8.22°; the near-cover frame is visually featureless. |
 | M1 | Exact matched Cesium start pose, still swapped under current full cover | planned proof | Lowest-risk alignment proof. Useful before exposing a crossfade, but not the final fluid choreography. |
 | M2 | Native Cesium flight mirrored into Three during bounded overlap | planned; current winner | Preserves one Cesium camera writer and one logical flight while allowing a camera-aligned renderer crossfade. |
 | M3 | Renderer-neutral GSAP/geodetic camera path writing both cameras | planned fallback | More control if native flight motion is rejected; more architecture and camera-writer responsibility. |
@@ -775,6 +775,53 @@ Append every attempt below. Do not rewrite earlier verdicts after the fact.
 - **Verdict:** M0 rejected as the normal ready-path effect. Retain it only as the fallback/recovery
   route.
 - **Next experiment:** Pass 0 observability, then M1 exact-pose hard-cut proof.
+
+### Experiment B1 — 2026-08-07
+
+- **Agent/model:** GitHub Copilot / GPT-5.6 Sol (OpenAI).
+- **Branch commit:** working tree after `e3d90ce`; this experiment is the first implementation
+  commit after the planning commit.
+- **Method ID / hypothesis:** Pass 0 observability over unchanged M0. The existing transition's
+  camera mismatch, projection mismatch, rendering/readiness gap, and near-opaque hold should become
+  measurable without changing its public behavior.
+- **Viewing condition:** Chromium dev stack, hard-opened fresh page (not HMR), viewport 1280×720,
+  DPR 2, sample `cat-1-proj-1`, photorealistic tier, normal event-local internet, local ion config.
+- **Exact code/tuning changes:** added JSON-safe globe/Cesium/handover probes for camera position,
+  direction, up, vertical FOV, aspect, normalized target projection, renderer opacity/ownership,
+  transition progress/status, resource-ready versus meaningful-frame-ready timestamps, actual
+  render frame counters, and last-render timestamps. Extended screenshot sampling with maximum
+  visual-change and stationary opaque-run analysis. No motion, cover, camera, shader, or duration
+  tuning changed.
+- **Automated evidence:** red-first observability suite failed on the absent module, then passed 4/4;
+  focused renderer suites passed 22/22; strict experience typecheck passed; focused US2 scenario 1
+  passed in 18.4 seconds with its JSON observability report attached by Playwright; ESLint and
+  Prettier checks passed for all touched files.
+- **Live-browser evidence:** no page, console, or shader errors. Three source camera was reported in
+  `three-world`; Cesium in ECEF, so the comparator correctly refuses a false alignment claim until
+  Pass 1 provides the shared bridge. Source target projection was `(0.6700, 0.7690)`; first observed
+  Cesium landing projection was `(0.4070, 0.7081)`, a normalized displacement of `0.2699` (about
+  27.0% of viewport diagonal). Source vertical FOV was `42.00°`; Cesium was `33.78°`, an `8.22°`
+  difference. Aspect matched at `1.90125`. Photorealistic `resourceReadyAtMs` was populated while
+  `meaningfulFrameReadyAtMs` remained `null`, proving current readiness still means tileset
+  construction rather than target-view tile-ready plus post-render. Baseline near-cover screenshot:
+  local `/tmp/yii-t083-baseline-near-cover.png` at measured opacity `0.9581`; it is a featureless
+  blue radial field, confirming the visual stop even where screenshot timing missed the exact
+  timeline apex.
+- **What improved:** continuity is now observable at one E2E timestamp across both adapters and the
+  controller; deliberate pose/FOV mismatches fail pure tests; screenshot evidence can locate the
+  maximum visual beat and enforce a ≤100 ms normal-path opaque stationary hold once Pass 3 removes
+  M0's pause.
+- **What remains wrong:** cameras use incomparable coordinate spaces; Cesium is still unpositioned
+  and unflown; target projection and FOV differ substantially; prewarm has no meaningful-frame
+  timestamp; normal choreography still uses CSS scale and the near-opaque cover.
+- **Human feedback:** no new human visual verdict requested for this instrumentation-only pass; the
+  opening brief remains authoritative: the current effect is not fluid and should read as one zoom
+  into the selected place.
+- **Verdict:** Pass 0 retained. M0 remains rejected for the normal path and retained only for
+  fallback/recovery.
+- **Next experiment:** Pass 1 / M1 — implement and test the cinematic-sphere ↔ WGS84/ECEF bridge,
+  corrected target/range landing pose, and exact hidden Cesium source-pose/FOV match while keeping
+  the existing cover for a hard-cut alignment proof.
 
 ### Experiment template
 

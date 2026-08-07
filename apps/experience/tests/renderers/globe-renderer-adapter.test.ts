@@ -165,6 +165,43 @@ describe('GlobeRendererAdapter', () => {
     ticker.stop();
   });
 
+  it('reports its live camera, selected-target projection, and rendered-frame timestamps', () => {
+    const ticker = new Ticker();
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      rendererFactory: () => createRenderer(),
+    });
+    const stage = document.createElement('div');
+
+    adapter.start(stage);
+    adapter.resize(1_600, 900);
+    adapter.setCategoryFilter('cat-a');
+    adapter.previewProject(PROJECTS[1]!);
+    gsap.ticker.tick();
+
+    const probe = adapter.transitionProbe('cat-a-2');
+    expect(probe).toMatchObject({
+      renderer: 'globe',
+      rendering: true,
+      visible: true,
+      camera: {
+        coordinateSpace: 'three-world',
+        aspectRatio: 16 / 9,
+      },
+      targetProjection: {
+        projectId: 'cat-a-2',
+      },
+    });
+    expect(probe.camera?.verticalFovRadians).toBeCloseTo((42 * Math.PI) / 180);
+    expect(probe.frameCount).toBeGreaterThan(0);
+    expect(probe.lastRenderAtMs).not.toBeNull();
+    expect(probe.readiness.meaningfulFrameReadyAtMs).not.toBeNull();
+
+    adapter.dispose();
+    ticker.stop();
+  });
+
   it('restores the original globe and camera axes after leaving a preview', () => {
     const ticker = new Ticker();
     const scene = new GlobeScene({ motionDriver: immediateMotionDriver });

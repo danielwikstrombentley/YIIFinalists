@@ -1,6 +1,10 @@
-import { AgXToneMapping, SRGBColorSpace, WebGLRenderer } from 'three';
+import { AgXToneMapping, Quaternion, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
 import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
 import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
+import {
+  transitionNowMs,
+  type RendererTransitionProbe,
+} from '../handover/transition-observability.js';
 import { GlobeCameraRig, type GlobePreviewProject } from './camera-rig.js';
 import { GlobeMarkerSystem, type GlobeMarkerProject } from './markers.js';
 import { GlobeScene, type GlobeSceneOptions } from './GlobeScene.js';
@@ -103,6 +107,13 @@ export class GlobeRendererAdapter {
   private previewOperation = 0;
   private idleOperation = 0;
   private renderedFrame = 0;
+  private firstRenderAtMs: number | null = null;
+  private lastRenderAtMs: number | null = null;
+  private readonly probePosition = new Vector3();
+  private readonly probeDirection = new Vector3();
+  private readonly probeUp = new Vector3();
+  private readonly probeProjection = new Vector3();
+  private readonly probeQuaternion = new Quaternion();
   private active = false;
   private disposed = false;
 
@@ -261,6 +272,60 @@ export class GlobeRendererAdapter {
     return this.disposed;
   }
 
+  /**
+   * Non-visible transition diagnostic. Pass 0 reports the live Three world basis explicitly;
+   * Pass 1 will convert this same narrow port to the renderer-neutral ECEF bridge.
+   */
+  transitionProbe(projectId: string | null = this.emphasizedProjectId): RendererTransitionProbe {
+    const camera = this.scene.camera;
+    camera.getWorldPosition(this.probePosition);
+    camera.getWorldDirection(this.probeDirection).normalize();
+    camera.getWorldQuaternion(this.probeQuaternion);
+    this.probeUp.copy(camera.up).applyQuaternion(this.probeQuaternion).normalize();
+
+    let targetProjection: RendererTransitionProbe['targetProjection'] = null;
+    if (projectId && this.markers.copyMarkerPosition(projectId, this.probeProjection)) {
+      this.scene.scene.updateMatrixWorld(true);
+      this.markers.mesh.localToWorld(this.probeProjection);
+      this.probeProjection.project(camera);
+      targetProjection = {
+        projectId,
+        x: (this.probeProjection.x + 1) / 2,
+        y: (1 - this.probeProjection.y) / 2,
+        visible:
+          this.probeProjection.x >= -1 &&
+          this.probeProjection.x <= 1 &&
+          this.probeProjection.y >= -1 &&
+          this.probeProjection.y <= 1 &&
+          this.probeProjection.z >= -1 &&
+          this.probeProjection.z <= 1,
+      };
+    }
+
+    const opacity = styleOpacity(this.canvas);
+    return {
+      renderer: 'globe',
+      rendering: this.active && !this.disposed,
+      visible: !this.disposed && this.canvas.style.display !== 'none' && opacity > 0,
+      opacity,
+      frameCount: this.renderedFrame,
+      lastRenderAtMs: this.lastRenderAtMs,
+      camera: {
+        coordinateSpace: 'three-world',
+        position: [this.probePosition.x, this.probePosition.y, this.probePosition.z],
+        direction: [this.probeDirection.x, this.probeDirection.y, this.probeDirection.z],
+        up: [this.probeUp.x, this.probeUp.y, this.probeUp.z],
+        verticalFovRadians: (camera.getEffectiveFOV() * Math.PI) / 180,
+        aspectRatio: camera.aspect,
+      },
+      targetProjection,
+      readiness: {
+        resourceReadyAtMs: this.firstRenderAtMs,
+        meaningfulFrameReadyAtMs: this.firstRenderAtMs,
+      },
+    };
+  }
+
   private resolveProject(
     projectRef: GlobeRendererAdapterProject | string,
   ): GlobeRendererAdapterProject {
@@ -279,6 +344,8 @@ export class GlobeRendererAdapter {
     this.scene.advance(deltaSeconds);
     this.scene.render(this.renderer);
     this.renderedFrame += 1;
+    this.lastRenderAtMs = transitionNowMs();
+    this.firstRenderAtMs ??= this.lastRenderAtMs;
     this.syncTestAttributes();
   }
 
@@ -294,6 +361,13 @@ export class GlobeRendererAdapter {
       ? 'camera-facing'
       : 'idle';
     this.canvas.dataset.idleFrame = String(this.renderedFrame);
+    this.canvas.dataset.rendering = String(this.active && !this.disposed);
+    this.canvas.dataset.frameCount = String(this.renderedFrame);
+    if (this.lastRenderAtMs === null) {
+      delete this.canvas.dataset.lastRenderAtMs;
+    } else {
+      this.canvas.dataset.lastRenderAtMs = String(this.lastRenderAtMs);
+    }
   }
 
   private readonly resizeToContainer = (): void => {
@@ -315,4 +389,9 @@ export class GlobeRendererAdapter {
     window.removeEventListener('resize', this.resizeToContainer);
     this.listeningForResize = false;
   }
+}
+
+function styleOpacity(element: HTMLElement): number {
+  const opacity = Number.parseFloat(element.style.opacity);
+  return Number.isFinite(opacity) ? opacity : 1;
 }

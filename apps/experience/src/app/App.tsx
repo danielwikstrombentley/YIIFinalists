@@ -3,6 +3,10 @@ import { bootstrap, createRuntimeDependencies, type BootstrapDeps } from './boot
 import { createGlobePresentation } from './globe-presentation.js';
 import { MachineProvider, useMachineActor } from './MachineProvider.js';
 import { SimulatorTransport } from '../input/transports/simulator.js';
+import {
+  transitionNowMs,
+  type TransitionObservabilitySnapshot,
+} from '../renderers/handover/transition-observability.js';
 import { StageMount } from './StageMount.js';
 
 // App shell (T020): kiosk bootstrap + machine provider + public stage + operator overlay mount
@@ -15,6 +19,7 @@ interface E2eRuntimeBridge {
     injectAction(type: string, payload: unknown): void;
   };
   stateHistory(): unknown[];
+  transitionSnapshot(): TransitionObservabilitySnapshot;
 }
 
 declare global {
@@ -186,6 +191,19 @@ function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: Bootst
       },
     },
     stateHistory: () => [...history],
+    transitionSnapshot() {
+      const snapshot = actor.getSnapshot();
+      const runtime = snapshot.context.runtime;
+      const targetProjectId =
+        snapshot.context.selectedProjectId ?? snapshot.context.previewedProjectId;
+      return {
+        capturedAtMs: transitionNowMs(),
+        targetProjectId,
+        globe: runtime.globe?.adapter.transitionProbe(targetProjectId) ?? null,
+        cesium: runtime.cesium?.stage.transitionProbe() ?? null,
+        handover: runtime.cesium?.handover.transitionProbe ?? null,
+      };
+    },
   };
 }
 

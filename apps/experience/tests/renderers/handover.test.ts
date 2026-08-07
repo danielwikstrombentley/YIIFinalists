@@ -195,16 +195,34 @@ describe('HandoverController', () => {
     const timeline = harness.timelines[0];
     if (!timeline) throw new Error('Expected a forward handover timeline.');
 
+    expect(harness.controller.transitionProbe).toMatchObject({
+      projectId: PROJECT.id,
+      status: 'approaching',
+      progress: 0,
+      ownership: 'globe',
+    });
+
     timeline.runNextBeat();
     expect(harness.controller.currentStatus).toBe('covering');
+    expect(harness.controller.transitionProbe).toMatchObject({
+      progress: 0.7,
+      ownership: 'globe',
+    });
     expect(harness.cesium.activatePreparedProject).not.toHaveBeenCalled();
 
     warm.resolve(readyPrewarmResult());
     await flushAsyncWork();
     expect(harness.cesium.activatePreparedProject).toHaveBeenCalledWith(PROJECT);
+    expect(harness.controller.transitionProbe.ownership).toBe('overlap');
 
     timeline.runNextBeat();
     await expect(operation.completion).resolves.toMatchObject({ status: 'completed' });
+    expect(harness.controller.transitionProbe).toMatchObject({
+      status: 'settled',
+      progress: 1,
+      ownership: 'cesium',
+    });
+    expect(harness.controller.cover.dataset.progress).toBe('1');
     expect(harness.globe.suspendRendering).toHaveBeenCalledTimes(1);
     harness.controller.dispose();
   });

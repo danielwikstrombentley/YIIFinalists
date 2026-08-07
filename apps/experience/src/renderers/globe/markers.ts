@@ -141,6 +141,14 @@ export class GlobeMarkerSystem {
     return instance.currentScale;
   }
 
+  /** Copies the content-defined marker position for renderer-handoff projection diagnostics. */
+  copyMarkerPosition(projectId: string, target: Vector3): boolean {
+    const instance = this.instanceByProjectId.get(projectId);
+    if (!instance || this.disposed) return false;
+    target.copy(instance.position);
+    return true;
+  }
+
   get emphasizedProjectId(): string | null {
     return this.previewedProjectId;
   }

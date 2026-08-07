@@ -2,6 +2,11 @@ import gsap from 'gsap';
 import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
 import type { CesiumStageOperation, CesiumStageProject } from '../cesium/CesiumStageAdapter.js';
 import type { CesiumPrewarmHandle, CesiumPrewarmResult } from '../cesium/prewarm.js';
+import {
+  transitionNowMs,
+  type HandoverTransitionProbe,
+  type RendererOwnership,
+} from './transition-observability.js';
 
 export type HandoverStatus =
   'idle' | 'approaching' | 'covering' | 'revealing' | 'settled' | 'fallback' | 'cancelled';
@@ -23,8 +28,8 @@ export interface HandoverOperation {
  * choreography tests deterministic while preserving GSAP as the only production motion engine.
  */
 export interface HandoverTimeline {
-  set(target: HTMLElement, vars: Record<string, string | number>): HandoverTimeline;
-  to(target: HTMLElement, vars: Record<string, string | number>): HandoverTimeline;
+  set(target: HTMLElement, vars: Record<string, unknown>): HandoverTimeline;
+  to(target: HTMLElement, vars: Record<string, unknown>): HandoverTimeline;
   call(callback: () => void): HandoverTimeline;
   play(): HandoverTimeline;
   pause(): HandoverTimeline;
@@ -134,6 +139,12 @@ export class HandoverController {
   private active: ActiveHandover | null = null;
   private generation = 0;
   private status: HandoverStatus = 'idle';
+  private progress = 0;
+  private ownership: RendererOwnership = 'globe';
+  private lastProjectId: string | null = null;
+  private startedAtMs: number | null = null;
+  private statusChangedAtMs = transitionNowMs();
+  private progressChangedAtMs = this.statusChangedAtMs;
   private disposed = false;
 
   constructor(options: HandoverControllerOptions) {
@@ -147,6 +158,7 @@ export class HandoverController {
       options.timelineFactory ??
       (() => gsap.timeline({ paused: true }) as unknown as HandoverTimeline);
     this.cover = createAtmosphericCover(options.stage);
+    this.syncProbeAttributes();
   }
 
   get currentGeneration(): number {
@@ -155,6 +167,19 @@ export class HandoverController {
 
   get currentStatus(): HandoverStatus {
     return this.status;
+  }
+
+  get transitionProbe(): HandoverTransitionProbe {
+    return {
+      projectId: this.active?.project.id ?? this.lastProjectId,
+      status: this.status,
+      progress: this.progress,
+      coverOpacity: styleOpacity(this.cover),
+      ownership: this.ownership,
+      startedAtMs: this.startedAtMs,
+      statusChangedAtMs: this.statusChangedAtMs,
+      progressChangedAtMs: this.progressChangedAtMs,
+    };
   }
 
   startForward(project: CesiumStageProject): HandoverOperation {
@@ -175,6 +200,10 @@ export class HandoverController {
       resolve,
     };
     this.active = active;
+    this.lastProjectId = project.id;
+    this.startedAtMs = transitionNowMs();
+    this.ownership = 'globe';
+    this.setProgress(active, 0);
     this.setStatus('approaching');
 
     const approachDuration = (this.durationMs * 0.45) / 1_000;
@@ -182,10 +211,26 @@ export class HandoverController {
     timeline
       .set(this.cover, { opacity: 0 })
       .set(this.globe.element, { opacity: 1, scale: 1, transformOrigin: '50% 50%' })
-      .to(this.globe.element, { scale: 1.08, duration: approachDuration, ease: 'power2.inOut' })
-      .to(this.cover, { opacity: 1, duration: coverDuration, ease: 'sine.in' })
+      .to(this.globe.element, {
+        scale: 1.08,
+        duration: approachDuration,
+        ease: 'power2.inOut',
+        onUpdate: () => {
+          const scale = gsapNumber(this.globe.element, 'scale', 1);
+          this.setProgress(active, ((scale - 1) / 0.08) * 0.45);
+        },
+      })
+      .to(this.cover, {
+        opacity: 1,
+        duration: coverDuration,
+        ease: 'sine.in',
+        onUpdate: () => {
+          this.setProgress(active, 0.45 + styleOpacity(this.cover) * 0.25);
+        },
+      })
       .call(() => {
         if (!this.isCurrent(active)) return;
+        this.setProgress(active, 0.7);
         this.setStatus('covering');
         timeline.pause();
         void this.swapAtFullCover(active, warm);
@@ -212,6 +257,7 @@ export class HandoverController {
     this.globe.restorePreview();
     gsap.set(this.cover, { opacity: 0 });
     gsap.set(this.globe.element, { opacity: 1, scale: 1 });
+    this.ownership = 'globe';
     this.setStatus('cancelled');
     this.settle(active, {
       projectId: active.project.id,
@@ -223,6 +269,7 @@ export class HandoverController {
   dispose(): void {
     if (this.disposed) return;
     this.cancel();
+    this.ownership = 'none';
     this.cover.remove();
     this.disposed = true;
   }
@@ -251,6 +298,8 @@ export class HandoverController {
         return;
       }
 
+      this.ownership = 'overlap';
+      this.syncProbeAttributes();
       this.beginReveal(active, {
         projectId: active.project.id,
         generation: active.generation,
@@ -272,6 +321,8 @@ export class HandoverController {
         this.restoreGlobeAfterFallbackFailure(active, reason);
         return;
       }
+      this.ownership = 'fallback';
+      this.syncProbeAttributes();
       this.beginReveal(active, {
         projectId: active.project.id,
         generation: active.generation,
@@ -288,6 +339,8 @@ export class HandoverController {
     this.cesium.deactivate();
     this.globe.resumeRendering();
     this.globe.restorePreview();
+    this.ownership = 'globe';
+    this.syncProbeAttributes();
     this.beginReveal(active, {
       projectId: active.project.id,
       generation: active.generation,
@@ -298,16 +351,27 @@ export class HandoverController {
 
   private beginReveal(active: ActiveHandover, result: HandoverResult): void {
     if (!this.isCurrent(active)) return;
+    if (result.status === 'cancelled') this.ownership = 'globe';
     this.setStatus(result.status === 'fallback' ? 'fallback' : 'revealing');
     active.timeline
       .to(this.cover, {
         opacity: 0,
         duration: (this.durationMs * 0.3) / 1_000,
         ease: 'sine.out',
+        onUpdate: () => {
+          this.setProgress(active, 0.7 + (1 - styleOpacity(this.cover)) * 0.3);
+        },
       })
       .call(() => {
         if (!this.isCurrent(active)) return;
         if (result.status !== 'cancelled') this.globe.suspendRendering();
+        this.setProgress(active, 1);
+        this.ownership =
+          result.status === 'cancelled'
+            ? 'globe'
+            : result.status === 'fallback'
+              ? 'fallback'
+              : 'cesium';
         this.setStatus(result.status === 'cancelled' ? 'cancelled' : 'settled');
         this.settle(active, result);
       })
@@ -323,9 +387,34 @@ export class HandoverController {
   }
 
   private setStatus(status: HandoverStatus): void {
+    if (this.status !== status) this.statusChangedAtMs = transitionNowMs();
     this.status = status;
-    this.cover.dataset.status = status;
+    this.syncProbeAttributes();
     this.onStatusChange?.(status);
+  }
+
+  private setProgress(active: ActiveHandover, progress: number): void {
+    if (!this.isCurrent(active)) return;
+    const next = Math.max(0, Math.min(1, progress));
+    if (Math.abs(next - this.progress) > Number.EPSILON) {
+      this.progress = next;
+      this.progressChangedAtMs = transitionNowMs();
+    }
+    this.syncProbeAttributes();
+  }
+
+  private syncProbeAttributes(): void {
+    this.cover.dataset.status = this.status;
+    this.cover.dataset.progress = String(this.progress);
+    this.cover.dataset.ownership = this.ownership;
+    this.cover.dataset.projectId = this.active?.project.id ?? this.lastProjectId ?? '';
+    this.cover.dataset.statusChangedAtMs = String(this.statusChangedAtMs);
+    this.cover.dataset.progressChangedAtMs = String(this.progressChangedAtMs);
+    if (this.startedAtMs === null) {
+      delete this.cover.dataset.startedAtMs;
+    } else {
+      this.cover.dataset.startedAtMs = String(this.startedAtMs);
+    }
   }
 
   private settle(active: ActiveHandover, result: HandoverResult): void {
@@ -334,4 +423,14 @@ export class HandoverController {
     if (this.active === active) this.active = null;
     active.resolve(result);
   }
+}
+
+function styleOpacity(element: HTMLElement): number {
+  const opacity = Number.parseFloat(element.style.opacity);
+  return Number.isFinite(opacity) ? opacity : 0;
+}
+
+function gsapNumber(element: HTMLElement, property: string, fallback: number): number {
+  const value = Number(gsap.getProperty(element, property));
+  return Number.isFinite(value) ? value : fallback;
 }
