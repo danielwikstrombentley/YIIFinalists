@@ -15,6 +15,7 @@ export interface CesiumPrewarmResult {
   projectId: string;
   tier: CesiumStageTier;
   fallback: boolean;
+  meaningfulFrameReady: boolean;
   landingAssetsReady: boolean;
   status: 'ready' | 'cancelled' | 'failed';
   error?: unknown;
@@ -93,6 +94,7 @@ export class CesiumPrewarmController {
             projectId: project.id,
             tier: stageReady.tier,
             fallback: stageReady.fallback,
+            meaningfulFrameReady: false,
             landingAssetsReady: false,
             status: 'cancelled',
           });
@@ -102,6 +104,7 @@ export class CesiumPrewarmController {
           projectId: project.id,
           tier: stageReady.tier,
           fallback: stageReady.fallback,
+          meaningfulFrameReady: stageReady.meaningfulFrameReady,
           landingAssetsReady: true,
           status: 'ready',
         });
@@ -112,6 +115,7 @@ export class CesiumPrewarmController {
           projectId: project.id,
           tier: project.geographicFraming.tileTier,
           fallback: true,
+          meaningfulFrameReady: false,
           landingAssetsReady: false,
           status: 'failed',
           error,
@@ -139,6 +143,7 @@ export class CesiumPrewarmController {
       projectId: active.projectId,
       tier: active.project.geographicFraming.tileTier,
       fallback: true,
+      meaningfulFrameReady: false,
       landingAssetsReady: false,
       status: 'cancelled',
     });

@@ -1,6 +1,18 @@
-import { AgXToneMapping, SRGBColorSpace, WebGLRenderer } from 'three';
+import { AgXToneMapping, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import type { GeographicFraming } from '@yii/content-schema';
 import { sharedTicker, type Ticker } from '../../orchestration/ticker.js';
 import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
+import {
+  transitionNowMs,
+  type RendererTransitionProbe,
+} from '../handover/transition-observability.js';
+import {
+  applyGeographicPoseToThreeCamera,
+  captureThreeGeographicPose,
+  geographicToThreeSpherePoint,
+  geographicPoseToProbe,
+  type GeographicCameraPose,
+} from '../handover/geographic-pose-bridge.js';
 import { GlobeCameraRig, type GlobePreviewProject } from './camera-rig.js';
 import { GlobeMarkerSystem, type GlobeMarkerProject } from './markers.js';
 import { GlobeScene, type GlobeSceneOptions } from './GlobeScene.js';
@@ -10,7 +22,9 @@ export interface GlobeOperationHandle {
   cancel(): void;
 }
 
-export interface GlobeRendererAdapterProject extends GlobeMarkerProject, GlobePreviewProject {}
+export interface GlobeRendererAdapterProject extends GlobeMarkerProject, GlobePreviewProject {
+  geographicFraming?: GeographicFraming;
+}
 
 export interface GlobeRendererAdapterOptions {
   /** Content-defined projects only; no project-specific renderer code is permitted (QR-005). */
@@ -26,6 +40,11 @@ export interface GlobeRendererAdapterOptions {
 
 export interface GlobePreviewOptions {
   durationMs?: number;
+}
+
+export interface GlobeExternalFrameControl {
+  render(deltaSeconds: number): void;
+  release(): void;
 }
 
 function createCanvas(): HTMLCanvasElement {
@@ -103,6 +122,10 @@ export class GlobeRendererAdapter {
   private previewOperation = 0;
   private idleOperation = 0;
   private renderedFrame = 0;
+  private firstRenderAtMs: number | null = null;
+  private lastRenderAtMs: number | null = null;
+  private readonly probeProjection = new Vector3();
+  private externalFrameControl = false;
   private active = false;
   private disposed = false;
 
@@ -145,15 +168,12 @@ export class GlobeRendererAdapter {
       if (this.canvas.parentElement !== container) container.append(this.canvas);
     }
     this.active = true;
+    this.canvas.style.opacity = '1';
+    this.canvas.style.transform = '';
     this.resizeToContainer();
     this.addResizeListener();
     this.syncTestAttributes();
-    if (!this.unregisterRenderer) {
-      this.unregisterRenderer = this.ticker.registerRenderer((deltaSeconds) => {
-        this.render(deltaSeconds);
-      });
-      this.ticker.start();
-    }
+    this.registerTickerRenderer();
     return once(() => this.stop());
   }
 
@@ -261,6 +281,104 @@ export class GlobeRendererAdapter {
     return this.disposed;
   }
 
+  captureGeographicPose(): GeographicCameraPose {
+    if (this.disposed) throw new Error('Cannot capture a disposed globe camera.');
+    this.scene.globe.updateWorldMatrix(true, false);
+    return captureThreeGeographicPose(this.scene.camera, this.scene.globe.matrixWorld);
+  }
+
+  /** Pass 3 uses this temporary external-camera port only inside handover-owned frame control. */
+  applyGeographicPose(pose: GeographicCameraPose): void {
+    if (this.disposed) return;
+    this.scene.globe.updateWorldMatrix(true, false);
+    applyGeographicPoseToThreeCamera(this.scene.camera, pose, this.scene.globe.matrixWorld);
+  }
+
+  /**
+   * Temporarily transfers frame ordering to HandoverController without changing resource owner.
+   * The globe's independent root rotation is frozen so a captured source pose remains exact.
+   */
+  beginExternalFrameControl(): GlobeExternalFrameControl {
+    if (this.disposed || this.externalFrameControl) {
+      throw new Error('Globe external frame control is unavailable.');
+    }
+    const restartIdleLoop = this.scene.idleLoopRunning;
+    const restoreMarkerVisibility = this.markers.mesh.visible;
+    this.externalFrameControl = true;
+    this.unregisterRenderer?.();
+    this.unregisterRenderer = null;
+    this.scene.stopIdleLoop();
+    this.markers.mesh.visible = false;
+    let released = false;
+    return {
+      render: (deltaSeconds) => {
+        if (!released) this.render(deltaSeconds);
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        this.externalFrameControl = false;
+        this.markers.mesh.visible = restoreMarkerVisibility;
+        if (restartIdleLoop && this.active) this.scene.startIdleLoop();
+        this.registerTickerRenderer();
+      },
+    };
+  }
+
+  /**
+   * Non-visible transition diagnostic expressed in the same WGS84 ECEF basis as Cesium.
+   */
+  transitionProbe(projectId: string | null = this.emphasizedProjectId): RendererTransitionProbe {
+    const camera = this.scene.camera;
+    const geographicPose = this.captureGeographicPose();
+
+    let targetProjection: RendererTransitionProbe['targetProjection'] = null;
+    const project = projectId ? this.projectsById.get(projectId) : undefined;
+    if (project) {
+      geographicToThreeSpherePoint(
+        project.geographicFraming?.landingCamera.destination.lat ?? project.marker.lat,
+        project.geographicFraming?.landingCamera.destination.lon ?? project.marker.lon,
+        undefined,
+        this.probeProjection,
+        project.geographicFraming?.landingCamera.destination.height ?? 0,
+      );
+      this.scene.scene.updateMatrixWorld(true);
+      this.scene.globe.localToWorld(this.probeProjection);
+      this.probeProjection.project(camera);
+      targetProjection = {
+        projectId: project.id,
+        x: (this.probeProjection.x + 1) / 2,
+        y: (1 - this.probeProjection.y) / 2,
+        visible:
+          this.probeProjection.x >= -1 &&
+          this.probeProjection.x <= 1 &&
+          this.probeProjection.y >= -1 &&
+          this.probeProjection.y <= 1 &&
+          this.probeProjection.z >= -1 &&
+          this.probeProjection.z <= 1,
+      };
+    }
+
+    const opacity = styleOpacity(this.canvas);
+    return {
+      renderer: 'globe',
+      rendering: this.active && !this.disposed,
+      visible: !this.disposed && this.canvas.style.display !== 'none' && opacity > 0,
+      opacity,
+      frameCount: this.renderedFrame,
+      lastRenderAtMs: this.lastRenderAtMs,
+      camera: geographicPoseToProbe(geographicPose),
+      targetProjection,
+      matchedSourceCamera: null,
+      matchedSourceTargetProjection: null,
+      matchedSourceFrameAtMs: null,
+      readiness: {
+        resourceReadyAtMs: this.firstRenderAtMs,
+        meaningfulFrameReadyAtMs: this.firstRenderAtMs,
+      },
+    };
+  }
+
   private resolveProject(
     projectRef: GlobeRendererAdapterProject | string,
   ): GlobeRendererAdapterProject {
@@ -279,7 +397,19 @@ export class GlobeRendererAdapter {
     this.scene.advance(deltaSeconds);
     this.scene.render(this.renderer);
     this.renderedFrame += 1;
+    this.lastRenderAtMs = transitionNowMs();
+    this.firstRenderAtMs ??= this.lastRenderAtMs;
     this.syncTestAttributes();
+  }
+
+  private registerTickerRenderer(): void {
+    if (this.disposed || !this.active || this.externalFrameControl || this.unregisterRenderer) {
+      return;
+    }
+    this.unregisterRenderer = this.ticker.registerRenderer((deltaSeconds) => {
+      this.render(deltaSeconds);
+    });
+    this.ticker.start();
   }
 
   /** E2E hooks only: attributes carry no text and are never part of the public presentation. */
@@ -294,6 +424,13 @@ export class GlobeRendererAdapter {
       ? 'camera-facing'
       : 'idle';
     this.canvas.dataset.idleFrame = String(this.renderedFrame);
+    this.canvas.dataset.rendering = String(this.active && !this.disposed);
+    this.canvas.dataset.frameCount = String(this.renderedFrame);
+    if (this.lastRenderAtMs === null) {
+      delete this.canvas.dataset.lastRenderAtMs;
+    } else {
+      this.canvas.dataset.lastRenderAtMs = String(this.lastRenderAtMs);
+    }
   }
 
   private readonly resizeToContainer = (): void => {
@@ -315,4 +452,9 @@ export class GlobeRendererAdapter {
     window.removeEventListener('resize', this.resizeToContainer);
     this.listeningForResize = false;
   }
+}
+
+function styleOpacity(element: HTMLElement): number {
+  const opacity = Number.parseFloat(element.style.opacity);
+  return Number.isFinite(opacity) ? opacity : 1;
 }

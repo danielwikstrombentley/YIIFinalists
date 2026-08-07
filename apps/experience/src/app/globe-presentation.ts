@@ -20,6 +20,7 @@ export function createGlobePresentation(
       id: project.id,
       categoryId: project.categoryId,
       marker: project.marker,
+      geographicFraming: project.geographicFraming,
       previewEmphasis: project.geographicFraming.previewEmphasis,
     };
   });

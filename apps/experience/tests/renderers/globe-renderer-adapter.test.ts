@@ -94,6 +94,54 @@ describe('GlobeRendererAdapter', () => {
     ticker.stop();
   });
 
+  it('transfers rendering to one external handover owner and freezes root motion', () => {
+    const ticker = new Ticker();
+    const renderer = createRenderer();
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      rendererFactory: () => renderer,
+    });
+    adapter.start(document.createElement('div'));
+    adapter.enterIdle();
+    expect(adapter.scene.idleLoopRunning).toBe(true);
+
+    const external = adapter.beginExternalFrameControl();
+    expect(ticker.rendererCount).toBe(0);
+    expect(adapter.scene.idleLoopRunning).toBe(false);
+    expect(adapter.markers.mesh.visible).toBe(false);
+    external.render(1 / 60);
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+
+    external.release();
+    external.release();
+    expect(ticker.rendererCount).toBe(1);
+    expect(adapter.scene.idleLoopRunning).toBe(true);
+    expect(adapter.markers.mesh.visible).toBe(true);
+    adapter.dispose();
+    ticker.stop();
+  });
+
+  it('restores canvas opacity when machine navigation reactivates it after a handover', () => {
+    const ticker = new Ticker();
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      rendererFactory: () => createRenderer(),
+    });
+    const stage = document.createElement('div');
+    adapter.start(stage);
+    adapter.stop();
+    adapter.canvas.style.opacity = '0';
+    adapter.canvas.style.transform = 'scale(1.08)';
+
+    adapter.start(stage);
+    expect(adapter.canvas.style.opacity).toBe('1');
+    expect(adapter.canvas.style.transform).toBe('');
+    adapter.dispose();
+    ticker.stop();
+  });
+
   it('releases its DOM, GPU, scene, marker, rig, and ticker resources idempotently', () => {
     const ticker = new Ticker();
     const renderer = createRenderer();
@@ -160,6 +208,43 @@ describe('GlobeRendererAdapter', () => {
 
     adapter.enterIdle();
     expect(adapter.scene.previewDaylightActive).toBe(false);
+
+    adapter.dispose();
+    ticker.stop();
+  });
+
+  it('reports its live camera, selected-target projection, and rendered-frame timestamps', () => {
+    const ticker = new Ticker();
+    const adapter = new GlobeRendererAdapter({
+      projects: PROJECTS,
+      ticker,
+      rendererFactory: () => createRenderer(),
+    });
+    const stage = document.createElement('div');
+
+    adapter.start(stage);
+    adapter.resize(1_600, 900);
+    adapter.setCategoryFilter('cat-a');
+    adapter.previewProject(PROJECTS[1]!);
+    gsap.ticker.tick();
+
+    const probe = adapter.transitionProbe('cat-a-2');
+    expect(probe).toMatchObject({
+      renderer: 'globe',
+      rendering: true,
+      visible: true,
+      camera: {
+        coordinateSpace: 'ecef',
+        aspectRatio: 16 / 9,
+      },
+      targetProjection: {
+        projectId: 'cat-a-2',
+      },
+    });
+    expect(probe.camera?.verticalFovRadians).toBeCloseTo((42 * Math.PI) / 180);
+    expect(probe.frameCount).toBeGreaterThan(0);
+    expect(probe.lastRenderAtMs).not.toBeNull();
+    expect(probe.readiness.meaningfulFrameReadyAtMs).not.toBeNull();
 
     adapter.dispose();
     ticker.stop();

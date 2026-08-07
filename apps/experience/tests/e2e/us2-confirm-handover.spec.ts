@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectVisibleTransitionFrames } from './helpers/transition-frames.js';
+import {
+  expectVisibleTransitionFrames,
+  type VisibleFrameCheckOptions,
+  type VisibleTransitionFrameReport,
+} from './helpers/transition-frames.js';
 
 // T029 (red-first): This specification defines the public, screenshot-derived handover contract
 // that T030–T035 must satisfy. It uses the normal SimulatorTransport bridge, never direct machine
@@ -9,6 +13,10 @@ interface E2eRuntime {
     injectAction(type: string, payload: unknown): void;
   };
   stateHistory(): unknown[];
+}
+
+interface ConfirmedTransitionReport extends VisibleTransitionFrameReport {
+  readyTier: string | null;
 }
 
 async function openIdleStage(page: Page): Promise<void> {
@@ -41,20 +49,35 @@ async function previewProject(page: Page, projectId = 'cat-1-proj-1'): Promise<v
   await expect(page.getByTestId('preview-metadata')).toHaveAttribute('data-project-id', projectId);
 }
 
-async function confirmPreview(page: Page): Promise<void> {
+async function confirmPreview(
+  page: Page,
+  frameOptions: VisibleFrameCheckOptions = {},
+): Promise<ConfirmedTransitionReport> {
   await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
     'data-preview-motion',
     'settled',
   );
+  await expect(page.getByTestId('cesium-stage')).toHaveAttribute(
+    'data-meaningful-frame-ready-at-ms',
+    /\d/,
+    { timeout: 5_000 },
+  );
+  const readyTier = await page.getByTestId('cesium-stage').getAttribute('data-tier');
   await injectAction(page, 'project.select', {});
   await expect(page.getByTestId('handover-controller')).toHaveAttribute(
     'data-status',
-    /^(approaching|covering|revealing)$/,
+    /^(approaching|flying|blending|covering|revealing)$/,
   );
-  await expectVisibleTransitionFrames(page);
+  await expect(page.getByTestId('landing-hero')).toHaveCount(0);
+  const report = await expectVisibleTransitionFrames(page, {
+    ...frameOptions,
+    maximumOpaqueStationaryHoldMs:
+      readyTier === 'photorealistic' ? 100 : frameOptions.maximumOpaqueStationaryHoldMs,
+  });
   await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"projectLanding"', {
     timeout: 5_000,
   });
+  return { ...report, readyTier };
 }
 
 test.describe('US2: confirm, concealed renderer handover, and geographic landing', () => {
@@ -88,10 +111,37 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
 
   test('US2 scenario 1: confirm samples no black or stale frames and reveals a landing hero only', async ({
     page,
-  }) => {
+  }, testInfo) => {
     await openIdleStage(page);
     await previewProject(page);
-    await confirmPreview(page);
+    const transitionReport = await confirmPreview(page, { frameCount: 20, intervalMs: 70 });
+    await testInfo.attach('transition-observability', {
+      body: JSON.stringify(transitionReport, null, 2),
+      contentType: 'application/json',
+    });
+    expect(
+      transitionReport.samples.some(({ handoverStatus }) => handoverStatus !== 'unavailable'),
+    ).toBe(true);
+    if (transitionReport.readyTier === 'photorealistic') {
+      expect(transitionReport.cameraComparison?.comparable).toBe(true);
+      expect(
+        transitionReport.cameraComparison?.aligned,
+        JSON.stringify(transitionReport.cameraComparison),
+      ).toBe(true);
+      expect(
+        transitionReport.targetProjectionDelta?.distance,
+        'matched Cesium target must stay within 0.5% of the globe viewport',
+      ).toBeLessThanOrEqual(0.005);
+      expect(
+        transitionReport.maximumLiveCameraDelta?.aligned,
+        JSON.stringify(transitionReport.maximumLiveCameraDelta),
+      ).toBe(true);
+      expect(
+        transitionReport.maximumLiveTargetProjectionDelta,
+        'selected target must remain aligned through the live renderer overlap',
+      ).toBeLessThanOrEqual(0.005);
+      expect(transitionReport.longestOpaqueStationaryHoldMs).toBeLessThanOrEqual(100);
+    }
 
     const hero = page.getByTestId('landing-hero');
     await expect(hero).toBeVisible();
@@ -159,7 +209,7 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
     // than merely pre-empting a queued renderer startup before it owns any visual resources.
     await expect(page.getByTestId('handover-controller')).toHaveAttribute(
       'data-status',
-      /^(approaching|covering|revealing)$/,
+      /^(approaching|flying|blending|covering|revealing)$/,
     );
     await injectAction(page, 'category.select', { categoryId: 'cat-2' });
 
@@ -176,5 +226,52 @@ test.describe('US2: confirm, concealed renderer handover, and geographic landing
       'cancelled',
     );
     await expect(page.locator('[data-testid="globe-marker"][data-visible="true"]')).toHaveCount(3);
+  });
+
+  test('T083 repeated project-entry cycles restore one ticker owner and one reusable cover', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    await openIdleStage(page);
+
+    for (const categoryId of ['cat-1', 'cat-2']) {
+      await injectAction(page, 'category.select', { categoryId });
+      await expect(page.locator('#stage')).toHaveAttribute(
+        'data-machine-state',
+        '{"categoryActive":"preview"}',
+      );
+      await expect(page.getByTestId('globe-renderer')).toHaveAttribute(
+        'data-preview-motion',
+        'settled',
+      );
+      await expect(page.getByTestId('cesium-stage')).toHaveAttribute(
+        'data-meaningful-frame-ready-at-ms',
+        /\d/,
+      );
+
+      await injectAction(page, 'project.select', {});
+      await expect(page.locator('#stage')).toHaveAttribute(
+        'data-machine-state',
+        '"projectLanding"',
+        {
+          timeout: 10_000,
+        },
+      );
+      const landingSnapshot = await page.evaluate(() => window.__YII_E2E__?.transitionSnapshot());
+      expect(landingSnapshot?.sharedTickerRendererCount).toBe(1);
+
+      await injectAction(page, 'nav.idle', {});
+      await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"idle"');
+      await expect(page.getByTestId('globe-renderer')).toHaveCSS('opacity', '1');
+      const idleSnapshot = await page.evaluate(() => window.__YII_E2E__?.transitionSnapshot());
+      expect(idleSnapshot?.sharedTickerRendererCount).toBe(1);
+    }
+
+    await expect(page.locator('[data-testid="handover-controller"]')).toHaveCount(1);
+    expect(errors).toEqual([]);
   });
 });

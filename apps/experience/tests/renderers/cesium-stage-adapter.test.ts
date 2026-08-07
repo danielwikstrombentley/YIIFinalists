@@ -1,4 +1,5 @@
 import gsap from 'gsap';
+import { Cartesian3 } from 'cesium';
 import { describe, expect, it, vi } from 'vitest';
 import type { GeographicFraming } from '@yii/content-schema';
 import {
@@ -7,7 +8,9 @@ import {
   type CesiumTilesetLike,
   type CesiumViewerLike,
 } from '../../src/renderers/cesium/CesiumStageAdapter.js';
+import type { NativeCameraFlightOptions } from '../../src/renderers/cesium/camera-flight.js';
 import { Ticker } from '../../src/orchestration/ticker.js';
+import type { GeographicCameraPose } from '../../src/renderers/handover/geographic-camera-pose.js';
 
 const CITY_FRAMING: GeographicFraming = {
   scopeType: 'city',
@@ -26,6 +29,13 @@ const PHOTOREALISTIC_PROJECT: CesiumStageProject = {
   id: 'photo-project',
   geographicFraming: { ...CITY_FRAMING, tileTier: 'photorealistic' },
 };
+const SOURCE_POSE: GeographicCameraPose = {
+  positionEcef: [6_378_137, 1_000, 2_000],
+  directionEcef: [-1, 0, 0],
+  upEcef: [0, 0, 1],
+  verticalFovRadians: (42 * Math.PI) / 180,
+  aspectRatio: 16 / 9,
+};
 
 function createViewer() {
   const render = vi.fn<() => void>();
@@ -33,19 +43,44 @@ function createViewer() {
   const add = vi.fn<(primitive: CesiumTilesetLike) => unknown>();
   const remove = vi.fn<(primitive: CesiumTilesetLike) => boolean>(() => true);
   const requestRender = vi.fn<() => void>();
+  const camera = {
+    position: { x: 6_378_137, y: 0, z: 0 } as Cartesian3,
+    direction: { x: -1, y: 0, z: 0 } as Cartesian3,
+    up: { x: 0, y: 0, z: 1 } as Cartesian3,
+    right: { x: 0, y: 1, z: 0 } as Cartesian3,
+    positionWC: { x: 6_378_137, y: 0, z: 0 },
+    directionWC: { x: -1, y: 0, z: 0 },
+    upWC: { x: 0, y: 0, z: 1 },
+    frustum: {
+      fov: 2 * Math.atan(Math.tan(Math.PI / 8) * (16 / 9)),
+      aspectRatio: 16 / 9,
+    },
+    setView: vi.fn((options) => {
+      Object.assign(camera.positionWC, options.destination);
+      Object.assign(camera.directionWC, options.orientation.direction);
+      Object.assign(camera.upWC, options.orientation.up);
+    }),
+    flyTo: vi.fn<(options: NativeCameraFlightOptions) => void>(() => {}),
+    cancelFlight: vi.fn(),
+  } satisfies NonNullable<CesiumViewerLike['camera']>;
   return {
     viewer: {
       render,
       destroy,
+      camera,
       scene: {
         primitives: { add, remove },
         requestRender,
+        canvas: { clientWidth: 1_600, clientHeight: 900 },
       },
     } satisfies CesiumViewerLike,
     render,
     destroy,
     add,
     remove,
+    setView: camera.setView,
+    flyTo: camera.flyTo,
+    cancelFlight: camera.cancelFlight,
   };
 }
 
@@ -119,6 +154,92 @@ describe('CesiumStageAdapter', () => {
     expect(adapter.element.dataset.visible).toBe('true');
     expect(adapter.element.querySelector('[data-testid="cesium-fallback-surface"]')).not.toBeNull();
     adapter.dispose();
+  });
+
+  it('reports its ECEF camera, actual render time, and immediate local-fallback readiness', async () => {
+    const ticker = new Ticker();
+    const viewer = createViewer();
+    const adapter = new CesiumStageAdapter({ ticker, viewerFactory: () => viewer.viewer });
+    adapter.start(document.createElement('div'));
+    await adapter.activateProject(SAFE_PROJECT).ready;
+    gsap.ticker.tick();
+
+    const probe = adapter.transitionProbe();
+    expect(probe).toMatchObject({
+      renderer: 'cesium',
+      rendering: true,
+      visible: true,
+      camera: {
+        coordinateSpace: 'ecef',
+        position: [6_378_137, 0, 0],
+        verticalFovRadians: Math.PI / 4,
+        aspectRatio: 16 / 9,
+      },
+    });
+    expect(probe.frameCount).toBeGreaterThan(0);
+    expect(probe.lastRenderAtMs).not.toBeNull();
+    expect(probe.readiness.resourceReadyAtMs).not.toBeNull();
+    expect(probe.readiness.meaningfulFrameReadyAtMs).not.toBeNull();
+
+    adapter.dispose();
+    ticker.stop();
+  });
+
+  it('renders an exact source-pose frame while hidden before resetting to landing and activation', async () => {
+    const viewer = createViewer();
+    const adapter = new CesiumStageAdapter({ viewerFactory: () => viewer.viewer });
+    adapter.start(document.createElement('div'));
+    await adapter.prewarmProject(SAFE_PROJECT).ready;
+
+    expect(adapter.isVisible).toBe(false);
+    expect(adapter.matchSourceCamera(SOURCE_POSE, SAFE_PROJECT)).toBe(true);
+    expect(adapter.isVisible).toBe(false);
+    expect(viewer.render).toHaveBeenCalledTimes(1);
+    expect(viewer.viewer.camera.frustum.fov).toBeCloseTo(
+      2 * Math.atan(Math.tan(SOURCE_POSE.verticalFovRadians / 2) * SOURCE_POSE.aspectRatio),
+    );
+    expect(adapter.transitionProbe()).toMatchObject({
+      matchedSourceCamera: {
+        coordinateSpace: 'ecef',
+        position: SOURCE_POSE.positionEcef,
+        verticalFovRadians: SOURCE_POSE.verticalFovRadians,
+      },
+    });
+    expect(adapter.transitionProbe().matchedSourceFrameAtMs).not.toBeNull();
+
+    expect(adapter.setLandingCamera(SAFE_PROJECT)).toBe(true);
+    expect(viewer.setView).toHaveBeenCalledTimes(2);
+    await adapter.activatePreparedProject(SAFE_PROJECT).ready;
+    expect(adapter.isVisible).toBe(true);
+    expect(adapter.transitionProbe().matchedSourceCamera).not.toBeNull();
+
+    adapter.dispose();
+  });
+
+  it('transfers rendering to external frame control and exposes one native landing flight', async () => {
+    const ticker = new Ticker();
+    const viewer = createViewer();
+    const adapter = new CesiumStageAdapter({ ticker, viewerFactory: () => viewer.viewer });
+    adapter.start(document.createElement('div'));
+    await adapter.activateProject(SAFE_PROJECT).ready;
+    expect(ticker.rendererCount).toBe(1);
+
+    const external = adapter.beginExternalFrameControl();
+    expect(ticker.rendererCount).toBe(0);
+    external.render(1 / 60);
+    expect(viewer.render).toHaveBeenCalledTimes(1);
+
+    const flight = adapter.startLandingFlight(SAFE_PROJECT, 4_200);
+    expect(flight).not.toBeNull();
+    expect(viewer.flyTo).toHaveBeenCalledWith(expect.objectContaining({ duration: 4.2 }));
+    const nativeOptions = viewer.flyTo.mock.calls[0]?.[0];
+    nativeOptions?.complete?.();
+    await expect(flight?.finished).resolves.toEqual({ status: 'completed' });
+
+    external.release();
+    expect(ticker.rendererCount).toBe(1);
+    adapter.dispose();
+    ticker.stop();
   });
 
   it('falls through to the safe composition when tile readiness exceeds its watchdog timeout', async () => {

@@ -1,11 +1,14 @@
-import { Cartesian3, Math as CesiumMath } from 'cesium';
+import { Cartesian3 } from 'cesium';
 import type { CameraPose } from '@yii/content-schema';
 import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
+import { landingPoseFromCameraPose } from '../handover/geographic-camera-pose.js';
 
 export interface NativeCameraOrientation {
   heading?: number;
   pitch?: number;
   roll?: number;
+  direction?: Cartesian3;
+  up?: Cartesian3;
 }
 
 /** Structural Cesium `Camera.flyTo` contract, deliberately injectable for deterministic tests. */
@@ -49,18 +52,17 @@ interface ActiveFlight {
 }
 
 /**
- * Converts the content package's degree-based `CameraPose` into Cesium's Cartesian/radian camera
- * representation. `range` participates in the final camera height so every approved framing
- * field contributes to the native flight rather than being silently ignored.
+ * Converts the content package's target/orientation/range framing into an explicit Cesium camera
+ * pose. The destination is a camera position exactly `range` metres from the approved target;
+ * direction/up retain heading, pitch, and roll in that target's local geographic frame.
  */
 export function mapCameraPoseToCesium(pose: CameraPose): NativeCameraPose {
-  const height = Math.max(pose.destination.height, pose.range);
+  const mapped = landingPoseFromCameraPose(pose);
   return {
-    destination: Cartesian3.fromDegrees(pose.destination.lon, pose.destination.lat, height),
+    destination: new Cartesian3(...mapped.positionEcef),
     orientation: {
-      heading: CesiumMath.toRadians(pose.orientation.heading),
-      pitch: CesiumMath.toRadians(pose.orientation.pitch),
-      roll: CesiumMath.toRadians(pose.orientation.roll),
+      direction: new Cartesian3(...mapped.directionEcef),
+      up: new Cartesian3(...mapped.upEcef),
     },
   };
 }
