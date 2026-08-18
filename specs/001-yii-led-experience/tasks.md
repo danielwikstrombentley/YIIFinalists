@@ -630,8 +630,8 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
 
 ### Implementation for US4
 
-- [~] T046 [US4] Implement reverse handover (transitionToPreview) restoring the previously previewed project in apps/experience/src/renderers/handover/HandoverController.ts
-  - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T046-reverse-handover` · PR — · Blockers —
+- [x] T046 [US4] Implement reverse handover (transitionToPreview) restoring the previously previewed project in apps/experience/src/renderers/handover/HandoverController.ts
+  - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T046-reverse-handover` · PR #17 (merge `fae7011`) · Review `Claude Haiku 4.5 (Anthropic)` APPROVE (after-merge reconciliation, 2026-08-18) · Blockers —
   - Do: Mirror choreography of the forward path (same transition language — FR-008): Cesium → cover → globe with previous preview framing restored; failure destination snaps to `categoryActive.preview` per data-model; machine wiring for `nav.back` from landing/content states through `transitionToPreview`. User-directed early implementation covers the live `projectLanding` return-to-idle/category paths now; T044's later content states must reuse this same route.
   - Files: `apps/experience/src/renderers/{handover/HandoverController.ts,cesium/{camera-flight.ts,CesiumStageAdapter.ts},globe/{camera-rig.ts,GlobeRendererAdapter.ts}`, `apps/experience/src/{app/cesium-presentation.ts,state/{actions.ts,machine.ts,types.ts}}`, `apps/experience/tests/{renderers/{camera-flight.test.ts,cesium-stage-adapter.test.ts,handover.test.ts,handover-flight.test.ts},state/{handover-wiring.test.ts,legality.test.ts},e2e/us2-confirm-handover.spec.ts}`
   - Deps: T033 (the reusable reverse renderer path is implemented before T044; T044 must route its content states through it)
