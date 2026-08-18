@@ -138,6 +138,11 @@ export class ContentLoader {
     this.cache.evictExceptCategory(categoryId);
   }
 
+  /** Operator recovery rung: release decoded/preloaded content so a later interaction can retry. */
+  clearPreloadCache(): void {
+    this.cache.clear();
+  }
+
   /** Consumer obligation: "resolve all assets package-relative (no arbitrary URLs)". */
   resolveAssetUrl(packageRelativePath: string): string {
     if (!this.cachedRelease) {

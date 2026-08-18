@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  bootstrap,
-  createRuntimeDependencies,
-  type BootstrapDeps,
-  type RuntimeDependencies,
-} from './bootstrap.js';
+import { bootstrap, createRuntimeDependencies, type RuntimeDependencies } from './bootstrap.js';
 import { createContentPlaybackPresentation } from '../content/playback.js';
 import { createGlobePresentation } from './globe-presentation.js';
 import { MachineProvider, useMachineActor } from './MachineProvider.js';
@@ -28,6 +23,8 @@ interface E2eRuntimeBridge {
     injectAction(type: string, payload: unknown): void;
   };
   stateHistory(): unknown[];
+  diagnosticsSnapshot(): unknown;
+  contentSnapshot(): unknown;
   transitionSnapshot(): TransitionObservabilitySnapshot;
 }
 
@@ -87,6 +84,18 @@ function BootOrchestrator({
     });
     depsRef.current = deps;
     onDependenciesReady(deps);
+    const runtime = actor.getSnapshot().context.runtime;
+    runtime.setRecoveryControls({
+      clearPreloadCache: () => {
+        deps.loader.clearPreloadCache();
+        runtime.cesium?.clearPreloadCache?.();
+      },
+      requestReload: () => {
+        // A watchdog request is intentionally not awaited; it cannot delay an operator command,
+        // visual fallback, or public navigation if the local sidecar is unavailable.
+        void fetch('/watchdog/reload', { method: 'POST' }).catch(() => undefined);
+      },
+    });
     if (isE2eRun()) {
       exposeE2eBridge(actor, deps);
     }
@@ -94,7 +103,6 @@ function BootOrchestrator({
       ...deps,
       onReleaseLoaded: async (release) => {
         const projects = await deps.loader.loadAllProjects();
-        const runtime = actor.getSnapshot().context.runtime;
         const globe = createGlobePresentation(
           projects,
           (packageRelativePath) => `/content/releases/${release.version}/${packageRelativePath}`,
@@ -105,6 +113,14 @@ function BootOrchestrator({
             getProject: (projectId) => globe.getProject(projectId),
             resolveAssetUrl: globe.resolveAssetUrl,
             send: (event) => actor.send(event),
+            onMediaFailure: ({ assetId, error }) => {
+              deps.diagnostics.recordAssetFailure({
+                assetId,
+                error,
+                fallbackApplied: true,
+              });
+              deps.diagnostics.updateVideo({ status: 'fallback', assetId });
+            },
           }),
         );
         categoryIdsRef.current = release.categories.map(({ id }) => id);
@@ -220,7 +236,10 @@ function BootOrchestrator({
   return null;
 }
 
-function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: BootstrapDeps): void {
+function exposeE2eBridge(
+  actor: ReturnType<typeof useMachineActor>,
+  deps: RuntimeDependencies,
+): void {
   const simulator = deps.transports.find(
     (transport): transport is SimulatorTransport => transport instanceof SimulatorTransport,
   );
@@ -244,6 +263,8 @@ function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: Bootst
       },
     },
     stateHistory: () => [...history],
+    diagnosticsSnapshot: () => deps.diagnostics.getSnapshot(),
+    contentSnapshot: () => actor.getSnapshot().context.runtime.content?.snapshot ?? null,
     transitionSnapshot() {
       const snapshot = actor.getSnapshot();
       const runtime = snapshot.context.runtime;

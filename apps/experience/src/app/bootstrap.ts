@@ -76,7 +76,8 @@ export interface RuntimeDependenciesOptions {
   onOperatorActivated?: () => void;
 }
 
-export interface RuntimeDependencies extends BootstrapDeps {
+export interface RuntimeDependencies extends Omit<BootstrapDeps, 'loader'> {
+  loader: ContentLoader;
   diagnostics: DiagnosticsStore;
 }
 

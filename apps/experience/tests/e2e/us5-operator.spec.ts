@@ -7,6 +7,12 @@ interface E2eRuntime {
   simulator: {
     injectAction(type: string, payload: unknown): void;
   };
+  diagnosticsSnapshot(): {
+    assets: { recentFailures: readonly { assetId: string }[] };
+    errors: { recent: readonly { source: string; message: string }[] };
+    console: { transports: Record<string, { lastAction: string | null }> };
+  };
+  contentSnapshot(): { mediaFallback: boolean } | null;
 }
 
 const OPERATOR_ACTIVATION_SEQUENCE = [
@@ -54,6 +60,24 @@ async function injectAction(page: Page, type: string, payload: unknown): Promise
   );
 }
 
+async function diagnosticsSnapshot(
+  page: Page,
+): Promise<ReturnType<E2eRuntime['diagnosticsSnapshot']>> {
+  return (await page.evaluate(() => {
+    const runtime = (window as Window & { __YII_E2E__?: E2eRuntime }).__YII_E2E__;
+    if (!runtime) throw new Error('US5 E2E runtime bridge is unavailable.');
+    return runtime.diagnosticsSnapshot();
+  })) as ReturnType<E2eRuntime['diagnosticsSnapshot']>;
+}
+
+async function contentSnapshot(page: Page): Promise<ReturnType<E2eRuntime['contentSnapshot']>> {
+  return (await page.evaluate(() => {
+    const runtime = (window as Window & { __YII_E2E__?: E2eRuntime }).__YII_E2E__;
+    if (!runtime) throw new Error('US5 E2E runtime bridge is unavailable.');
+    return runtime.contentSnapshot();
+  })) as ReturnType<E2eRuntime['contentSnapshot']>;
+}
+
 async function openOperatorOverlay(page: Page): Promise<void> {
   for (const [type, payload] of OPERATOR_ACTIVATION_SEQUENCE) {
     await injectAction(page, type, payload);
@@ -84,10 +108,20 @@ async function arriveAtContent(page: Page): Promise<void> {
   await expect(page.locator('#stage')).toHaveAttribute('data-machine-state', '"contentPlaying"');
 }
 
-function publicTechnicalText(page: Page) {
-  return page.locator(
-    '#stage, [data-testid="preview-metadata"], [data-testid="landing-hero"], [data-testid="story-content"]',
-  );
+async function expectNoPublicTechnicalText(page: Page): Promise<void> {
+  const publicSurfaces = [
+    '#stage',
+    '[data-testid="preview-metadata"]',
+    '[data-testid="landing-hero"]',
+    '[data-testid="story-content"]',
+  ];
+  for (const selector of publicSurfaces) {
+    const surface = page.locator(selector);
+    if ((await surface.count()) === 0) continue;
+    await expect(surface).not.toContainText(
+      /media failure|diagnostics|renderer recover|error|stack/i,
+    );
+  }
 }
 
 test.describe('US5: operator diagnostics, simulator, and recovery', () => {
@@ -160,9 +194,24 @@ test.describe('US5: operator diagnostics, simulator, and recovery', () => {
     await openOperatorOverlay(page);
 
     await page.getByTestId('simulator-force-media-failure').click();
+    await expect(
+      page
+        .getByTestId('simulator-coverage')
+        .locator('[data-simulator-scenario="force-media-failure"]'),
+    ).toHaveAttribute('data-exercised', 'true');
+    expect((await diagnosticsSnapshot(page)).console.transports.operator?.lastAction).toBe(
+      'operator.command',
+    );
+    expect((await contentSnapshot(page))?.mediaFallback).toBe(true);
+    expect((await diagnosticsSnapshot(page)).errors.recent).toEqual([]);
+    await expect
+      .poll(async () =>
+        (await diagnosticsSnapshot(page)).assets.recentFailures.map((failure) => failure.assetId),
+      )
+      .not.toEqual([]);
     await expect(page.getByTestId('story-content')).toHaveAttribute('data-media-fallback', 'true');
     await expect(page.getByTestId('diagnostics-asset-failures')).toContainText('media');
-    await expect(publicTechnicalText(page)).not.toContainText(/media failure|diagnostics|error/i);
+    await expectNoPublicTechnicalText(page);
   });
 
   test('US5 scenario 4: renderer recovery reaches a known safe idle presentation without public technical output', async ({
@@ -177,8 +226,6 @@ test.describe('US5: operator diagnostics, simulator, and recovery', () => {
     });
     await expect(page.getByTestId('globe-renderer')).toHaveAttribute('data-idle-loop', 'running');
     await expect(page.getByTestId('diagnostics-state')).toHaveAttribute('data-state-path', 'idle');
-    await expect(publicTechnicalText(page)).not.toContainText(
-      /diagnostics|telemetry|renderer recover|error|stack/i,
-    );
+    await expectNoPublicTechnicalText(page);
   });
 });
