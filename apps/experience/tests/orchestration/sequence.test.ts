@@ -11,6 +11,13 @@ interface MutableTarget {
   [property: string]: number | boolean;
 }
 
+interface SequenceTargets {
+  story: MutableTarget;
+  camera: MutableTarget;
+  video: MutableTarget;
+  [targetId: string]: MutableTarget;
+}
+
 function createOption(): ContentOption {
   return {
     position: 1,
@@ -78,7 +85,7 @@ function createOption(): ContentOption {
 }
 
 function createFixture(options: { failVoiceoverStart?: boolean } = {}) {
-  const targets: Record<string, MutableTarget> = {
+  const targets: SequenceTargets = {
     story: { opacity: 0, visible: true },
     camera: { range: 100 },
     video: { currentTime: 0 },
