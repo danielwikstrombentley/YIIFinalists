@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useMachineActor, useMachineSnapshot } from './MachineProvider.js';
+import { ContentPlayback } from '../ui/ContentPlayback.js';
 import { LandingHero } from '../ui/LandingHero.js';
 import { PreviewMetadata, type PreviewMetadataState } from '../ui/PreviewMetadata.js';
 import type { CesiumPresentation } from '../state/runtime.js';
@@ -102,6 +103,7 @@ export function StageMount() {
       </div>
       <PreviewMetadata state={snapshot.value as PreviewMetadataState} project={previewProject} />
       <LandingHero state={publicState} project={selectedProject} />
+      <ContentPlayback state={publicState} presentation={runtime.content} />
     </>
   );
 }

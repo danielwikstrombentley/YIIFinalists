@@ -1,0 +1,12 @@
+.yii-story-content {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.yii-story-content > .yii-content-format {
+  grid-area: 1 / 1;
+}

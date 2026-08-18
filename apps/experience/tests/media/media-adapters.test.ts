@@ -160,6 +160,20 @@ describe('VideoSurface', () => {
     expect(video.play).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes and seeks the active video clock for sequence timebase synchronization', () => {
+    const video = new FakeMediaElement();
+    const surface = new VideoSurface({
+      createVideo: () => video as unknown as HTMLVideoElement,
+    });
+
+    surface.start(videoAsset('video-one'));
+    surface.seek(0.75);
+
+    expect(surface.currentTime).toBe(0.75);
+    expect(() => surface.seek(Number.NaN)).not.toThrow();
+    expect(surface.currentTime).toBe(0);
+  });
+
   it('swaps a failed active video to its declared fallback without removing the active surface', async () => {
     const video = new FakeMediaElement();
     const onFallback = vi.fn();

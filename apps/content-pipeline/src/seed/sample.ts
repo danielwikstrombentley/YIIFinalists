@@ -111,8 +111,53 @@ function buildSampleProject(
         ],
         available: true,
       },
+      {
+        position: 2,
+        title: 'Impact',
+        formats: ['animated-metrics'],
+        sequence: {
+          openingState: {
+            id: 'impact-opening',
+            elements: [{ target: 'impact', properties: { opacity: 0 } }],
+          },
+          timebase: 'timeline',
+          syncToleranceMs: 200,
+          beats: [
+            {
+              type: 'metric',
+              startTime: 0,
+              duration: 2_000,
+              target: 'impact',
+              params: { opacity: 1 },
+            },
+          ],
+          finalFrame: {
+            id: 'impact-final',
+            elements: [{ target: 'impact', properties: { opacity: 1 } }],
+          },
+          interruptionExit: 'fade-out',
+        },
+        displayText: [{ type: 'paragraph', text: `Impact of ${id} (sample placeholder text).` }],
+        voiceover: {
+          file: `projects/${id}/voiceover/impact.opus`,
+          scriptVersion: 'sample-v1',
+          voiceId: 'sample-voice',
+          durationMs: 2_000,
+          captionText: [{ type: 'paragraph', text: 'Sample impact caption text.' }],
+        },
+        mediaRefs: [
+          {
+            id: 'impact-image',
+            kind: 'image',
+            file: `projects/${id}/media/impact.jpg`,
+            rights: { holder: 'Sample Organisation', status: 'approved' },
+            aiGenerated: false,
+          },
+        ],
+        available: true,
+      },
     ],
-    inactivePositions: [2, 3, 4, 5],
+    inactivePositions: [3, 4, 5],
   };
 }
 
@@ -228,7 +273,9 @@ export async function generateSampleRelease(
     await mkdir(join(projectDir, 'voiceover'), { recursive: true });
     await writeJson(join(projectDir, 'project.json'), project);
     await writeFile(join(projectDir, 'media', 'hero.jpg'), PLACEHOLDER_IMAGE_BYTES);
+    await writeFile(join(projectDir, 'media', 'impact.jpg'), PLACEHOLDER_IMAGE_BYTES);
     await writeFile(join(projectDir, 'voiceover', 'overview.opus'), PLACEHOLDER_AUDIO_BYTES);
+    await writeFile(join(projectDir, 'voiceover', 'impact.opus'), PLACEHOLDER_AUDIO_BYTES);
   }
 
   return { outputDir, version: SAMPLE_RELEASE_VERSION, categories, projects };

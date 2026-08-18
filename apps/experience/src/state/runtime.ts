@@ -1,4 +1,5 @@
 import type { Project } from '@yii/content-schema';
+import type { ContentPlaybackPresentation } from '../content/playback.js';
 import type { GlobeRendererAdapter } from '../renderers/globe/GlobeRendererAdapter.js';
 import type { CesiumStageAdapter } from '../renderers/cesium/CesiumStageAdapter.js';
 import type { CesiumPrewarmController } from '../renderers/cesium/prewarm.js';
@@ -34,16 +35,20 @@ export interface CesiumPresentation {
 export interface ExperienceRuntime {
   readonly globe: GlobePresentation | null;
   readonly cesium: CesiumPresentation | null;
+  /** State-owned content/voiceover runtime, created only after the validated release is loaded. */
+  readonly content: ContentPlaybackPresentation | null;
   /** Resolves when the browser-owned Cesium presentation is ready, or null if it cannot start. */
   readonly cesiumReady: Promise<CesiumPresentation | null> | null;
   setGlobe(globe: GlobePresentation | null): void;
   setCesium(cesium: CesiumPresentation | null): void;
+  setContent(content: ContentPlaybackPresentation | null): void;
   setCesiumReady(ready: Promise<CesiumPresentation | null> | null): void;
 }
 
 export function createExperienceRuntime(): ExperienceRuntime {
   let globe: GlobePresentation | null = null;
   let cesium: CesiumPresentation | null = null;
+  let content: ContentPlaybackPresentation | null = null;
   let cesiumReady: Promise<CesiumPresentation | null> | null = null;
   return {
     get globe() {
@@ -51,6 +56,9 @@ export function createExperienceRuntime(): ExperienceRuntime {
     },
     get cesium() {
       return cesium;
+    },
+    get content() {
+      return content;
     },
     get cesiumReady() {
       return cesiumReady;
@@ -60,6 +68,9 @@ export function createExperienceRuntime(): ExperienceRuntime {
     },
     setCesium(nextCesium) {
       cesium = nextCesium;
+    },
+    setContent(nextContent) {
+      content = nextContent;
     },
     setCesiumReady(nextReady) {
       cesiumReady = nextReady;

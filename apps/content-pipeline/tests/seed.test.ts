@@ -93,6 +93,8 @@ describe('generateSampleRelease', () => {
       );
       const parsed = projectSchema.safeParse(raw);
       expect(parsed.success, `project "${project.id}" should be schema-valid`).toBe(true);
+      expect((raw as { contentOptions: unknown[] }).contentOptions).toHaveLength(2);
+      expect((raw as { inactivePositions: unknown[] }).inactivePositions).toEqual([3, 4, 5]);
 
       await expect(
         readFile(
@@ -115,8 +117,34 @@ describe('generateSampleRelease', () => {
             SAMPLE_RELEASE_VERSION,
             'projects',
             project.id,
+            'media',
+            'impact.jpg',
+          ),
+        ),
+      ).resolves.toBeInstanceOf(Buffer);
+      await expect(
+        readFile(
+          join(
+            outputDir,
+            'releases',
+            SAMPLE_RELEASE_VERSION,
+            'projects',
+            project.id,
             'voiceover',
             'overview.opus',
+          ),
+        ),
+      ).resolves.toBeInstanceOf(Buffer);
+      await expect(
+        readFile(
+          join(
+            outputDir,
+            'releases',
+            SAMPLE_RELEASE_VERSION,
+            'projects',
+            project.id,
+            'voiceover',
+            'impact.opus',
           ),
         ),
       ).resolves.toBeInstanceOf(Buffer);

@@ -84,6 +84,10 @@ export class VideoSurface {
     return this.active?.element ?? null;
   }
 
+  get currentTime(): number {
+    return this.active?.element.currentTime ?? 0;
+  }
+
   get decodingCount(): number {
     return this.active ? 1 : 0;
   }
@@ -147,6 +151,17 @@ export class VideoSurface {
   stop(): void {
     if (!this.active) return;
     this.pauseAndReset(this.active.element);
+  }
+
+  /** Timebase-owned seek; inactive/preload-only surfaces stay safely unchanged. */
+  seek(seconds: number): void {
+    const element = this.active?.element;
+    if (!element) return;
+    try {
+      element.currentTime = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+    } catch {
+      // Some browser codecs reject a seek before metadata; the next clock tick retries safely.
+    }
   }
 
   createObjectUrl(value: Blob): string {

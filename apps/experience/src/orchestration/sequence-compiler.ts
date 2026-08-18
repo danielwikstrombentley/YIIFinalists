@@ -37,6 +37,7 @@ export interface SequenceCompilerOptions {
   cleanupKey?: string;
   formatRegistry?: ContentFormatRegistry;
   onInterruptionExit?: (profile: string) => void;
+  onComplete?: () => void;
   onFailure?: (error: Error) => void;
   safeComposition: CompositionSpec;
 }
@@ -159,7 +160,9 @@ class CompiledSequence implements CompiledSequencePlayback {
     this.phaseValue = 'playing';
     this.options.orchestrator.setPlaybackCallbacks({
       onComplete: () => {
-        if (this.phaseValue === 'playing') this.phaseValue = 'final-hold';
+        if (this.phaseValue !== 'playing') return;
+        this.phaseValue = 'final-hold';
+        this.options.onComplete?.();
       },
     });
 

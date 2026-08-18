@@ -1,3 +1,5 @@
+import type { ContentOption } from '@yii/content-schema';
+
 // Preload manager skeleton (T017, FR-030): "on preview — warm the previewed project's Cesium
 // target and landing assets; on landing — preload all active option media/voiceover". Real asset
 // warming needs the renderer/media adapters (PH3+); this skeleton tracks *what* should be
@@ -9,6 +11,16 @@ export type PreloadKind = 'project-landing' | 'option-media' | 'option-voiceover
 export interface PreloadTarget {
   kind: PreloadKind;
   ref: string;
+}
+
+/** One canonical target list for every active option's local media and pre-generated voiceover. */
+export function contentOptionPreloadTargets(
+  options: readonly ContentOption[],
+): readonly PreloadTarget[] {
+  return options.flatMap((option) => [
+    ...option.mediaRefs.map((asset) => ({ kind: 'option-media' as const, ref: asset.file })),
+    { kind: 'option-voiceover' as const, ref: option.voiceover.file },
+  ]);
 }
 
 export type PreloadWork<T> = (signal: AbortSignal) => Promise<T>;
