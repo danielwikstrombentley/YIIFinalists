@@ -95,7 +95,7 @@ export const experienceMachine = setup({
             'category.select': {
               target: 'preview',
               reenter: true,
-              actions: [enterCategoryPreview, activateGlobeCategoryPreview],
+              actions: [cancelOwnedHandles, enterCategoryPreview, activateGlobeCategoryPreview],
             },
           },
         },

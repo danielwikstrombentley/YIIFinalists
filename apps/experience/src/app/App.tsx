@@ -3,6 +3,7 @@ import { bootstrap, createRuntimeDependencies, type BootstrapDeps } from './boot
 import { createContentPlaybackPresentation } from '../content/playback.js';
 import { createGlobePresentation } from './globe-presentation.js';
 import { MachineProvider, useMachineActor } from './MachineProvider.js';
+import { exclusivePriorityForState } from '../input/priority-gate.js';
 import { SimulatorTransport } from '../input/transports/simulator.js';
 import {
   transitionNowMs,
@@ -54,7 +55,10 @@ function BootOrchestrator() {
   useEffect(() => {
     if (hasBooted.current) return;
     hasBooted.current = true;
-    const deps = createRuntimeDependencies({ send: (event) => actor.send(event) });
+    const deps = createRuntimeDependencies({
+      send: (event) => actor.send(event),
+      getExclusivePriority: () => exclusivePriorityForState(actor.getSnapshot().value),
+    });
     depsRef.current = deps;
     if (isE2eRun()) {
       exposeE2eBridge(actor, deps);

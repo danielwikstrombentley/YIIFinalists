@@ -198,7 +198,7 @@ describe('Priority gate (boundary rule 3)', () => {
     expect(onAccepted).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects an equal-or-lower priority action during an exclusive window', () => {
+  it('rejects a lower-priority action during an exclusive window', () => {
     const onAccepted = vi.fn();
     const onRejected = vi.fn();
     const boundary = new InputBoundary({
@@ -210,6 +210,17 @@ describe('Priority gate (boundary rule 3)', () => {
     boundary.handle(envelope({ type: 'preview.hover', payload: { direction: 'next' } }));
     expect(onAccepted).not.toHaveBeenCalled();
     expect(onRejected).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets an equal-priority action pass during an exclusive window', () => {
+    const onAccepted = vi.fn();
+    const boundary = new InputBoundary({
+      onAccepted,
+      getExclusivePriority: () => 3,
+    });
+
+    boundary.handle(envelope({ type: 'project.select', payload: {} }));
+    expect(onAccepted).toHaveBeenCalledTimes(1);
   });
 
   it('has no gating effect when no exclusive window is active', () => {
