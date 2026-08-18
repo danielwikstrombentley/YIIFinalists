@@ -100,7 +100,11 @@ test.describe('US5: operator diagnostics, simulator, and recovery', () => {
 
     await openOperatorOverlay(page);
     const overlay = page.getByTestId('operator-overlay');
-    await expect(overlay).not.toBeAttachedTo(stage);
+    expect(
+      await overlay.evaluate(
+        (element) => document.querySelector('#stage')?.contains(element) ?? false,
+      ),
+    ).toBe(false);
     await expect(stage).toHaveAttribute('data-machine-state', '"idle"');
 
     const coverage = page.getByTestId('simulator-coverage');
@@ -143,7 +147,10 @@ test.describe('US5: operator diagnostics, simulator, and recovery', () => {
     await page.getByTestId('simulator-reconnect').click();
     await expect(transport).toHaveAttribute('data-status', 'connected');
     await page.getByTestId('simulator-preview-next').click();
-    await expect(page.getByTestId('preview-metadata')).toHaveAttribute('data-project-id', 'cat-1-proj-2');
+    await expect(page.getByTestId('preview-metadata')).toHaveAttribute(
+      'data-project-id',
+      'cat-1-proj-2',
+    );
   });
 
   test('US5 scenario 3: forced media failure applies an in-composition fallback and records an operator-only failure', async ({
