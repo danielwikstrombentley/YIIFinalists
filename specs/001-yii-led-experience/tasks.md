@@ -699,8 +699,8 @@ need PH5 merged)
   - Tests: unit: activation only on exact sequence + rate limit; no public DOM leakage when closed (T049 asserts e2e).
   - Accept: QR-008 activation clarification implemented; public/operator separation total.
 
-- [ ] T052 [P] [US5] Implement the simulator UI panel (every public action + all failure injections) in apps/experience/src/operator/SimulatorPanel.tsx
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T052-simulator-ui` · PR — · Blockers —
+- [~] T052 [P] [US5] Implement the simulator UI panel (every public action + all failure injections) in apps/experience/src/operator/SimulatorPanel.tsx
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Operator-overlay panel over SimulatorTransport: category/hover/select/content/replay/back/idle/reset buttons, duplicate-burst and deliberate-repeat generators, invalid-id/unknown-type injection, rapid wheel stream, disconnect/reconnect toggle, transition-midpoint interrupt trigger; coverage checklist view showing which scenarios have been exercised.
   - Files: `apps/experience/src/operator/SimulatorPanel.tsx`
   - Deps: T014, T051
