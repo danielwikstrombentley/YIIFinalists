@@ -544,8 +544,8 @@ clean switching (spec US3).
   - Tests: this task IS the test artifact; red until T044.
   - Accept: grep-tag `US3`; SC-004/SC-005 assertions present.
 
-- [ ] T038 [P] [US3] Author failing sequence-semantics tests (opening restore, final hold, cancel cleanup, drift correction) in apps/experience/tests/orchestration/sequence.test.ts *(red-first)*
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T038-sequence-tests` · PR — · Blockers —
+- [~] T038 [P] [US3] Author failing sequence-semantics tests (opening restore, final hold, cancel cleanup, drift correction) in apps/experience/tests/orchestration/sequence.test.ts *(red-first)*
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Compiler/orchestrator tests: `openingState` fully restored on replay (visual props, camera params, media position, voiceover reset); `finalFrame` reached and held; `interruptionExit` cleanup profile applied on cancel with no residual overlays; timebase drift beyond `syncTolerance` corrected via timeline seek; sequence failure lands in safe composition.
   - Files: `apps/experience/tests/orchestration/sequence.test.ts`
   - Deps: T016
