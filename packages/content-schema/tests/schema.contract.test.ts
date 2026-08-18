@@ -7,10 +7,12 @@ import {
   editorialOptionSchema,
   hasUnverifiedMetrics,
   isApprovedForPublish,
+  KNOWN_FORMAT_IDS,
   manifestSchema,
   projectSchema,
   releaseSchema,
   submissionSchema,
+  type FormatId,
 } from '../src/index.js';
 import {
   createValidCategory,
@@ -39,6 +41,26 @@ import {
   unverifiedMetrics,
 } from './fixtures/broken.js';
 
+const EXTENDED_FORMAT_IDS: readonly FormatId[] = [
+  'timeline',
+  'process-diagram',
+  'workflow-diagram',
+  'comparison',
+  'before-after',
+  'side-by-side',
+  'image-sequence',
+  'animated-map',
+  'geographic-camera-sequence',
+  'highlight-region',
+  'model-3d',
+  'digital-twin',
+  'reality-model',
+  'construction-sequence',
+  'layer-reveal',
+  'technology-breakdown',
+  'multi-step',
+];
+
 // Executable form of contracts/content-package.md. One failing assertion per FR-036 defect class
 // (T007 Accept criterion), plus a fully valid 12x3 release + every nested project schema. This
 // suite MUST be red until T009 lands.
@@ -65,6 +87,14 @@ describe('Valid full-release fixture (12x3, Overview at position 1, ...)', () =>
   it('accepts a fully populated content option', () => {
     const result = contentOptionSchema.safeParse(createValidContentOption(1));
     expect(result.success).toBe(true);
+  });
+
+  it.each(EXTENDED_FORMAT_IDS)('accepts the reusable extended format id %s', (formatId) => {
+    const option = createValidContentOption(1);
+    option.formats = [formatId];
+
+    expect(KNOWN_FORMAT_IDS).toContain(formatId);
+    expect(contentOptionSchema.safeParse(option).success).toBe(true);
   });
 
   it('accepts a valid manifest', () => {

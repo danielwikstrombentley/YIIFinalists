@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { bootstrap, createRuntimeDependencies, type BootstrapDeps } from './bootstrap.js';
+import { createContentPlaybackPresentation } from '../content/playback.js';
 import { createGlobePresentation } from './globe-presentation.js';
 import { MachineProvider, useMachineActor } from './MachineProvider.js';
 import { SimulatorTransport } from '../input/transports/simulator.js';
@@ -62,15 +63,19 @@ function BootOrchestrator() {
       ...deps,
       onReleaseLoaded: async (release) => {
         const projects = await deps.loader.loadAllProjects();
-        actor
-          .getSnapshot()
-          .context.runtime.setGlobe(
-            createGlobePresentation(
-              projects,
-              (packageRelativePath) =>
-                `/content/releases/${release.version}/${packageRelativePath}`,
-            ),
-          );
+        const runtime = actor.getSnapshot().context.runtime;
+        const globe = createGlobePresentation(
+          projects,
+          (packageRelativePath) => `/content/releases/${release.version}/${packageRelativePath}`,
+        );
+        runtime.setGlobe(globe);
+        runtime.setContent(
+          createContentPlaybackPresentation({
+            getProject: (projectId) => globe.getProject(projectId),
+            resolveAssetUrl: globe.resolveAssetUrl,
+            send: (event) => actor.send(event),
+          }),
+        );
         categoryIdsRef.current = release.categories.map(({ id }) => id);
       },
     });

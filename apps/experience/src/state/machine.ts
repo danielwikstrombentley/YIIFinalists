@@ -19,6 +19,7 @@ import {
   retargetPreview,
   returnToPreview,
   returnToPreviewAfterHandoverFailure,
+  startContentPlayback,
   startForwardHandover,
   startReverseHandover,
 } from './actions.js';
@@ -59,8 +60,8 @@ export const experienceMachine = setup({
   // their camera-continuous reverse first, then complete the same reset.
   on: {
     'internal.releaseLoaded': { actions: [registerReleaseCategories] },
-    'operator.reset': { target: '.idle', actions: [resetToIdle] },
-    'nav.idle': { target: '.idle', actions: [resetToIdle] },
+    'operator.reset': { target: '.idle', actions: [cancelOwnedHandles, resetToIdle] },
+    'nav.idle': { target: '.idle', actions: [cancelOwnedHandles, resetToIdle] },
     'internal.adapterFailure': { target: '.recovering', actions: [enterRecovering] },
   },
   states: {
@@ -141,7 +142,7 @@ export const experienceMachine = setup({
       },
     },
     contentPlaying: {
-      exit: [cancelOwnedHandles],
+      entry: [startContentPlayback],
       on: {
         'internal.sequenceComplete': {
           target: 'contentFinalHold',
@@ -150,31 +151,39 @@ export const experienceMachine = setup({
         'content.select': {
           target: 'contentPlaying',
           reenter: true,
-          actions: [beginContentPlaying],
+          actions: [cancelOwnedHandles, beginContentPlaying],
         },
-        'nav.back': { target: 'transitionToPreview', actions: [beginTransitionToPreview] },
+        'nav.back': {
+          target: 'transitionToPreview',
+          actions: [cancelOwnedHandles, beginTransitionToPreview],
+        },
         'nav.idle': {
           target: 'transitionToPreview',
-          actions: [requestReturnToIdle, beginTransitionToPreview],
+          actions: [cancelOwnedHandles, requestReturnToIdle, beginTransitionToPreview],
         },
         'category.select': {
           target: 'transitionToPreview',
-          actions: [requestCategorySwitch, beginTransitionToPreview],
+          actions: [cancelOwnedHandles, requestCategorySwitch, beginTransitionToPreview],
         },
       },
     },
     contentFinalHold: {
-      exit: [cancelOwnedHandles],
       on: {
-        'content.select': { target: 'contentPlaying', actions: [beginContentPlaying] },
-        'nav.back': { target: 'transitionToPreview', actions: [beginTransitionToPreview] },
+        'content.select': {
+          target: 'contentPlaying',
+          actions: [cancelOwnedHandles, beginContentPlaying],
+        },
+        'nav.back': {
+          target: 'transitionToPreview',
+          actions: [cancelOwnedHandles, beginTransitionToPreview],
+        },
         'nav.idle': {
           target: 'transitionToPreview',
-          actions: [requestReturnToIdle, beginTransitionToPreview],
+          actions: [cancelOwnedHandles, requestReturnToIdle, beginTransitionToPreview],
         },
         'category.select': {
           target: 'transitionToPreview',
-          actions: [requestCategorySwitch, beginTransitionToPreview],
+          actions: [cancelOwnedHandles, requestCategorySwitch, beginTransitionToPreview],
         },
       },
     },

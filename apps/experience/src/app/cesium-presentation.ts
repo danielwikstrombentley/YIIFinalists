@@ -1,5 +1,5 @@
 import type { Project } from '@yii/content-schema';
-import { PreloadManager, type PreloadTarget } from '../content/preload.js';
+import { contentOptionPreloadTargets, PreloadManager } from '../content/preload.js';
 import { CesiumStageAdapter } from '../renderers/cesium/CesiumStageAdapter.js';
 import { CesiumPrewarmController } from '../renderers/cesium/prewarm.js';
 import { HandoverController } from '../renderers/handover/HandoverController.js';
@@ -13,13 +13,6 @@ interface KioskCesiumConfig {
 function landingAssetPaths(project: Project): string[] {
   const { boundaries = [], routes = [], regions = [] } = project.geographicFraming;
   return [...boundaries, ...routes, ...regions];
-}
-
-function optionAssetTargets(project: Project): PreloadTarget[] {
-  return project.contentOptions.flatMap((option) => [
-    ...option.mediaRefs.map((asset) => ({ kind: 'option-media' as const, ref: asset.file })),
-    { kind: 'option-voiceover' as const, ref: option.voiceover.file },
-  ]);
 }
 
 async function preloadPackageAssets(
@@ -135,7 +128,7 @@ export function createCesiumPresentation(
       });
     },
     preloadLandingOptions(project) {
-      const targets = optionAssetTargets(project);
+      const targets = contentOptionPreloadTargets(project.contentOptions);
       for (const target of targets) {
         void preloadManager
           .preload(target, (signal) =>

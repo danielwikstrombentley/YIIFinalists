@@ -532,20 +532,20 @@ opening state; clean switching; inactive positions safely ignored.
 progression, voiceover alignment, final-frame hold, deliberate replay, inactive-position safety,
 clean switching (spec US3).
 **Phase branch**: `phase/001-ph5-us3-content-playback` · **Depends on**: PH4
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/18 · Implementer model(s): agent:GPT-5.6 Terra (OpenAI) · Review model: Claude Haiku 4.5 (Anthropic) · Verdict: APPROVE (round 2, 2026-08-18)`
 
 ### Verification for US3 (red-first) ⚠️
 
-- [ ] T037 [P] [US3] Author failing E2E spec for content playback/hold/replay/switch/inactive/dedup in apps/experience/tests/e2e/us3-content-playback.spec.ts *(red-first)*
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T037-us3-e2e` · PR — · Blockers —
+- [x] T037 [P] [US3] Author failing E2E spec for content playback/hold/replay/switch/inactive/dedup in apps/experience/tests/e2e/us3-content-playback.spec.ts *(red-first)*
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: US3 scenarios 1–6: position press starts visuals+voiceover together; completion holds final frame indefinitely (no auto-return); burst re-press <1 s filtered; re-press >1 s replays from full opening state; different active position switches cleanly (no stale frames/audio); inactive position ignored with zero visible change.
   - Files: `apps/experience/tests/e2e/us3-content-playback.spec.ts`
   - Deps: T035
   - Tests: this task IS the test artifact; red until T044.
   - Accept: grep-tag `US3`; SC-004/SC-005 assertions present.
 
-- [ ] T038 [P] [US3] Author failing sequence-semantics tests (opening restore, final hold, cancel cleanup, drift correction) in apps/experience/tests/orchestration/sequence.test.ts *(red-first)*
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T038-sequence-tests` · PR — · Blockers —
+- [x] T038 [P] [US3] Author failing sequence-semantics tests (opening restore, final hold, cancel cleanup, drift correction) in apps/experience/tests/orchestration/sequence.test.ts *(red-first)*
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: Compiler/orchestrator tests: `openingState` fully restored on replay (visual props, camera params, media position, voiceover reset); `finalFrame` reached and held; `interruptionExit` cleanup profile applied on cancel with no residual overlays; timebase drift beyond `syncTolerance` corrected via timeline seek; sequence failure lands in safe composition.
   - Files: `apps/experience/tests/orchestration/sequence.test.ts`
   - Deps: T016
@@ -554,48 +554,48 @@ clean switching (spec US3).
 
 ### Implementation for US3
 
-- [ ] T039 [P] [US3] Implement media adapters VoiceoverPlayer + VideoSurface (start/stop/seek/dispose, fallbacks) in apps/experience/src/media/VoiceoverPlayer.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T039-media-adapters` · PR — · Blockers —
+- [x] T039 [P] [US3] Implement media adapters VoiceoverPlayer + VideoSurface (start/stop/seek/dispose, fallbacks) in apps/experience/src/media/VoiceoverPlayer.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: VoiceoverPlayer: local package audio, start-with-content, immediate stop/fast fade on interruption, restart-from-zero on replay, exposes clock for timebase; VideoSurface: max 1 decoding + 1 preloading (R14), poster/delayed start, declared-fallback swap on failure without blanking (FR-028); both own elements/object URLs and dispose idempotently.
   - Files: `apps/experience/src/media/{VoiceoverPlayer.ts,VideoSurface.ts}`
   - Deps: T016
   - Tests: unit: stop/dispose idempotent; failure → fallback event (no throw to public path); concurrent-video cap enforced.
   - Accept: FR-025 playback rules implemented runtime-side.
 
-- [ ] T040 [US3] Implement timebase synchronization (voiceover clock authoritative, timeline seek within tolerance, video slaving) in apps/experience/src/orchestration/timebase.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T040-timebase` · PR — · Blockers —
+- [x] T040 [US3] Implement timebase synchronization (voiceover clock authoritative, timeline seek within tolerance, video slaving) in apps/experience/src/orchestration/timebase.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: Per research R1: when narration present, sample `audio.currentTime` and correct GSAP timeline via `seek(t,false)` when drift exceeds the sequence's `syncTolerance`; timeline clock authoritative when no narration; video beats slaved by monitoring `video.currentTime`; holds after frame drops, interruption, replay, recovery.
   - Files: `apps/experience/src/orchestration/timebase.ts`
   - Deps: T039, T016
   - Tests: unit with simulated drift/frame drops: correction within tolerance; no correction thrash.
   - Accept: QR-002 sync tolerance behaviour proven in T038.
 
-- [ ] T041 [P] [US3] Implement content-format library core set in apps/experience/src/formats/registry.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T041-formats-core` · PR — · Blockers —
+- [x] T041 [P] [US3] Implement content-format library core set in apps/experience/src/formats/registry.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: Format registry + core formats: text-led composition, text+image, full-screen image, video, hero numbers, animated metrics, quote — each a data-driven composition with declared animatable properties, opening/final variants, and cleanup; built on design tokens; combinable within one option (FR-014).
   - Files: `apps/experience/src/formats/{registry.ts,core/TextLed.tsx,core/TextImage.tsx,core/FullImage.tsx,core/Video.tsx,core/HeroNumbers.tsx,core/AnimatedMetrics.tsx,core/Quote.tsx}`
   - Deps: T017, T027, T039
   - Tests: unit per format: mounts from data, exposes animation targets, unmount leaves no residue.
   - Accept: formats addressable by `FormatId` from package data; no project-specific code.
 
-- [ ] T042 [P] [US3] Implement content-format library extended set in apps/experience/src/formats/extended/Timeline.tsx
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T042-formats-extended` · PR — · Blockers —
+- [x] T042 [P] [US3] Implement content-format library extended set in apps/experience/src/formats/extended/Timeline.tsx
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: Remaining FR-014 formats: timeline, process/workflow diagram, before-after + side-by-side comparison, image sequence, animated map, geographic camera sequence (drives camera-flight adapter via orchestrator), highlighted region, 3D model/digital twin/reality model views, construction sequence, layer reveal, technology breakdown, multi-step narrative.
   - Files: `apps/experience/src/formats/extended/{Timeline.tsx,ProcessDiagram.tsx,Comparison.tsx,ImageSequence.tsx,AnimatedMap.tsx,GeoCameraSequence.tsx,HighlightRegion.tsx,Model3D.tsx,ConstructionSequence.tsx,LayerReveal.tsx,TechBreakdown.tsx,MultiStep.tsx}`
   - Deps: T041, T031
   - Tests: unit per format as T041; GeoCameraSequence asserts no camera writes during native flights.
   - Accept: full FR-014 library present; geographic formats treat (never replace) the canvas by default (FR-024).
 
-- [ ] T043 [US3] Implement the sequence compiler (ContentSequence/Beat JSON → orchestrator timeline) in apps/experience/src/orchestration/sequence-compiler.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T043-sequence-compiler` · PR — · Blockers —
+- [x] T043 [US3] Implement the sequence compiler (ContentSequence/Beat JSON → orchestrator timeline) in apps/experience/src/orchestration/sequence-compiler.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: Compile package sequence definitions (openingState, ordered beats with type/startTime/duration/target/easing token, finalFrame, interruptionExit) into GSAP timelines via timeline factories binding format components, camera moves, media adapters; capture opening snapshot for replay; register with cleanup registry.
   - Files: `apps/experience/src/orchestration/sequence-compiler.ts`
   - Deps: T041, T042, T040
   - Tests: T038 green against compiled sequences from the sample release.
   - Accept: sequences are 100% data-driven (Principle V); bespoke effects require documented exception.
 
-- [ ] T044 [US3] Wire machine states contentPlaying + contentFinalHold (replay, switch, inactive positions, landing preload) in apps/experience/src/state/machine.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T044-us3-wiring` · PR — · Blockers —
+- [x] T044 [US3] Wire machine states contentPlaying + contentFinalHold (replay, switch, inactive positions, landing preload) in apps/experience/src/state/machine.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR #18 · Blockers —
   - Do: `content.select` on valid position → interrupt current sequence+voiceover, start selected story (FR-011); auto-advance to finalHold; deliberate re-press → full replay; different active position → clean switch; inactive → ignored pre-machine (T013 validation against release data); landing entry preloads all active options' media/voiceover (FR-030 part 2); media failure → in-composition fallback; sequence failure → safe composition variant.
   - Files: `apps/experience/src/state/machine.ts`, `apps/experience/src/content/preload.ts`
   - Deps: T043, T037, T038

@@ -25,6 +25,11 @@ export class CleanupRegistry {
     handle?.();
   }
 
+  /** Releases a completed handle without invoking it again. */
+  unregister(name: string): void {
+    this.handles.delete(name);
+  }
+
   /** Idempotent: calling this repeatedly (e.g. duplicate exit) never throws or double-fires. */
   cancelAll(): void {
     const handles = [...this.handles.values()];

@@ -359,6 +359,34 @@ export const beginContentPlaying = assign<
   };
 });
 
+interface ContentPlaybackActionSelf {
+  send(event: ExperienceEvent): void;
+}
+
+/** Starts one validated option through the state-owned content runtime; React only renders it. */
+export function startContentPlayback({
+  context,
+  self,
+}: {
+  context: ExperienceContext;
+  self: ContentPlaybackActionSelf;
+}): void {
+  const content = context.runtime.content;
+  const projectId = context.selectedProjectId;
+  const position = context.activeContentPosition;
+  if (!content || !projectId || position === null) return;
+
+  const started = content.start(projectId, position, context.generation);
+  if (!started) {
+    self.send({
+      type: 'internal.adapterFailure',
+      reason: `Validated content position ${position} could not be prepared for project "${projectId}".`,
+    });
+    return;
+  }
+  context.cleanup.register('content-playback', () => content.cancel());
+}
+
 /**
  * Requests a category switch from a landed/playing state, or updates the pending target while a
  * reverse handover is already in flight — applied once that handover completes

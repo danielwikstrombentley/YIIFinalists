@@ -27,13 +27,13 @@ yarn-debug.log*
 yarn-error.log*
 
 # Environment / secrets (kiosk + pipeline config; never commit tokens)
-.env
-.env.*
+.env*
 !.env.example
 
 # Editors / OS
 .DS_Store
 Thumbs.db
+*.tmp
 *.swp
 *.swo
 .vscode/
