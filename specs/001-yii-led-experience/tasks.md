@@ -586,8 +586,8 @@ clean switching (spec US3).
   - Tests: unit per format as T041; GeoCameraSequence asserts no camera writes during native flights.
   - Accept: full FR-014 library present; geographic formats treat (never replace) the canvas by default (FR-024).
 
-- [ ] T043 [US3] Implement the sequence compiler (ContentSequence/Beat JSON → orchestrator timeline) in apps/experience/src/orchestration/sequence-compiler.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T043-sequence-compiler` · PR — · Blockers —
+- [~] T043 [US3] Implement the sequence compiler (ContentSequence/Beat JSON → orchestrator timeline) in apps/experience/src/orchestration/sequence-compiler.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Compile package sequence definitions (openingState, ordered beats with type/startTime/duration/target/easing token, finalFrame, interruptionExit) into GSAP timelines via timeline factories binding format components, camera moves, media adapters; capture opening snapshot for replay; register with cleanup registry.
   - Files: `apps/experience/src/orchestration/sequence-compiler.ts`
   - Deps: T041, T042, T040
