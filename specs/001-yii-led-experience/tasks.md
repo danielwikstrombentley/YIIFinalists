@@ -646,8 +646,8 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
   - Tests: T045 green.
   - Accept: priority order externally observable per QR-001.
 
-- [ ] T048 [P] [US4] Complete the full interruption-matrix automated evidence (every state × every action class, run twice) in apps/experience/tests/state/interruption-matrix.test.ts
-  - Meta: Phase PH6 · Feature F001 · Owner — · Branch `task/001-T048-interruption-matrix` · PR — · Blockers —
+- [~] T048 [P] [US4] Complete the full interruption-matrix automated evidence (every state × every action class, run twice) in apps/experience/tests/state/interruption-matrix.test.ts
+  - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph6-us4-return-navigation` (consolidated) · PR — · Blockers —
   - Do: Activate all remaining matrix rows from T010: every major state × {reset, idle, category, back, select, content, hover} asserting contracted destination, cleanup outcomes (no residual audio/overlays/tweens), and idempotency by executing each interruption twice; include duplicate-completion and late-completion injections.
   - Files: `apps/experience/tests/state/interruption-matrix.test.ts`
   - Deps: T047
