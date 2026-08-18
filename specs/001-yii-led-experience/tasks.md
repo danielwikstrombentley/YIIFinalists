@@ -620,7 +620,7 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
 
 ### Verification for US4 (red-first) ⚠️
 
-- [R] T045 [P] [US4] Author failing E2E spec for back/category/idle from every major state + hours-idle stability in apps/experience/tests/e2e/us4-return-navigation.spec.ts *(red-first)*
+- [x] T045 [P] [US4] Author failing E2E spec for back/category/idle from every major state + hours-idle stability in apps/experience/tests/e2e/us4-return-navigation.spec.ts *(red-first)*
   - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph6-us4-return-navigation` (consolidated) · PR #19 · Blockers —
   - Do: US4 scenarios 1–4: back during playback → voiceover/media stop, reverse transition, previous preview restored with metadata; category select from each major state (incl. both transition directions and same-category re-press) → route-through-idle + new first preview; return-to-idle from each state → 36 markers restored, loop resumes; simulated long-idle (clock skip) → state unchanged, no inactivity reset.
   - Files: `apps/experience/tests/e2e/us4-return-navigation.spec.ts`
@@ -638,7 +638,7 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
   - Tests: extend T036 with native reverse-flight, fallback, and cancellation cases; browser regressions sample the Cesium → globe idle and Cesium → new-category routes for non-blank, non-stale animation frames.
   - Accept: FR-015 complete; landing/content exits to idle or a category first use the camera-continuous inverse handover, then reveal idle or the requested first preview; reverse concealment equal to forward (SC-003 both directions).
 
-- [R] T047 [US4] Complete global priority interruption wiring + stale-event hardening across all states in apps/experience/src/state/machine.ts
+- [x] T047 [US4] Complete global priority interruption wiring + stale-event hardening across all states in apps/experience/src/state/machine.ts
   - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph6-us4-return-navigation` (consolidated) · PR #19 · Blockers —
   - Do: Ensure FR-017/FR-019 end-to-end: category/idle honoured from every state including mid-transition both directions; exclusive windows only ever reject lower-priority actions (spec Edge Cases); every async completion carries generation tokens and stale ones are discarded; repeated cancellation from any state idempotent; no inactivity timer exists anywhere (FR-016).
   - Files: `apps/experience/src/state/machine.ts`, `apps/experience/src/input/priority-gate.ts`
@@ -646,7 +646,7 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
   - Tests: T045 green.
   - Accept: priority order externally observable per QR-001.
 
-- [R] T048 [P] [US4] Complete the full interruption-matrix automated evidence (every state × every action class, run twice) in apps/experience/tests/state/interruption-matrix.test.ts
+- [x] T048 [P] [US4] Complete the full interruption-matrix automated evidence (every state × every action class, run twice) in apps/experience/tests/state/interruption-matrix.test.ts
   - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph6-us4-return-navigation` (consolidated) · PR #19 · Blockers —
   - Do: Activate all remaining matrix rows from T010: every major state × {reset, idle, category, back, select, content, hover} asserting contracted destination, cleanup outcomes (no residual audio/overlays/tweens), and idempotency by executing each interruption twice; include duplicate-completion and late-completion injections.
   - Files: `apps/experience/tests/state/interruption-matrix.test.ts`
