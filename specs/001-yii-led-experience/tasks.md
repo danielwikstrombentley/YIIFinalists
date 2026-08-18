@@ -570,8 +570,8 @@ clean switching (spec US3).
   - Tests: unit with simulated drift/frame drops: correction within tolerance; no correction thrash.
   - Accept: QR-002 sync tolerance behaviour proven in T038.
 
-- [ ] T041 [P] [US3] Implement content-format library core set in apps/experience/src/formats/registry.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T041-formats-core` · PR — · Blockers —
+- [~] T041 [P] [US3] Implement content-format library core set in apps/experience/src/formats/registry.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Format registry + core formats: text-led composition, text+image, full-screen image, video, hero numbers, animated metrics, quote — each a data-driven composition with declared animatable properties, opening/final variants, and cleanup; built on design tokens; combinable within one option (FR-014).
   - Files: `apps/experience/src/formats/{registry.ts,core/TextLed.tsx,core/TextImage.tsx,core/FullImage.tsx,core/Video.tsx,core/HeroNumbers.tsx,core/AnimatedMetrics.tsx,core/Quote.tsx}`
   - Deps: T017, T027, T039
