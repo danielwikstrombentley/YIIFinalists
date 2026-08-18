@@ -616,12 +616,12 @@ transition restores previous preview; no inactivity reset ever.
 media/voiceover stop, transitions cancel safely, correct destination, no residual effects
 (spec US4).
 **Phase branch**: `phase/001-ph6-us4-return-navigation` · **Depends on**: PH5
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: — · Implementer model(s): agent:GPT-5.6 Terra (OpenAI) · Review model: — · Verdict: —`
 
 ### Verification for US4 (red-first) ⚠️
 
-- [ ] T045 [P] [US4] Author failing E2E spec for back/category/idle from every major state + hours-idle stability in apps/experience/tests/e2e/us4-return-navigation.spec.ts *(red-first)*
-  - Meta: Phase PH6 · Feature F001 · Owner — · Branch `task/001-T045-us4-e2e` · PR — · Blockers —
+- [~] T045 [P] [US4] Author failing E2E spec for back/category/idle from every major state + hours-idle stability in apps/experience/tests/e2e/us4-return-navigation.spec.ts *(red-first)*
+  - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph6-us4-return-navigation` (consolidated) · PR — · Blockers —
   - Do: US4 scenarios 1–4: back during playback → voiceover/media stop, reverse transition, previous preview restored with metadata; category select from each major state (incl. both transition directions and same-category re-press) → route-through-idle + new first preview; return-to-idle from each state → 36 markers restored, loop resumes; simulated long-idle (clock skip) → state unchanged, no inactivity reset.
   - Files: `apps/experience/tests/e2e/us4-return-navigation.spec.ts`
   - Deps: T044
