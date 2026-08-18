@@ -715,16 +715,16 @@ need PH5 merged)
   - Tests: T049 green; unit: each ladder rung idempotent and re-runnable.
   - Accept: research R12 ladder complete; every rung operator-executable.
 
-- [ ] T054 [P] [US5] Implement TelemetryLogger (ring buffer, batched fire-and-forget, drop-oldest) + failure-injection tests in apps/experience/src/telemetry/TelemetryLogger.ts
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T054-telemetry` · PR — · Blockers —
+- [~] T054 [P] [US5] Implement TelemetryLogger (ring buffer, batched fire-and-forget, drop-oldest) + failure-injection tests in apps/experience/src/telemetry/TelemetryLogger.ts
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, delegated cost-bounded chunk) · PR — · Blockers —
   - Do: FR-038 event set per [contracts/analytics-events.md](./contracts/analytics-events.md): envelope (v, ts, sessionId boot-UUID, seq, kind, stateBefore/After, refs, latencyMs, detail); 5k ring buffer, batched non-awaited POST to sidecar, retry/backoff, drop-oldest silently, `telemetryDropped` diagnostics counter; latencyMs sampling hooks at the input boundary for SC-002 evidence; no PII.
   - Files: `apps/experience/src/telemetry/TelemetryLogger.ts`, boundary emit hooks
   - Deps: T019, T013
   - Tests: failure injection: sink down/slow/erroring → zero effect on action handling (timing-asserted); overflow drops oldest; event schema conformance.
   - Accept: logging can never block navigation/rendering/media/recovery (Principle IV).
 
-- [ ] T055 [P] [US5] Kiosk hardening: autostart, Chromium kiosk flags, watchdog relaunch, launch scripts, runbook draft in tools/kiosk/watchdog.ts
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T055-kiosk-hardening` · PR — · Blockers —
+- [~] T055 [P] [US5] Kiosk hardening: autostart, Chromium kiosk flags, watchdog relaunch, launch scripts, runbook draft in tools/kiosk/watchdog.ts
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, delegated cost-bounded chunk) · PR — · Blockers —
   - Do: Launch scripts starting sidecar + Chromium with `--kiosk --autoplay-policy=no-user-gesture-required --disable-session-crashed-bubble --noerrdialogs` (+ GPU flags placeholder for event hardware); process watchdog relaunching browser on death and serving `reloadApp` requests; OS autostart templates; first draft of `runbook.md` (startup, soft reset, renderer recovery, reload, restart, reconnect procedures).
   - Files: `tools/kiosk/{watchdog.ts,launch/start.sh,launch/autostart.md,runbook.md}`
   - Deps: T019
