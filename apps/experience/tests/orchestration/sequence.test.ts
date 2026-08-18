@@ -1,6 +1,10 @@
 import type { ContentOption } from '@yii/content-schema';
 import { describe, expect, it, vi } from 'vitest';
-import { SequenceCompiler } from '../../src/orchestration/sequence-compiler.js';
+import { CleanupRegistry } from '../../src/state/cleanup-registry.js';
+import {
+  SequenceCompiler,
+  type SequenceCompilerOptions,
+} from '../../src/orchestration/sequence-compiler.js';
 import { SequenceOrchestrator } from '../../src/orchestration/orchestrator.js';
 
 // T038 (red-first): Principle II / QR-002 contract for the compiler that T043 wires into the
@@ -84,7 +88,14 @@ function createOption(): ContentOption {
   };
 }
 
-function createFixture(options: { failVoiceoverStart?: boolean } = {}) {
+function createFixture(
+  options: {
+    failVoiceoverStart?: boolean;
+    contentOption?: ContentOption;
+    nativeCameraFlight?: SequenceCompilerOptions['nativeCameraFlight'];
+    cleanupRegistry?: CleanupRegistry;
+  } = {},
+) {
   const targets: SequenceTargets = {
     story: { opacity: 0, visible: true },
     camera: { range: 100 },
@@ -117,6 +128,8 @@ function createFixture(options: { failVoiceoverStart?: boolean } = {}) {
     resolveTarget: (targetId: string) => targets[targetId] ?? (targets[targetId] = {}),
     voiceover,
     video,
+    nativeCameraFlight: options.nativeCameraFlight,
+    cleanupRegistry: options.cleanupRegistry,
     onInterruptionExit: interruptionExit,
     onFailure: failure,
     safeComposition: {
@@ -124,7 +137,7 @@ function createFixture(options: { failVoiceoverStart?: boolean } = {}) {
       elements: [{ target: 'story', properties: { opacity: 0.6, visible: true } }],
     },
   });
-  const playback = compiler.compile(createOption());
+  const playback = compiler.compile(options.contentOption ?? createOption());
 
   return { failure, interruptionExit, orchestrator, playback, targets, video, voiceover };
 }
@@ -185,7 +198,7 @@ describe('Content sequence compiler: cancellation, failure, and synchronization'
     voiceover.currentTime = 0.7;
     playback.synchronizeTimebase();
 
-    expect(orchestrator.progress).toBeCloseTo(0.7, 1);
+    expect(orchestrator.time).toBeCloseTo(0.7, 1);
   });
 
   it('contains a sequence startup failure in the supplied safe composition and reports it to the owner', () => {
@@ -195,5 +208,46 @@ describe('Content sequence compiler: cancellation, failure, and synchronization'
     expect(playback.phase).toBe('failed');
     expect(targets.story).toMatchObject({ opacity: 0.6, visible: true });
     expect(failure).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it('routes geographic camera beats to the native-flight adapter instead of writing the camera through GSAP', () => {
+    const option = createOption();
+    option.formats = ['geographic-camera-sequence'];
+    const cancelFlight = vi.fn();
+    const nativeCameraFlight = {
+      isNativeFlightActive: false,
+      start: vi.fn(() => ({ cancel: cancelFlight })),
+    };
+    const { orchestrator, playback, targets } = createFixture({
+      contentOption: option,
+      nativeCameraFlight,
+    });
+
+    playback.play();
+    orchestrator.seek(100);
+
+    expect(nativeCameraFlight.start).toHaveBeenCalledWith({
+      targetId: 'camera',
+      durationMs: 500,
+      params: { range: 800 },
+    });
+    expect(targets.camera.range).toBe(100);
+
+    playback.cancel();
+    expect(cancelFlight).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers the active playback with the cleanup registry for state-owned cancellation', () => {
+    const cleanupRegistry = new CleanupRegistry();
+    const { playback, video, voiceover } = createFixture({ cleanupRegistry });
+
+    playback.play();
+    expect(cleanupRegistry.size).toBe(1);
+    cleanupRegistry.cancelAll();
+
+    expect(playback.phase).toBe('cancelled');
+    expect(voiceover.stop).toHaveBeenCalledTimes(1);
+    expect(video.stop).toHaveBeenCalledTimes(1);
+    expect(cleanupRegistry.size).toBe(0);
   });
 });

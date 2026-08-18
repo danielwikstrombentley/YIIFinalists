@@ -11,6 +11,12 @@ import type { Beat, CompositionSpec } from '@yii/content-schema';
 
 export type TargetResolver = (targetId: string) => object;
 
+/** Sequence-owned callbacks, scheduled on the single GSAP timeline rather than free timers. */
+export interface TimelineCallback {
+  atMs: number;
+  run(): void;
+}
+
 export function createDefaultTargetResolver(): TargetResolver {
   const targets = new Map<string, object>();
   return (targetId: string) => {
@@ -38,6 +44,7 @@ export interface BuildTimelineOptions {
   openingState: CompositionSpec;
   beats: readonly Beat[];
   finalFrame: CompositionSpec;
+  callbacks?: readonly TimelineCallback[];
   resolveTarget?: TargetResolver;
   onProgress?: (progress: number) => void;
   onComplete?: () => void;
@@ -61,6 +68,10 @@ export function buildSequenceTimeline(options: BuildTimelineOptions): gsap.core.
       { ...beat.params, duration: beat.duration / 1000, ease: beat.easing ?? 'none' },
       beat.startTime / 1000,
     );
+  }
+
+  for (const callback of options.callbacks ?? []) {
+    timeline.call(callback.run, [], callback.atMs / 1_000);
   }
 
   const finalAtSeconds = options.beats.reduce(

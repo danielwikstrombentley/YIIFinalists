@@ -1,6 +1,10 @@
 import { gsap } from 'gsap';
 import type { Beat, CompositionSpec } from '@yii/content-schema';
-import { buildSequenceTimeline, type TargetResolver } from './timeline-factory.js';
+import {
+  buildSequenceTimeline,
+  type TargetResolver,
+  type TimelineCallback,
+} from './timeline-factory.js';
 import { sharedTicker, Ticker } from './ticker.js';
 
 // SequenceOrchestrator (T016): the single motion boundary (plan.md Architecture #2). Builds
@@ -13,6 +17,12 @@ export interface PlayableSequence {
   openingState: CompositionSpec;
   beats: readonly Beat[];
   finalFrame: CompositionSpec;
+  callbacks?: readonly TimelineCallback[];
+}
+
+export interface SequencePlaybackCallbacks {
+  onProgress?: (progress: number) => void;
+  onComplete?: () => void;
 }
 
 export interface SequenceOrchestratorOptions {
@@ -27,6 +37,7 @@ export class SequenceOrchestrator {
   private gsapContext: ReturnType<typeof gsap.context> | null = null;
   private timeline: gsap.core.Timeline | null = null;
   private currentSequence: PlayableSequence | null = null;
+  private playbackCallbacks: SequencePlaybackCallbacks = {};
 
   constructor(options: SequenceOrchestratorOptions = {}, ticker: Ticker = sharedTicker) {
     this.options = options;
@@ -41,9 +52,16 @@ export class SequenceOrchestrator {
         openingState: sequence.openingState,
         beats: sequence.beats,
         finalFrame: sequence.finalFrame,
+        callbacks: sequence.callbacks,
         resolveTarget: this.options.resolveTarget,
-        onProgress: this.options.onProgress,
-        onComplete: this.options.onComplete,
+        onProgress: (progress) => {
+          this.options.onProgress?.(progress);
+          this.playbackCallbacks.onProgress?.(progress);
+        },
+        onComplete: () => {
+          this.options.onComplete?.();
+          this.playbackCallbacks.onComplete?.();
+        },
       });
       this.timeline.play(0);
     });
@@ -84,6 +102,16 @@ export class SequenceOrchestrator {
     // onComplete still report to the listener when the app (or a test) drives the timeline via
     // seek rather than waiting on real ticker-driven playback.
     this.timeline?.seek(timeMs / 1000, false);
+  }
+
+  /** Allows the compiler to observe one active sequence without owning machine transitions. */
+  setPlaybackCallbacks(callbacks: SequencePlaybackCallbacks): void {
+    this.playbackCallbacks = callbacks;
+  }
+
+  /** Current GSAP time in seconds for the TimebaseSynchronizer boundary. */
+  get time(): number {
+    return this.timeline?.time() ?? 0;
   }
 
   get progress(): number {
