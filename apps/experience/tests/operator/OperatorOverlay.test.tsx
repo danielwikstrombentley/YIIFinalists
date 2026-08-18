@@ -1,6 +1,7 @@
 import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DiagnosticsStore } from '../../src/operator/DiagnosticsStore.js';
+import { SimulatorTransport } from '../../src/input/transports/simulator.js';
 import { OperatorOverlay } from '../../src/operator/OperatorOverlay.js';
 
 describe('OperatorOverlay', () => {
@@ -9,11 +10,13 @@ describe('OperatorOverlay', () => {
     diagnostics.updateMachine({ statePath: 'contentPlaying' });
     const { container } = render(
       <OperatorOverlay
+        categoryId="cat-1"
         diagnostics={diagnostics}
         onClose={vi.fn()}
         onCommand={vi.fn()}
         onReset={vi.fn()}
         open={false}
+        simulator={new SimulatorTransport()}
       />,
     );
 
@@ -28,11 +31,13 @@ describe('OperatorOverlay', () => {
     const onReset = vi.fn();
     const { getByTestId, getByText } = render(
       <OperatorOverlay
+        categoryId="cat-1"
         diagnostics={diagnostics}
         onClose={onClose}
         onCommand={onCommand}
         onReset={onReset}
         open
+        simulator={new SimulatorTransport()}
       />,
     );
 

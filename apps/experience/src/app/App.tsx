@@ -62,9 +62,14 @@ function machineStatePath(value: unknown): string {
 interface BootOrchestratorProps {
   onDependenciesReady(dependencies: RuntimeDependencies): void;
   onOperatorActivated(): void;
+  onCategoryIdsLoaded(categoryIds: readonly string[]): void;
 }
 
-function BootOrchestrator({ onDependenciesReady, onOperatorActivated }: BootOrchestratorProps) {
+function BootOrchestrator({
+  onDependenciesReady,
+  onOperatorActivated,
+  onCategoryIdsLoaded,
+}: BootOrchestratorProps) {
   const actor = useMachineActor();
   const hasBooted = useRef(false);
   const depsRef = useRef<RuntimeDependencies | null>(null);
@@ -103,6 +108,7 @@ function BootOrchestrator({ onDependenciesReady, onOperatorActivated }: BootOrch
           }),
         );
         categoryIdsRef.current = release.categories.map(({ id }) => id);
+        onCategoryIdsLoaded(categoryIdsRef.current);
         deps.diagnostics.setRelease({
           version: release.version,
           contentHash: release.manifest.contentHash,
@@ -258,6 +264,7 @@ function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: Bootst
 function ExperienceShell() {
   const [dependencies, setDependencies] = useState<RuntimeDependencies | null>(null);
   const [operatorOpen, setOperatorOpen] = useState(false);
+  const [categoryIds, setCategoryIds] = useState<readonly string[]>([]);
   const simulator = dependencies?.transports.find(
     (transport): transport is SimulatorTransport => transport instanceof SimulatorTransport,
   );
@@ -270,6 +277,7 @@ function ExperienceShell() {
   return (
     <>
       <BootOrchestrator
+        onCategoryIdsLoaded={setCategoryIds}
         onDependenciesReady={setDependencies}
         onOperatorActivated={() => setOperatorOpen(true)}
       />
@@ -277,6 +285,7 @@ function ExperienceShell() {
       <div id="operator-overlay-mount" style={{ display: operatorOpen ? 'block' : 'none' }}>
         {dependencies && simulator ? (
           <OperatorOverlay
+            categoryId={categoryIds[0] ?? null}
             diagnostics={dependencies.diagnostics}
             onClose={closeOperatorOverlay}
             onCommand={(command, params) => {
@@ -288,6 +297,7 @@ function ExperienceShell() {
             }}
             onReset={() => simulator.injectAction('operator.reset', {}, { source: 'operator' })}
             open={operatorOpen}
+            simulator={simulator}
           />
         ) : null}
       </div>

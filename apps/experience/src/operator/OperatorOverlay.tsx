@@ -1,10 +1,14 @@
 import { useSyncExternalStore } from 'react';
+import { SimulatorTransport } from '../input/transports/simulator.js';
 import type { DiagnosticsSnapshot } from './DiagnosticsStore.js';
 import { DiagnosticsStore } from './DiagnosticsStore.js';
+import { SimulatorPanel } from './SimulatorPanel.js';
 
 export interface OperatorOverlayProps {
   open: boolean;
   diagnostics: DiagnosticsStore;
+  simulator: SimulatorTransport;
+  categoryId: string | null;
   onClose(): void;
   onReset(): void;
   onCommand(command: string, params?: unknown): void;
@@ -74,6 +78,8 @@ function TransportStatus({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
 export function OperatorOverlay({
   open,
   diagnostics,
+  simulator,
+  categoryId,
   onClose,
   onReset,
   onCommand,
@@ -219,6 +225,8 @@ export function OperatorOverlay({
             </button>
           </div>
         </section>
+
+        <SimulatorPanel categoryId={categoryId} simulator={simulator} />
       </div>
     </aside>
   );
