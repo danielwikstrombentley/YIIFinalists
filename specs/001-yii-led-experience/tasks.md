@@ -683,8 +683,8 @@ need PH5 merged)
 
 ### Implementation for US5
 
-- [ ] T050 [P] [US5] Implement DiagnosticsStore read model (full QR-008 field set) in apps/experience/src/operator/DiagnosticsStore.ts
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T050-diagnostics-store` · PR — · Blockers —
+- [~] T050 [P] [US5] Implement DiagnosticsStore read model (full QR-008 field set) in apps/experience/src/operator/DiagnosticsStore.ts
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Push-based store fed by machine, input boundary, orchestrator, renderer adapters, media adapters, content loader, telemetry: state path, active category/preview/selection/content, sequence progress, voiceover/video status, per-transport connection (status/lastMessageAt/lastAction/dedup drops), renderer statuses + last handover duration, fps/frame-time p95/heap trend/ticker count, asset-failure ring, release version+contentHash, last errors. Read-only; subscribing never mutates experience state.
   - Files: `apps/experience/src/operator/DiagnosticsStore.ts`
   - Deps: T011, T013, T016 (feeds extend as later phases merge)
