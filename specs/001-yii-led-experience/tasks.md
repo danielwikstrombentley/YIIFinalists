@@ -673,8 +673,8 @@ need PH5 merged)
 
 ### Verification for US5 (red-first) ⚠️
 
-- [ ] T049 [P] [US5] Author failing E2E spec for operator journeys (simulator coverage, disconnect/reconnect, media failure, renderer recovery, public purity) in apps/experience/tests/e2e/us5-operator.spec.ts *(red-first)*
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T049-us5-e2e` · PR — · Blockers — (needs PH5 merged)
+- [~] T049 [P] [US5] Author failing E2E spec for operator journeys (simulator coverage, disconnect/reconnect, media failure, renderer recovery, public purity) in apps/experience/tests/e2e/us5-operator.spec.ts *(red-first)*
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: US5 scenarios 1–4: every public action + operator reset + failure scenarios drivable via simulator; disconnect → diagnostics show status/last message/last action while presentation continues, reconnect resumes handling; forced media failure → in-composition fallback + operator-visible log; renderer recovery → known visual state; assert zero technical text/diagnostics on public surface throughout (SC-010).
   - Files: `apps/experience/tests/e2e/us5-operator.spec.ts`
   - Deps: T044, T014
