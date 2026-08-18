@@ -9,8 +9,8 @@ import { voiceoverAssetSchema } from './voiceover.js';
 
 /**
  * Reusable content-format library ids (FR-014). The core runtime library lands in PH5/T041;
- * PH6/T042 extends it with geographic and specialised narrative compositions. Legacy ids remain
- * valid aliases so existing approved package fixtures retain compatibility.
+ * T042 extends it with geographic and specialised narrative compositions. Legacy ids remain valid
+ * aliases so existing approved package fixtures retain compatibility.
  */
 export const KNOWN_FORMAT_IDS = [
   'overview-hero',
@@ -25,6 +25,23 @@ export const KNOWN_FORMAT_IDS = [
   'hero-numbers',
   'animated-metrics',
   'quote',
+  'timeline',
+  'process-diagram',
+  'workflow-diagram',
+  'comparison',
+  'before-after',
+  'side-by-side',
+  'image-sequence',
+  'animated-map',
+  'geographic-camera-sequence',
+  'highlight-region',
+  'model-3d',
+  'digital-twin',
+  'reality-model',
+  'construction-sequence',
+  'layer-reveal',
+  'technology-breakdown',
+  'multi-step',
 ] as const;
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number];
 
