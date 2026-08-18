@@ -594,8 +594,8 @@ clean switching (spec US3).
   - Tests: T038 green against compiled sequences from the sample release.
   - Accept: sequences are 100% data-driven (Principle V); bespoke effects require documented exception.
 
-- [ ] T044 [US3] Wire machine states contentPlaying + contentFinalHold (replay, switch, inactive positions, landing preload) in apps/experience/src/state/machine.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T044-us3-wiring` · PR — · Blockers —
+- [~] T044 [US3] Wire machine states contentPlaying + contentFinalHold (replay, switch, inactive positions, landing preload) in apps/experience/src/state/machine.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: `content.select` on valid position → interrupt current sequence+voiceover, start selected story (FR-011); auto-advance to finalHold; deliberate re-press → full replay; different active position → clean switch; inactive → ignored pre-machine (T013 validation against release data); landing entry preloads all active options' media/voiceover (FR-030 part 2); media failure → in-composition fallback; sequence failure → safe composition variant.
   - Files: `apps/experience/src/state/machine.ts`, `apps/experience/src/content/preload.ts`
   - Deps: T043, T037, T038
