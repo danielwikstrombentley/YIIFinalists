@@ -630,13 +630,13 @@ media/voiceover stop, transitions cancel safely, correct destination, no residua
 
 ### Implementation for US4
 
-- [ ] T046 [US4] Implement reverse handover (transitionToPreview) restoring the previously previewed project in apps/experience/src/renderers/handover/HandoverController.ts
-  - Meta: Phase PH6 · Feature F001 · Owner — · Branch `task/001-T046-reverse-handover` · PR — · Blockers —
-  - Do: Mirror choreography of the forward path (same transition language — FR-008): Cesium → cover → globe with previous preview framing restored; failure destination snaps to `categoryActive.preview` per data-model; machine wiring for `nav.back` from landing/content states through `transitionToPreview`.
-  - Files: `apps/experience/src/renderers/handover/HandoverController.ts`, `apps/experience/src/state/machine.ts`
-  - Deps: T033, T044
-  - Tests: extend T036 with reverse-path cases (readiness, watchdog, cancel).
-  - Accept: FR-015 complete; reverse concealment equal to forward (SC-003 both directions).
+- [~] T046 [US4] Implement reverse handover (transitionToPreview) restoring the previously previewed project in apps/experience/src/renderers/handover/HandoverController.ts
+  - Meta: Phase PH6 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T046-reverse-handover` · PR — · Blockers —
+  - Do: Mirror choreography of the forward path (same transition language — FR-008): Cesium → cover → globe with previous preview framing restored; failure destination snaps to `categoryActive.preview` per data-model; machine wiring for `nav.back` from landing/content states through `transitionToPreview`. User-directed early implementation covers the live `projectLanding` return-to-idle/category paths now; T044's later content states must reuse this same route.
+  - Files: `apps/experience/src/renderers/{handover/HandoverController.ts,cesium/{camera-flight.ts,CesiumStageAdapter.ts},globe/{camera-rig.ts,GlobeRendererAdapter.ts}`, `apps/experience/src/{app/cesium-presentation.ts,state/{actions.ts,machine.ts,types.ts}}`, `apps/experience/tests/{renderers/{camera-flight.test.ts,cesium-stage-adapter.test.ts,handover.test.ts,handover-flight.test.ts},state/{handover-wiring.test.ts,legality.test.ts},e2e/us2-confirm-handover.spec.ts}`
+  - Deps: T033 (the reusable reverse renderer path is implemented before T044; T044 must route its content states through it)
+  - Tests: extend T036 with native reverse-flight, fallback, and cancellation cases; browser regressions sample the Cesium → globe idle and Cesium → new-category routes for non-blank, non-stale animation frames.
+  - Accept: FR-015 complete; landing/content exits to idle or a category first use the camera-continuous inverse handover, then reveal idle or the requested first preview; reverse concealment equal to forward (SC-003 both directions).
 
 - [ ] T047 [US4] Complete global priority interruption wiring + stale-event hardening across all states in apps/experience/src/state/machine.ts
   - Meta: Phase PH6 · Feature F001 · Owner — · Branch `task/001-T047-priority-wiring` · PR — · Blockers —
@@ -1029,6 +1029,14 @@ plan-recorded N/A rationale — currently none).
   - Deps: T031, T032, T033, T035, T081, T082
   - Tests: pure pose/FOV/range/projection mapping; integration readiness only after tile-ready + post-render; deterministic Cesium→Three update/render order; no normal-path full-cover hold; cancellation at every beat; repeated-cycle cleanup; E2E no-black plus target-projection/camera-continuity probes; live photorealistic hard-reload review with no console/page/shader errors.
   - Accept: press `1` then `3` reads as one continuous zoom into the selected world location; renderer crossover stays within the document's target/FOV/scale tolerances and has no visible pause or jump; Cesium is meaningfully rendered before exposure; higher-priority interruption restores the exact preview; fallback remains bounded and non-blank; one shared ticker and one Cesium camera writer are preserved; the human explicitly accepts the final visual pass and the document contains the complete experiment history.
+
+- [~] T084 Restore the rig-owned globe camera after a completed Cesium handover before returning to idle
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T084-restore-globe-camera-after-handover` · PR — · Blockers —
+  - Do: Prevent the direct Three-camera pose applied during T083's Cesium-flight mirroring from persisting when the machine re-enters idle. Reassert the camera rig's currently owned orbit before its normal idle-return motion, preserving smooth ordinary preview exits while preventing a near-surface Cesium pose from exposing an enlarged or shifted globe frame.
+  - Files: `apps/experience/src/renderers/globe/camera-rig.ts`, `apps/experience/tests/renderers/globe-camera-rig.test.ts`
+  - Deps: T083
+  - Tests: unit regression mutates the controlled Three camera to an external handover pose, invokes the idle return, and proves the rig immediately resumes its owned orbit before settling at the default idle orbit.
+  - Accept: project → idle never displays the externally mirrored Cesium camera pose; the idle globe returns to its intended full-globe composition and existing preview-to-idle motion remains intact.
 
 ---
 

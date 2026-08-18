@@ -100,6 +100,9 @@ export class GlobeCameraRig {
   readonly focusPoint = new Vector3();
 
   private readonly motionDriver: RetargetMotionDriver;
+  private readonly ownedCameraFov: number;
+  private readonly ownedCameraUp = new Vector3();
+  private ownedCameraAspect: number;
   private readonly parameters: OrbitParameters = { ...DEFAULT_IDLE_ORBIT_PARAMETERS };
   private activeMotion: CancellableMotion | null = null;
   private activeGeneration: number | null = null;
@@ -110,6 +113,9 @@ export class GlobeCameraRig {
   constructor(options: GlobeCameraRigOptions = {}) {
     this.camera = options.camera ?? new PerspectiveCamera(42, 16 / 9, 0.1, 100);
     this.motionDriver = options.motionDriver ?? gsapRetargetMotionDriver;
+    this.ownedCameraFov = this.camera.fov;
+    this.ownedCameraUp.copy(this.camera.up);
+    this.ownedCameraAspect = this.camera.aspect;
     this.syncCamera();
   }
 
@@ -120,6 +126,7 @@ export class GlobeCameraRig {
     if (this.disposed) return { cancel: () => {} };
 
     this.cancelActiveMotion();
+    this.syncCamera();
     const generation = ++this.generation;
     const destination = destinationFor(project, this.parameters);
     let settled = false;
@@ -168,6 +175,10 @@ export class GlobeCameraRig {
     if (this.disposed) return { cancel: () => {} };
 
     this.cancelActiveMotion();
+    // The handover temporarily writes an ECEF pose directly to this Three camera. Reassert the
+    // rig-owned preview pose before scheduling the idle tween so the near-surface handover frame
+    // cannot remain visible until GSAP's next update.
+    this.syncCamera();
     const generation = ++this.generation;
     const destination = { ...DEFAULT_IDLE_ORBIT_PARAMETERS };
     if (matchesOrbit(this.parameters, destination)) {
@@ -216,8 +227,15 @@ export class GlobeCameraRig {
 
   resize(width: number, height: number): void {
     if (this.disposed || width <= 0 || height <= 0) return;
-    this.camera.aspect = width / height;
+    this.ownedCameraAspect = width / height;
+    this.camera.aspect = this.ownedCameraAspect;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Reasserts the rig-owned orbit after an external handover temporarily controls the camera. */
+  restoreControlledCamera(): void {
+    if (this.disposed) return;
+    this.syncCamera();
   }
 
   dispose(): void {
@@ -245,6 +263,11 @@ export class GlobeCameraRig {
   }
 
   private syncCamera(): void {
+    const projectionChanged =
+      this.camera.fov !== this.ownedCameraFov || this.camera.aspect !== this.ownedCameraAspect;
+    this.camera.fov = this.ownedCameraFov;
+    this.camera.aspect = this.ownedCameraAspect;
+    this.camera.up.copy(this.ownedCameraUp);
     this.focusPoint.set(this.parameters.focusX, this.parameters.focusY, this.parameters.focusZ);
     const horizontalDistance = this.parameters.distance * Math.cos(this.parameters.elevation);
     this.camera.position.set(
@@ -253,6 +276,7 @@ export class GlobeCameraRig {
       this.focusPoint.z + horizontalDistance * Math.sin(this.parameters.azimuth),
     );
     this.camera.lookAt(this.focusPoint);
+    if (projectionChanged) this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
   }
 }

@@ -445,9 +445,23 @@ export class CesiumStageAdapter {
     return Cartesian3.distance(new Cartesian3(position.x, position.y, position.z), target);
   }
 
+  /** Calculates the selected target range for a renderer-neutral source/destination camera pose. */
+  targetRangeForPose(pose: GeographicCameraPose, project: CesiumStageProject): number | null {
+    if (this.disposed) return null;
+    const { destination } = project.geographicFraming.landingCamera;
+    const target = Cartesian3.fromDegrees(destination.lon, destination.lat, destination.height);
+    return Cartesian3.distance(new Cartesian3(...pose.positionEcef), target);
+  }
+
   startLandingFlight(project: CesiumStageProject, durationMs: number): CameraFlightHandle | null {
     if (this.disposed || this.activeProject?.id !== project.id || !this.cameraFlight) return null;
     return this.cameraFlight.flyToFraming(project.geographicFraming, durationMs / 1_000);
+  }
+
+  /** Runs the inverse native flight back to the globe pose captured before project entry. */
+  startGeographicFlight(pose: GeographicCameraPose, durationMs: number): CameraFlightHandle | null {
+    if (this.disposed || !this.activeProject || !this.cameraFlight) return null;
+    return this.cameraFlight.flyToGeographicPose(pose, durationMs / 1_000);
   }
 
   beginExternalFrameControl(): CesiumExternalFrameControl {

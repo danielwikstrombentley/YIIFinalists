@@ -1,7 +1,10 @@
 import { Cartesian3 } from 'cesium';
 import type { CameraPose } from '@yii/content-schema';
 import { MOTION_DURATIONS_MS } from '../../orchestration/motion-tokens.js';
-import { landingPoseFromCameraPose } from '../handover/geographic-camera-pose.js';
+import {
+  landingPoseFromCameraPose,
+  type GeographicCameraPose,
+} from '../handover/geographic-camera-pose.js';
 
 export interface NativeCameraOrientation {
   heading?: number;
@@ -67,6 +70,17 @@ export function mapCameraPoseToCesium(pose: CameraPose): NativeCameraPose {
   };
 }
 
+/** Renderer-neutral ECEF pose → one explicit native Cesium camera destination/orientation. */
+export function mapGeographicPoseToCesium(pose: GeographicCameraPose): NativeCameraPose {
+  return {
+    destination: new Cartesian3(...pose.positionEcef),
+    orientation: {
+      direction: new Cartesian3(...pose.directionEcef),
+      up: new Cartesian3(...pose.upEcef),
+    },
+  };
+}
+
 /**
  * Sole native-camera writer for the Cesium stage. Its explicit guard is used by handover and
  * geographic-format code before any GSAP mutation, making a concurrent native/GSAP camera write
@@ -102,10 +116,25 @@ export class CesiumCameraFlightAdapter {
     framing: Pick<{ landingCamera: CameraPose }, 'landingCamera'>,
     durationSeconds = this.defaultDurationSeconds,
   ): CameraFlightHandle {
+    return this.flyToNativePose(this.poseMapper(framing.landingCamera), durationSeconds);
+  }
+
+  /** Reverses a handover to the exact previously captured Three.js globe-preview pose. */
+  flyToGeographicPose(
+    pose: GeographicCameraPose,
+    durationSeconds = this.defaultDurationSeconds,
+  ): CameraFlightHandle {
+    return this.flyToNativePose(mapGeographicPoseToCesium(pose), durationSeconds);
+  }
+
+  dispose(): void {
+    this.cancelActiveFlight();
+  }
+
+  private flyToNativePose(pose: NativeCameraPose, durationSeconds: number): CameraFlightHandle {
     // Native camera flights are also singular: a newer request structurally cancels the old one.
     this.cancelActiveFlight();
 
-    const pose = this.poseMapper(framing.landingCamera);
     let resolve!: (result: CameraFlightResult) => void;
     const finished = new Promise<CameraFlightResult>((resolveFlight) => {
       resolve = resolveFlight;
@@ -146,10 +175,6 @@ export class CesiumCameraFlightAdapter {
         }
       },
     };
-  }
-
-  dispose(): void {
-    this.cancelActiveFlight();
   }
 
   private cancelActiveFlight(): void {

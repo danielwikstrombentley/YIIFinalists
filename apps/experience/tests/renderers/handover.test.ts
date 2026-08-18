@@ -140,7 +140,9 @@ interface HandoverHarness {
     captureGeographicPose: ReturnType<typeof vi.fn>;
     captureTargetProjection: ReturnType<typeof vi.fn>;
     captureTargetRange: ReturnType<typeof vi.fn>;
+    targetRangeForPose: ReturnType<typeof vi.fn>;
     startLandingFlight: ReturnType<typeof vi.fn>;
+    startGeographicFlight: ReturnType<typeof vi.fn>;
     beginExternalFrameControl: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
   };
@@ -157,6 +159,7 @@ function createHarness(
     fallbackOperation?: CesiumStageOperation;
     maxCoverDurationMs?: number;
     flights?: readonly Promise<{ status: 'completed' | 'cancelled' | 'failed' }>[];
+    reverseFlights?: readonly Promise<{ status: 'completed' | 'cancelled' | 'failed' }>[];
   } = {},
 ): HandoverHarness {
   const stage = document.createElement('div');
@@ -170,6 +173,9 @@ function createHarness(
   const preparedOperations = [...(options.preparedOperations ?? [readyStageOperation()])];
   const fallbackOperation = options.fallbackOperation ?? readyStageOperation(true);
   const flights = [...(options.flights ?? [Promise.resolve({ status: 'completed' as const })])];
+  const reverseFlights = [
+    ...(options.reverseFlights ?? [Promise.resolve({ status: 'completed' as const })]),
+  ];
   const frameControl = () => ({ render: vi.fn(), release: vi.fn() });
   let targetRangeProbe = 0;
 
@@ -195,8 +201,13 @@ function createHarness(
     captureTargetRange: vi.fn(() =>
       targetRangeProbe++ % 2 === 0 ? 1_000_000 : FRAMING.landingCamera.range,
     ),
+    targetRangeForPose: vi.fn(() => 2_000_000),
     startLandingFlight: vi.fn(() => ({
       finished: flights.shift() ?? Promise.resolve({ status: 'completed' as const }),
+      cancel: vi.fn(),
+    })),
+    startGeographicFlight: vi.fn(() => ({
+      finished: reverseFlights.shift() ?? Promise.resolve({ status: 'completed' as const }),
       cancel: vi.fn(),
     })),
     beginExternalFrameControl: vi.fn(frameControl),
@@ -426,6 +437,52 @@ describe('HandoverController', () => {
     expect(harness.ticker.rendererCount).toBe(0);
     harness.controller.dispose();
     expect(harness.stage.querySelector('[data-testid="handover-controller"]')).toBeNull();
+    harness.ticker.stop();
+  });
+
+  it('cancels a reverse native flight without retaining Cesium or external-frame ownership', async () => {
+    const reverseFlight = deferred<{ status: 'completed' | 'cancelled' | 'failed' }>();
+    const harness = createHarness({ reverseFlights: [reverseFlight.promise] });
+    await expect(completeForwardHandover(harness)).resolves.toMatchObject({ status: 'completed' });
+
+    const reverse = harness.controller.startReverse(PROJECT);
+    await flushAsyncWork();
+    expect(harness.cesium.startGeographicFlight).toHaveBeenCalledWith(SOURCE_POSE, 4_200);
+    expect(harness.controller.transitionProbe.ownership).toBe('overlap');
+
+    harness.controller.cancel();
+    await expect(reverse.completion).resolves.toMatchObject({ status: 'cancelled' });
+    const reverseFlightHandle = harness.cesium.startGeographicFlight.mock.results[0]?.value as
+      { cancel: ReturnType<typeof vi.fn> } | undefined;
+    expect(reverseFlightHandle?.cancel).toHaveBeenCalledTimes(1);
+    expect(harness.cesium.deactivate).toHaveBeenCalled();
+    expect(harness.globe.restorePreview).toHaveBeenCalled();
+    expect(harness.ticker.rendererCount).toBe(0);
+    harness.controller.dispose();
+    harness.ticker.stop();
+  });
+
+  it('uses a bounded covered reveal when a native reverse flight is unavailable', async () => {
+    const harness = createHarness();
+    await expect(completeForwardHandover(harness)).resolves.toMatchObject({ status: 'completed' });
+    Reflect.deleteProperty(harness.cesium, 'startGeographicFlight');
+
+    const reverse = harness.controller.startReverse(PROJECT);
+    const fallbackTimeline = harness.timelines.at(-1);
+    if (!fallbackTimeline) throw new Error('Expected a covered reverse fallback timeline.');
+    fallbackTimeline.runAllBeats();
+
+    await expect(reverse.completion).resolves.toMatchObject({
+      status: 'fallback',
+      reason: 'reverse native flight range is unavailable',
+    });
+    expect(harness.globe.restorePreview).toHaveBeenCalled();
+    expect(harness.cesium.deactivate).toHaveBeenCalled();
+    expect(harness.controller.transitionProbe).toMatchObject({
+      status: 'settled',
+      ownership: 'globe',
+    });
+    harness.controller.dispose();
     harness.ticker.stop();
   });
 });

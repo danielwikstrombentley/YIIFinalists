@@ -132,4 +132,36 @@ describe('GlobeCameraRig', () => {
     expect(rig.orbit).toEqual(DEFAULT_IDLE_ORBIT_PARAMETERS);
     expect(rig.isPreviewInFlight).toBe(false);
   });
+
+  it('immediately restores its controlled orbit after an external handover pose before idle motion', () => {
+    const driver = new ControlledMotionDriver();
+    const rig = new GlobeCameraRig({ motionDriver: driver });
+
+    rig.previewProject(PROJECT_A);
+    driver.finish(0);
+    const previewCameraPosition = rig.camera.position.clone();
+    const previewCameraFov = rig.camera.fov;
+    const previewCameraAspect = rig.camera.aspect;
+    const previewCameraUp = rig.camera.up.clone();
+
+    // The handover mirrors Cesium directly into the Three camera while retaining the rig's
+    // preview parameters. Returning to idle must not leave that near-surface external pose visible
+    // until the next GSAP update.
+    rig.camera.position.set(2, -1, 0.5);
+    rig.camera.fov = 30;
+    rig.camera.aspect = 0.8;
+    rig.camera.up.set(0, 0, 1);
+    rig.camera.lookAt(0, 0, 0);
+    rig.camera.updateProjectionMatrix();
+    rig.camera.updateMatrixWorld();
+
+    rig.returnToIdle();
+
+    expect(rig.camera.position.distanceTo(previewCameraPosition)).toBeLessThan(0.000_001);
+    expect(rig.camera.fov).toBe(previewCameraFov);
+    expect(rig.camera.aspect).toBe(previewCameraAspect);
+    expect(rig.camera.up.distanceTo(previewCameraUp)).toBeLessThan(0.000_001);
+    driver.finish(1);
+    expect(rig.orbit).toEqual(DEFAULT_IDLE_ORBIT_PARAMETERS);
+  });
 });

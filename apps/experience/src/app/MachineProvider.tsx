@@ -1,5 +1,4 @@
 import {
-  createContext,
   useContext,
   useEffect,
   useMemo,
@@ -8,18 +7,16 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { createActor, type ActorRefFrom, type SnapshotFrom } from 'xstate';
+import { createActor, type SnapshotFrom } from 'xstate';
 import { experienceMachine } from '../state/machine.js';
+import { MachineContext, type ExperienceActor } from './MachineContext.js';
 
 // Machine provider (T020): the XState actor is the sole navigation authority (Principle I).
 // React components only ever read snapshots and send events — they never own navigation state.
 // Uses `useSyncExternalStore` rather than `@xstate/react` to avoid an extra dependency for what
 // is, at this shape, a very small subscription need.
 
-type ExperienceActor = ActorRefFrom<typeof experienceMachine>;
 export type ExperienceSnapshot = SnapshotFrom<typeof experienceMachine>;
-
-const MachineContext = createContext<ExperienceActor | null>(null);
 
 export interface MachineProviderProps {
   children: ReactNode;
