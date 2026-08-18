@@ -691,8 +691,8 @@ need PH5 merged)
   - Tests: unit: every field group populated from simulated feeds; store updates allocation-light.
   - Accept: field set matches [contracts/operator-diagnostics.md](./contracts/operator-diagnostics.md) table exactly.
 
-- [ ] T051 [US5] Implement the hidden operator overlay with concealed activation in apps/experience/src/operator/OperatorOverlay.tsx
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T051-operator-overlay` · PR — · Blockers —
+- [~] T051 [US5] Implement the hidden operator overlay with concealed activation in apps/experience/src/operator/OperatorOverlay.tsx
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Concealed activation sequence evaluated inside the input boundary (config-driven from kiosk config, rate-limited, never rendered/hinted publicly); overlay in separate DOM layer above the stage; renders DiagnosticsSnapshot groups + recovery/simulation controls; closing restores untouched public presentation; operator commands emitted through the semantic input boundary at operator priority (no side channel).
   - Files: `apps/experience/src/operator/{OperatorOverlay.tsx,activation.ts}`, `apps/experience/src/input/boundary.ts` (activation hook)
   - Deps: T050, T014
