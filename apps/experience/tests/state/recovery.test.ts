@@ -127,4 +127,15 @@ describe('recovery ladder', () => {
     expect(forceMediaFailure).toHaveBeenCalledOnce();
     actor.stop();
   });
+
+  it('keeps an adapter failure in recovering until an explicit recovery completion arrives', () => {
+    const actor = createActor(experienceMachine).start();
+    actor.send({ type: 'internal.adapterFailure', reason: 'renderer unavailable' });
+    const generation = actor.getSnapshot().context.generation;
+
+    expect(actor.getSnapshot().value).toBe('recovering');
+    actor.send({ type: 'internal.recovered', generation });
+    expect(actor.getSnapshot().value).toBe('idle');
+    actor.stop();
+  });
 });

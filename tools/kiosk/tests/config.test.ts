@@ -46,6 +46,7 @@ describe('kiosk local environment configuration', () => {
       ionGoogleTilesAssetId: 'not-an-ion-asset-id',
       operatorActivationSequence: [{ type: 'nav.back', payload: {} }],
       operatorActivationRateLimitMs: 1_000,
+      operatorActivationSources: ['operator'],
     };
 
     expect(getKioskCesiumConfigurationWarning(config)).toMatch(
@@ -60,6 +61,7 @@ describe('kiosk local environment configuration', () => {
         { type: 'nav.back', payload: {} },
       ]),
       YII_OPERATOR_ACTIVATION_RATE_LIMIT_MS: '2500',
+      YII_OPERATOR_ACTIVATION_SOURCES: 'operator,simulator,invalid',
     });
 
     expect(config.operatorActivationSequence).toEqual([
@@ -67,5 +69,6 @@ describe('kiosk local environment configuration', () => {
       { type: 'nav.back', payload: {} },
     ]);
     expect(config.operatorActivationRateLimitMs).toBe(2_500);
+    expect(config.operatorActivationSources).toEqual(['operator', 'simulator']);
   });
 });

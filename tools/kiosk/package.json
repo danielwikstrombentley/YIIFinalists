@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
+    "watchdog": "tsx watchdog.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test:unit": "vitest run"
   },

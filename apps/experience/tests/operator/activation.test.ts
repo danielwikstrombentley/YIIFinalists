@@ -63,12 +63,25 @@ describe('InputBoundary concealed activation hook', () => {
     boundary.handle(envelope('operator.reset', {}));
     expect(onAccepted).not.toHaveBeenCalled();
 
-    boundary.handle(envelope('nav.back', {}));
-    boundary.handle(envelope('nav.idle', {}));
-    boundary.handle(envelope('project.select', {}));
+    boundary.handle({ ...envelope('nav.back', {}), source: 'operator' });
+    boundary.handle({ ...envelope('nav.idle', {}), source: 'operator' });
+    boundary.handle({ ...envelope('project.select', {}), source: 'operator' });
     expect(onOperatorActivated).toHaveBeenCalledOnce();
 
     boundary.handle(envelope('operator.reset', {}));
     expect(onAccepted).toHaveBeenLastCalledWith({ type: 'operator.reset', payload: {} });
+  });
+
+  it('does not consume matching public simulator actions while waiting for the dedicated operator gesture', () => {
+    const onAccepted = vi.fn();
+    const boundary = new InputBoundary({ onAccepted, operatorActivation: CONFIG });
+
+    boundary.handle(envelope('nav.back', {}));
+    boundary.handle(envelope('nav.idle', {}));
+    boundary.handle(envelope('project.select', {}));
+
+    expect(onAccepted).toHaveBeenNthCalledWith(1, { type: 'nav.back', payload: {} });
+    expect(onAccepted).toHaveBeenNthCalledWith(2, { type: 'nav.idle', payload: {} });
+    expect(onAccepted).toHaveBeenNthCalledWith(3, { type: 'project.select', payload: {} });
   });
 });

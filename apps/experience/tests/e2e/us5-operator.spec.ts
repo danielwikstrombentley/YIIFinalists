@@ -5,7 +5,11 @@ import { expect, test, type Page } from '@playwright/test';
 // valid but inert at idle; no browser-side shortcut or direct machine event is permitted.
 interface E2eRuntime {
   simulator: {
-    injectAction(type: string, payload: unknown): void;
+    injectAction(
+      type: string,
+      payload: unknown,
+      source?: 'console' | 'simulator' | 'operator',
+    ): void;
   };
   diagnosticsSnapshot(): {
     assets: { recentFailures: readonly { assetId: string }[] };
@@ -49,14 +53,19 @@ async function openIdleStage(page: Page): Promise<void> {
   await expect(stage).toHaveAttribute('data-machine-state', '"idle"', { timeout: 2_000 });
 }
 
-async function injectAction(page: Page, type: string, payload: unknown): Promise<void> {
+async function injectAction(
+  page: Page,
+  type: string,
+  payload: unknown,
+  source?: 'console' | 'simulator' | 'operator',
+): Promise<void> {
   await page.evaluate(
-    ({ actionType, actionPayload }) => {
+    ({ actionType, actionPayload, actionSource }) => {
       const runtime = (window as Window & { __YII_E2E__?: E2eRuntime }).__YII_E2E__;
       if (!runtime) throw new Error('US5 E2E runtime bridge is unavailable.');
-      runtime.simulator.injectAction(actionType, actionPayload);
+      runtime.simulator.injectAction(actionType, actionPayload, actionSource);
     },
-    { actionType: type, actionPayload: payload },
+    { actionType: type, actionPayload: payload, actionSource: source },
   );
 }
 
@@ -80,7 +89,7 @@ async function contentSnapshot(page: Page): Promise<ReturnType<E2eRuntime['conte
 
 async function openOperatorOverlay(page: Page): Promise<void> {
   for (const [type, payload] of OPERATOR_ACTIVATION_SEQUENCE) {
-    await injectAction(page, type, payload);
+    await injectAction(page, type, payload, 'operator');
   }
   await expect(page.getByTestId('operator-overlay')).toBeVisible();
 }

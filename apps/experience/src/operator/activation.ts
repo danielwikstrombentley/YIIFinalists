@@ -3,6 +3,7 @@ import {
   isDiagnosticsOnlyAction,
   isOperatorOnlyAction,
   parseSemanticEnvelope,
+  type ActionSource,
   type SemanticAction,
 } from '@yii/semantic-actions';
 
@@ -17,10 +18,13 @@ export const DEFAULT_OPERATOR_ACTIVATION_SEQUENCE: readonly SemanticAction[] = [
 ];
 
 export const DEFAULT_OPERATOR_ACTIVATION_RATE_LIMIT_MS = 1_000;
+const DEFAULT_OPERATOR_ACTIVATION_SOURCES: readonly ActionSource[] = ['operator'];
 
 export interface OperatorActivationConfig {
   readonly sequence: readonly SemanticAction[];
   readonly rateLimitMs: number;
+  /** A dedicated hidden-input source prevents the gesture from consuming visitor navigation. */
+  readonly sources?: readonly ActionSource[];
 }
 
 export interface ConcealedActivationOptions extends OperatorActivationConfig {
@@ -32,6 +36,7 @@ export type ActivationObservation = 'none' | 'partial' | 'activated' | 'rate-lim
 interface KioskActivationConfig {
   operatorActivationSequence?: unknown;
   operatorActivationRateLimitMs?: unknown;
+  operatorActivationSources?: unknown;
 }
 
 function isPositiveFiniteNumber(value: unknown): value is number {
@@ -65,6 +70,15 @@ function normalizeSequence(value: unknown): readonly SemanticAction[] | null {
   return sequence;
 }
 
+function normalizeSources(value: unknown): readonly ActionSource[] {
+  if (!Array.isArray(value)) return DEFAULT_OPERATOR_ACTIVATION_SOURCES;
+  const sources = value.filter(
+    (source): source is ActionSource =>
+      source === 'console' || source === 'simulator' || source === 'operator',
+  );
+  return sources.length > 0 ? [...new Set(sources)] : DEFAULT_OPERATOR_ACTIVATION_SOURCES;
+}
+
 /** Safely resolves a kiosk-delivered configuration, preserving a deterministic local fallback. */
 export function resolveOperatorActivationConfig(value: unknown): OperatorActivationConfig {
   const raw = value && typeof value === 'object' ? (value as KioskActivationConfig) : {};
@@ -73,7 +87,7 @@ export function resolveOperatorActivationConfig(value: unknown): OperatorActivat
   const rateLimitMs = isPositiveFiniteNumber(raw.operatorActivationRateLimitMs)
     ? Math.floor(raw.operatorActivationRateLimitMs)
     : DEFAULT_OPERATOR_ACTIVATION_RATE_LIMIT_MS;
-  return { sequence, rateLimitMs };
+  return { sequence, rateLimitMs, sources: normalizeSources(raw.operatorActivationSources) };
 }
 
 /**
@@ -82,6 +96,7 @@ export function resolveOperatorActivationConfig(value: unknown): OperatorActivat
  */
 export class ConcealedActivationSequence {
   private readonly keys: readonly string[];
+  private readonly sources: ReadonlySet<ActionSource>;
   private readonly rateLimitMs: number;
   private readonly now: () => number;
   private position = 0;
@@ -92,6 +107,7 @@ export class ConcealedActivationSequence {
       throw new Error('A concealed activation sequence must contain at least one action.');
     }
     this.keys = options.sequence.map((action) => computeDedupKey(action));
+    this.sources = new Set(options.sources ?? DEFAULT_OPERATOR_ACTIVATION_SOURCES);
     this.rateLimitMs = Math.max(1, Math.floor(options.rateLimitMs));
     this.now = options.now ?? Date.now;
   }
@@ -100,8 +116,11 @@ export class ConcealedActivationSequence {
     this.position = 0;
   }
 
-  observe(action: Pick<SemanticAction, 'type' | 'payload'>): boolean {
-    return this.observeStep(action) === 'activated';
+  observe(
+    action: Pick<SemanticAction, 'type' | 'payload'>,
+    source: ActionSource = 'operator',
+  ): boolean {
+    return this.observeStep(action, source) === 'activated';
   }
 
   /**
@@ -109,7 +128,14 @@ export class ConcealedActivationSequence {
    * concealed sequence from causing public navigation while a non-matching action continues
    * through the ordinary semantic-action path.
    */
-  observeStep(action: Pick<SemanticAction, 'type' | 'payload'>): ActivationObservation {
+  observeStep(
+    action: Pick<SemanticAction, 'type' | 'payload'>,
+    source: ActionSource = 'operator',
+  ): ActivationObservation {
+    if (!this.sources.has(source)) {
+      this.reset();
+      return 'none';
+    }
     const key = computeDedupKey(action);
     const expected = this.keys[this.position];
 

@@ -50,6 +50,24 @@ pnpm --filter experience build   # produces apps/experience/dist
 pnpm --filter kiosk dev          # serves dist/ + content + ws + telemetry on one port
 ```
 
+For an event-style production launch, build the experience and use the supervised launcher. It
+starts the sidecar, starts the watchdog, and lets the watchdog launch Chromium:
+
+```bash
+pnpm --filter experience build
+./tools/kiosk/launch/start.sh
+```
+
+The launcher uses `KIOSK_PORT=4174` for the sidecar and `KIOSK_WATCHDOG_PORT=4175` for the
+loopback-only watchdog control endpoint. Set `KIOSK_CHROMIUM` when the browser executable is not
+on the expected platform path, and set `KIOSK_URL` only when the served kiosk URL is intentionally
+different. The watchdog passes `--kiosk`, `--autoplay-policy=no-user-gesture-required`,
+`--disable-session-crashed-bubble`, `--noerrdialogs`, and the documented event-hardware GPU
+placeholders as argument-array entries (not a shell command).
+
+OS login templates are in [launch/autostart.md](launch/autostart.md); the operator recovery guide
+is [runbook.md](runbook.md).
+
 ## Configuration (environment variables)
 
 All configuration is env-based (never committed — see `.gitignore`'s `.env` rule):
@@ -60,6 +78,10 @@ All configuration is env-based (never committed — see `.gitignore`'s `.env` ru
 | `KIOSK_STATIC_ROOT` | `apps/experience/dist` | Built app to serve at `/` |
 | `KIOSK_CONTENT_ROOT` | `apps/content-pipeline/assets/sample` | Active content release tree, served at `/content` |
 | `KIOSK_LOG_DIR` | `tools/kiosk/logs` | Telemetry JSONL output directory (gitignored) |
+| `KIOSK_WATCHDOG_PORT` | — (sidecar reload is inert) | Loopback port of the separate watchdog process |
+| `YII_OPERATOR_ACTIVATION_SOURCES` | `operator` | Comma-separated dedicated local sources allowed to evaluate the concealed gesture; leave at the safe default unless event hardware requires another source |
+| `KIOSK_CHROMIUM` | platform default | Chromium/Chrome executable used by the watchdog |
+| `KIOSK_URL` | `http://127.0.0.1:4174/` | URL opened by Chromium |
 | `ION_ACCESS_TOKEN` | — | Cesium ion access token (research.md R4), passed through to kiosk config only |
 | `ION_GOOGLE_TILES_ASSET_ID` | — | Positive numeric Cesium ion asset ID for Google Photorealistic 3D Tiles |
 | `YII_SAMPLE_TILE_TIER` | `safe-composition` | Sample release tier: `photorealistic`, `local-fallback-scene`, or `safe-composition` |
@@ -77,10 +99,13 @@ All configuration is env-based (never committed — see `.gitignore`'s `.env` ru
 - `ws://.../ws` — a plain broadcast relay: any connected client's message is relayed to every
   other connected client. Zero navigation logic — the app's `WebSocketTransport` and an external
   dev/console tool both connect here.
+- `POST /watchdog/reload` — validates a bounded local request and signals the separate watchdog's
+  loopback control endpoint. It returns a handled response when the watchdog is absent; it never
+  reloads the sidecar or returns a 5xx just because the watchdog is not running.
 
 ## Recovery ladder (research.md R12)
 
-Operator-facing startup/recovery runbook (soft reset → renderer recovery → reload → full
-restart) lives in the hidden operator interface once built (PH7); this sidecar's only
-responsibility in that ladder is staying up and serving static content/telemetry independent of
-the app's own state.
+Operator-facing startup/recovery procedures (soft reset → media/renderer recovery → reload → full
+restart → console reconnect) are documented in [runbook.md](runbook.md). The sidecar remains
+independent of the app's state and keeps serving static content/telemetry while the watchdog
+replaces the browser.

@@ -15,6 +15,7 @@ const DEFAULT_OPERATOR_ACTIVATION_SEQUENCE = [
   { type: 'project.select', payload: {} },
 ] as const;
 const DEFAULT_OPERATOR_ACTIVATION_RATE_LIMIT_MS = 1_000;
+const DEFAULT_OPERATOR_ACTIVATION_SOURCES = ['operator'] as const;
 
 export interface KioskOperatorActivationStep {
   type: string;
@@ -34,6 +35,10 @@ export interface KioskConfig {
   /** Non-secret hidden-overlay sequence delivered only to the local runtime configuration endpoint. */
   operatorActivationSequence: readonly KioskOperatorActivationStep[];
   operatorActivationRateLimitMs: number;
+  /** Dedicated local input sources permitted to evaluate the concealed sequence. */
+  operatorActivationSources: readonly ('console' | 'simulator' | 'operator')[];
+  /** Loopback control port for the separate watchdog process; absent means reload is inert. */
+  watchdogControlPort?: number;
 }
 
 /**
@@ -86,6 +91,25 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseOperatorActivationSources(
+  value: string | undefined,
+): readonly ('console' | 'simulator' | 'operator')[] {
+  if (!value) return DEFAULT_OPERATOR_ACTIVATION_SOURCES;
+  const parsed = value
+    .split(',')
+    .map((source) => source.trim())
+    .filter(
+      (source): source is 'console' | 'simulator' | 'operator' =>
+        source === 'console' || source === 'simulator' || source === 'operator',
+    );
+  return parsed.length > 0 ? [...new Set(parsed)] : DEFAULT_OPERATOR_ACTIVATION_SOURCES;
+}
+
+function parseOptionalPositivePort(value: string | undefined): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65_535 ? parsed : undefined;
+}
+
 /** Reports configuration mistakes without ever including the configured token or asset value. */
 export function getKioskCesiumConfigurationWarning(config: KioskConfig): string | undefined {
   if (!config.ionAccessToken && !config.ionGoogleTilesAssetId) return undefined;
@@ -117,5 +141,7 @@ export function loadKioskConfig(env: NodeJS.ProcessEnv = process.env): KioskConf
       env.YII_OPERATOR_ACTIVATION_RATE_LIMIT_MS,
       DEFAULT_OPERATOR_ACTIVATION_RATE_LIMIT_MS,
     ),
+    operatorActivationSources: parseOperatorActivationSources(env.YII_OPERATOR_ACTIVATION_SOURCES),
+    watchdogControlPort: parseOptionalPositivePort(env.KIOSK_WATCHDOG_PORT),
   };
 }

@@ -37,7 +37,10 @@ export type InputBoundaryObservation =
       action: SemanticAction;
       source: ActionSource;
       atMs: number;
+      /** Monotonic receipt id used only to pair passive response-latency observations. */
+      receiptId: number;
     }
+  | { kind: 'response'; receiptId: number; atMs: number }
   | {
       kind: 'rejected';
       reason: RejectReason;
@@ -77,6 +80,7 @@ export class InputBoundary {
   private operatorActive = false;
   private activeProjectId: string | null = null;
   private activeCategoryId: string | null = null;
+  private receiptSequence = 0;
 
   constructor(options: InputBoundaryOptions) {
     this.options = options;
@@ -116,6 +120,27 @@ export class InputBoundary {
       return;
     }
 
+    // Concealed activation is owned by a dedicated operator input source. Match and consume it
+    // before visitor validation/dedup/priority processing so it can never cause a public
+    // navigation side effect (or be defeated by a recent public press with the same identity).
+    const activationAction = {
+      type: envelope.type,
+      payload: envelope.payload,
+    } as SemanticAction;
+    const activation = this.operatorActivation.observeStep(activationAction, envelope.source);
+    if (activation !== 'none') {
+      if (activation === 'activated') {
+        this.operatorActive = true;
+        this.observe({ kind: 'operator-activated', atMs: receivedAtMs });
+        try {
+          this.options.onOperatorActivated?.();
+        } catch {
+          // An overlay listener must never prevent a public semantic action from being handled.
+        }
+      }
+      return;
+    }
+
     if (
       (envelope.type === 'operator.reset' || envelope.type === 'operator.command') &&
       !this.operatorActive
@@ -145,7 +170,7 @@ export class InputBoundary {
       }
     }
 
-    const action = { type: envelope.type, payload: envelope.payload } as SemanticAction;
+    const action = activationAction;
     const dedupKey = computeDedupKey(action);
     if (!this.dedupWindow.isAccepted(dedupKey)) {
       this.reject('duplicate', rawEnvelope, envelope.source, receivedAtMs);
@@ -158,19 +183,22 @@ export class InputBoundary {
     if (hoverSentAtMs !== undefined) {
       this.hoverOrdering.recordAccepted(envelope.source, hoverSentAtMs);
     }
-    const activation = this.operatorActivation.observeStep(action);
-    if (activation === 'activated') {
-      this.operatorActive = true;
-      this.observe({ kind: 'operator-activated', atMs: receivedAtMs });
-      try {
-        this.options.onOperatorActivated?.();
-      } catch {
-        // An overlay listener must never prevent a public semantic action from being handled.
-      }
+    const receiptId = this.receiptSequence;
+    this.receiptSequence += 1;
+    this.observe({
+      kind: 'accepted',
+      action,
+      source: envelope.source,
+      atMs: receivedAtMs,
+      receiptId,
+    });
+    try {
+      this.options.onAccepted(action);
+    } finally {
+      // This remains synchronous and passive. A machine subscription can update telemetry's
+      // read model during onAccepted() before the response observation is delivered.
+      this.observe({ kind: 'response', receiptId, atMs: this.now() });
     }
-    if (activation !== 'none') return;
-    this.observe({ kind: 'accepted', action, source: envelope.source, atMs: receivedAtMs });
-    this.options.onAccepted(action);
   }
 
   /** Boundary rule 6: reconnect resumes input handling with dedup state reset. */

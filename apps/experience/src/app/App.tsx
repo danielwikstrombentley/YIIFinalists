@@ -20,7 +20,11 @@ import { StageMount } from './StageMount.js';
 
 interface E2eRuntimeBridge {
   simulator: {
-    injectAction(type: string, payload: unknown): void;
+    injectAction(
+      type: string,
+      payload: unknown,
+      source?: 'console' | 'simulator' | 'operator',
+    ): void;
   };
   stateHistory(): unknown[];
   diagnosticsSnapshot(): unknown;
@@ -54,6 +58,42 @@ function machineStatePath(value: unknown): string {
   if (!parent) return 'unknown';
   const childPath = machineStatePath(child);
   return childPath === 'unknown' ? parent : `${parent}.${childPath}`;
+}
+
+function diagnosticsVoiceoverStatus(
+  status: string | undefined,
+): 'unknown' | 'playing' | 'stopped' | 'fallback' | 'error' {
+  if (status === 'playing' || status === 'stopped' || status === 'fallback') return status;
+  return status === 'idle' || status === undefined ? 'stopped' : 'error';
+}
+
+function diagnosticsHandoverStatus(
+  status: string | undefined,
+):
+  | 'idle'
+  | 'approaching'
+  | 'flying'
+  | 'blending'
+  | 'covering'
+  | 'revealing'
+  | 'settled'
+  | 'fallback'
+  | 'cancelled'
+  | 'unknown' {
+  const known = new Set([
+    'idle',
+    'approaching',
+    'flying',
+    'blending',
+    'covering',
+    'revealing',
+    'settled',
+    'fallback',
+    'cancelled',
+  ]);
+  return known.has(status ?? '')
+    ? (status as Exclude<ReturnType<typeof diagnosticsHandoverStatus>, 'unknown'>)
+    : 'unknown';
 }
 
 interface BootOrchestratorProps {
@@ -126,6 +166,10 @@ function BootOrchestrator({
         categoryIdsRef.current = release.categories.map(({ id }) => id);
         onCategoryIdsLoaded(categoryIdsRef.current);
         deps.diagnostics.setRelease({
+          version: release.version,
+          contentHash: release.manifest.contentHash,
+        });
+        deps.telemetry.setReleaseContext({
           version: release.version,
           contentHash: release.manifest.contentHash,
         });
@@ -209,7 +253,57 @@ function BootOrchestrator({
         selectedProjectId: snapshot.context.selectedProjectId,
         activeContentPosition: snapshot.context.activeContentPosition,
       });
+      deps.telemetry.observeStateTransition({
+        stateAfter: machineStatePath(snapshot.value),
+        refs: {
+          categoryId: snapshot.context.activeCategoryId,
+          projectId: snapshot.context.selectedProjectId ?? snapshot.context.previewedProjectId,
+          position: snapshot.context.activeContentPosition,
+        },
+      });
       deps.diagnostics.updatePerformance({ tickerCallbackCount: sharedTicker.rendererCount });
+
+      const content = snapshot.context.runtime.content;
+      const contentSnapshot = content?.snapshot;
+      deps.diagnostics.updateVoiceover({
+        status: diagnosticsVoiceoverStatus(content?.voiceoverStatus),
+        positionSeconds: null,
+        assetId: contentSnapshot?.option.voiceover.file ?? null,
+      });
+      deps.diagnostics.updateVideo({
+        status: contentSnapshot?.mediaFallback ? 'fallback' : 'paused',
+        assetId: content?.videoSurface.activeAssetId ?? null,
+      });
+      deps.diagnostics.updateSequenceProgress({
+        beat: contentSnapshot?.phase ?? null,
+        percent: contentSnapshot?.phase === 'final-hold' ? 100 : null,
+        elapsedMs: null,
+      });
+
+      const runtime = snapshot.context.runtime;
+      deps.diagnostics.updateRenderer('globe', {
+        status: runtime.globe?.adapter.isDisposed
+          ? 'disposed'
+          : runtime.globe?.adapter.idleLoopRunning
+            ? 'ready'
+            : 'inactive',
+      });
+      deps.diagnostics.updateRenderer('cesium', {
+        status: runtime.cesium?.stage.isRendering
+          ? 'ready'
+          : runtime.cesium
+            ? 'inactive'
+            : 'unknown',
+        tier: runtime.cesium?.stage.tier ?? null,
+      });
+      const handover = runtime.cesium?.handover.transitionProbe;
+      deps.diagnostics.updateHandover({
+        status: diagnosticsHandoverStatus(handover?.status),
+        lastDurationMs:
+          handover?.startedAtMs === null || handover?.startedAtMs === undefined
+            ? null
+            : Math.max(0, performance.now() - handover.startedAtMs),
+      });
 
       const categoryId = snapshot.context.activeCategoryId;
       if (categoryId !== lastCategoryIdRef.current) {
@@ -258,8 +352,8 @@ function exposeE2eBridge(
 
   window.__YII_E2E__ = {
     simulator: {
-      injectAction(type, payload) {
-        simulator.injectAction(type, payload);
+      injectAction(type, payload, source) {
+        simulator.injectAction(type, payload, source ? { source } : {});
       },
     },
     stateHistory: () => [...history],

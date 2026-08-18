@@ -37,7 +37,15 @@ export interface VisibleTransitionFrameReport extends TransitionFrameAnalysis {
  * the zero-black/stale-frame assertion.
  */
 async function captureStageFrame(page: Page): Promise<CapturedFrame> {
-  const screenshot = await page.locator('#stage').screenshot();
+  // A handover deliberately animates canvases and atmospheric cover transforms. Playwright's
+  // locator screenshot waits for layout stability, which is the opposite of what this helper
+  // measures and can time out mid-reverse-flight. Capture the current viewport clipping region
+  // directly instead; the stage always fills the viewport in the kiosk shell.
+  const stage = await page.locator('#stage').boundingBox();
+  if (!stage) throw new Error('Unable to capture the detached public stage.');
+  const screenshot = await page.screenshot({
+    clip: { x: stage.x, y: stage.y, width: stage.width, height: stage.height },
+  });
 
   return page.evaluate(async (pngBase64) => {
     const image = new Image();

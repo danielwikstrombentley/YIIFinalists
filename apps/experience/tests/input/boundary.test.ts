@@ -16,9 +16,9 @@ function envelope(overrides: Record<string, unknown> = {}) {
 }
 
 function activateOperator(boundary: InputBoundary): void {
-  boundary.handle(envelope({ type: 'nav.back', payload: {}, source: 'simulator' }));
-  boundary.handle(envelope({ type: 'nav.idle', payload: {}, source: 'simulator' }));
-  boundary.handle(envelope({ type: 'project.select', payload: {}, source: 'simulator' }));
+  boundary.handle(envelope({ type: 'nav.back', payload: {}, source: 'operator' }));
+  boundary.handle(envelope({ type: 'nav.idle', payload: {}, source: 'operator' }));
+  boundary.handle(envelope({ type: 'project.select', payload: {}, source: 'operator' }));
 }
 
 describe('Deduplication (boundary rule 2, FR-020)', () => {

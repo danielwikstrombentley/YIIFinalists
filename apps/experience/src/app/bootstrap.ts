@@ -9,6 +9,7 @@ import { createReleaseRefValidator } from '../input/validate.js';
 import { DiagnosticsStore } from '../operator/DiagnosticsStore.js';
 import { resolveOperatorActivationConfig } from '../operator/activation.js';
 import type { ExperienceEvent } from '../state/types.js';
+import { TelemetryLogger } from '../telemetry/TelemetryLogger.js';
 
 // Boot sequence (T020): load+revalidate the release, start the input boundary + transports,
 // verify console connectivity (non-blocking), then enter idle — or fall back to `recovering` on
@@ -79,6 +80,7 @@ export interface RuntimeDependenciesOptions {
 export interface RuntimeDependencies extends Omit<BootstrapDeps, 'loader'> {
   loader: ContentLoader;
   diagnostics: DiagnosticsStore;
+  telemetry: TelemetryLogger;
 }
 
 async function configureOperatorActivationFromKiosk(boundary: InputBoundary): Promise<void> {
@@ -96,6 +98,9 @@ export function createRuntimeDependencies(
   options: RuntimeDependenciesOptions,
 ): RuntimeDependencies {
   const diagnostics = new DiagnosticsStore();
+  const telemetry = new TelemetryLogger({
+    onDropped: (telemetryDropped) => diagnostics.updatePerformance({ telemetryDropped }),
+  });
   const loader = new ContentLoader({
     basePath: '/content',
     channel: 'staging',
@@ -114,6 +119,7 @@ export function createRuntimeDependencies(
     onRejected: (reason, raw) => console.debug('[input] rejected', reason, raw),
     onConnectionStatus: (status) => console.debug('[input] connection', status),
     onObservation: (observation) => {
+      telemetry.observeInputObservation(observation);
       if (observation.kind === 'accepted') {
         diagnostics.recordAcceptedAction(
           observation.source,
@@ -165,6 +171,7 @@ export function createRuntimeDependencies(
     boundary,
     transports,
     diagnostics,
+    telemetry,
     send: options.send,
     onBootError: (error) => console.error('[boot]', error),
   };

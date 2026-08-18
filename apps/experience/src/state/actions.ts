@@ -526,6 +526,10 @@ export function startRecovery({
     request?.kind === 'rendererRecover'
       ? { kind: 'rendererRecover' as const, renderer: request.renderer }
       : null;
+  // An adapter failure leaves the named `recovering` state active so the safe fallback is
+  // observable to the operator and the normal `internal.recovered` transition controls exit.
+  // Only an explicit renderer-rebuild command owns an automatic completion callback.
+  if (!command) return;
   void executeRecoveryCommand(context.runtime, command).then(() => {
     if (self.getSnapshot().context.generation !== generation) return;
     self.send({ type: 'internal.recovered', generation });
