@@ -1,7 +1,7 @@
 import { createActor } from 'xstate';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { experienceMachine } from '../../src/state/machine.js';
-import type { ExperienceEvent } from '../../src/state/types.js';
+import type { ExperienceContext, ExperienceEvent } from '../../src/state/types.js';
 import {
   EXPERIENCE_STATE_IDS,
   INTERRUPTION_MATRIX,
@@ -9,9 +9,8 @@ import {
   type ExperienceStateId,
 } from './state-table.fixture.js';
 
-// Interruption-matrix scaffold (T010): every state x {operator.reset, nav.idle, category.select,
-// nav.back}, expected destinations parameterised from data-model.md §3. Pending rows (not yet
-// meaningfully assertable) are skipped, not asserted false — activated as later phases land.
+// T048: full automated interruption evidence. Every major state is tested against every public
+// action class twice, with state-owned cancellation probes plus stale/duplicate completion cases.
 
 function flattenStateValue(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -70,17 +69,47 @@ const ACTION_EVENTS: Record<(typeof INTERRUPTION_MATRIX_ACTIONS)[number], Experi
   'nav.idle': { type: 'nav.idle', payload: {} },
   'category.select': { type: 'category.select', payload: { categoryId: 'cat-9' } },
   'nav.back': { type: 'nav.back', payload: {} },
+  'project.select': { type: 'project.select', payload: {} },
+  'content.select': { type: 'content.select', payload: { position: 1 } },
+  'preview.hover': { type: 'preview.hover', payload: { direction: 'next' } },
 };
 
-describe('Interruption matrix (data-model.md §3, every state x 4 nav actions)', () => {
+interface OwnedEffectProbes {
+  audio: ReturnType<typeof vi.fn>;
+  overlay: ReturnType<typeof vi.fn>;
+  tween: ReturnType<typeof vi.fn>;
+}
+
+function registerOwnedEffectProbes(context: ExperienceContext): OwnedEffectProbes {
+  const probes = {
+    audio: vi.fn(),
+    overlay: vi.fn(),
+    tween: vi.fn(),
+  };
+  context.cleanup.register('matrix-audio', probes.audio);
+  context.cleanup.register('matrix-overlay', probes.overlay);
+  context.cleanup.register('matrix-tween', probes.tween);
+  return probes;
+}
+
+function expectOwnedEffects(probes: OwnedEffectProbes, calls: number): void {
+  expect(probes.audio).toHaveBeenCalledTimes(calls);
+  expect(probes.overlay).toHaveBeenCalledTimes(calls);
+  expect(probes.tween).toHaveBeenCalledTimes(calls);
+}
+
+describe('Interruption matrix (data-model.md §3, every state x every public action)', () => {
   for (const stateId of EXPERIENCE_STATE_IDS) {
     for (const action of INTERRUPTION_MATRIX_ACTIONS) {
       const expectation = INTERRUPTION_MATRIX[stateId][action];
-      const title = `${stateId} + ${action} -> ${expectation.destination}${expectation.pending ? ' (pending)' : ''}`;
+      const title = `${stateId} + ${action} -> ${expectation.destination}, twice`;
 
-      it.skipIf(expectation.pending)(title, () => {
+      it(title, () => {
         const actor = arriveAt(stateId);
         const before = flattenStateValue(actor.getSnapshot().value);
+        const probes = registerOwnedEffectProbes(actor.getSnapshot().context);
+        const shouldCancelOwnedEffects = expectation.destination !== 'self';
+
         actor.send(ACTION_EVENTS[action]);
         const after = flattenStateValue(actor.getSnapshot().value);
 
@@ -89,16 +118,91 @@ describe('Interruption matrix (data-model.md §3, every state x 4 nav actions)',
         } else {
           expect(after).toBe(expectation.destination);
         }
+
+        expectOwnedEffects(probes, shouldCancelOwnedEffects ? 1 : 0);
+        expect(actor.getSnapshot().context.cleanup.size).toBe(shouldCancelOwnedEffects ? 0 : 3);
+
+        // Repeating an interruption must leave the destination valid and must never invoke an
+        // already-released handle again. This models hardware bounce plus repeated operator input.
+        const afterStateId = after as ExperienceStateId;
+        const repeatedExpectation = INTERRUPTION_MATRIX[afterStateId][action];
+        actor.send(ACTION_EVENTS[action]);
+        const afterRepeated = flattenStateValue(actor.getSnapshot().value);
+        if (repeatedExpectation.destination === 'self') {
+          expect(afterRepeated).toBe(after);
+        } else {
+          expect(afterRepeated).toBe(repeatedExpectation.destination);
+        }
+        expectOwnedEffects(probes, shouldCancelOwnedEffects ? 1 : 0);
         actor.stop();
       });
     }
   }
 
-  it('every matrix row (pending or not) exists for every declared state', () => {
+  it('contains every declared state/action pair with zero pending rows', () => {
     for (const stateId of EXPERIENCE_STATE_IDS) {
       for (const action of INTERRUPTION_MATRIX_ACTIONS) {
-        expect(INTERRUPTION_MATRIX[stateId][action], `${stateId} x ${action}`).toBeDefined();
+        const expectation = INTERRUPTION_MATRIX[stateId][action];
+        expect(expectation, `${stateId} x ${action}`).toBeDefined();
+        expect(expectation).not.toHaveProperty('pending');
       }
     }
+  });
+
+  it('rejects stale and duplicate forward-handover completions', () => {
+    const actor = arriveAt('transitionToProject');
+    const generation = actor.getSnapshot().context.generation;
+
+    actor.send({ type: 'internal.handoverToProjectComplete', generation: generation - 1 });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('transitionToProject');
+
+    actor.send({ type: 'internal.handoverToProjectComplete', generation });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('projectLanding');
+
+    actor.send({ type: 'internal.handoverToProjectComplete', generation });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('projectLanding');
+    actor.stop();
+  });
+
+  it('rejects stale and duplicate sequence completions', () => {
+    const actor = arriveAt('contentPlaying');
+    const generation = actor.getSnapshot().context.generation;
+
+    actor.send({ type: 'internal.sequenceComplete', generation: generation - 1 });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('contentPlaying');
+
+    actor.send({ type: 'internal.sequenceComplete', generation });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('contentFinalHold');
+
+    actor.send({ type: 'internal.sequenceComplete', generation });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('contentFinalHold');
+    actor.stop();
+  });
+
+  it('rejects stale and duplicate reverse-handover completions', () => {
+    const actor = arriveAt('transitionToPreview');
+    const generation = actor.getSnapshot().context.generation;
+
+    actor.send({ type: 'internal.handoverToPreviewComplete', generation: generation - 1 });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('transitionToPreview');
+
+    actor.send({ type: 'internal.handoverToPreviewComplete', generation });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('categoryActive.preview');
+
+    actor.send({ type: 'internal.handoverToPreviewComplete', generation });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('categoryActive.preview');
+    actor.stop();
+  });
+
+  it('discards a completion delivered after a higher-priority reset', () => {
+    const actor = arriveAt('transitionToProject');
+    const generation = actor.getSnapshot().context.generation;
+
+    actor.send({ type: 'operator.reset', payload: {} });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('idle');
+
+    actor.send({ type: 'internal.handoverToProjectComplete', generation });
+    expect(flattenStateValue(actor.getSnapshot().value)).toBe('idle');
+    actor.stop();
   });
 });
