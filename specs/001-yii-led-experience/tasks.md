@@ -532,12 +532,12 @@ opening state; clean switching; inactive positions safely ignored.
 progression, voiceover alignment, final-frame hold, deliberate replay, inactive-position safety,
 clean switching (spec US3).
 **Phase branch**: `phase/001-ph5-us3-content-playback` · **Depends on**: PH4
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: — · Implementer model(s): agent:GPT-5.6 Terra (OpenAI) · Review model: — · Verdict: —`
 
 ### Verification for US3 (red-first) ⚠️
 
-- [ ] T037 [P] [US3] Author failing E2E spec for content playback/hold/replay/switch/inactive/dedup in apps/experience/tests/e2e/us3-content-playback.spec.ts *(red-first)*
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T037-us3-e2e` · PR — · Blockers —
+- [~] T037 [P] [US3] Author failing E2E spec for content playback/hold/replay/switch/inactive/dedup in apps/experience/tests/e2e/us3-content-playback.spec.ts *(red-first)*
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: US3 scenarios 1–6: position press starts visuals+voiceover together; completion holds final frame indefinitely (no auto-return); burst re-press <1 s filtered; re-press >1 s replays from full opening state; different active position switches cleanly (no stale frames/audio); inactive position ignored with zero visible change.
   - Files: `apps/experience/tests/e2e/us3-content-playback.spec.ts`
   - Deps: T035
