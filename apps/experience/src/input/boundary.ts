@@ -75,28 +75,35 @@ export class InputBoundary {
       return;
     }
 
-    const action = { type: envelope.type, payload: envelope.payload } as SemanticAction;
-    const dedupKey = computeDedupKey(action);
-    if (!this.dedupWindow.accept(dedupKey)) {
-      this.reject('duplicate', rawEnvelope);
-      return;
-    }
-
     if (!canPassPriorityGate(envelope.type, this.options.getExclusivePriority?.())) {
       this.reject('priority-gate', rawEnvelope);
       return;
     }
 
+    let hoverSentAtMs: number | undefined;
     if (envelope.type === 'preview.hover') {
       // Both hover payload forms (explicit projectId or direction) use `sentAt` for per-source
       // supersession — a newer hover always wins over an unprocessed older one (boundary rule 4).
-      const sentAtMs = Date.parse(envelope.sentAt);
-      if (!this.hoverOrdering.shouldProcess(envelope.source, sentAtMs)) {
+      hoverSentAtMs = Date.parse(envelope.sentAt);
+      if (!this.hoverOrdering.canProcess(envelope.source, hoverSentAtMs)) {
         this.reject('superseded', rawEnvelope);
         return;
       }
     }
 
+    const action = { type: envelope.type, payload: envelope.payload } as SemanticAction;
+    const dedupKey = computeDedupKey(action);
+    if (!this.dedupWindow.isAccepted(dedupKey)) {
+      this.reject('duplicate', rawEnvelope);
+      return;
+    }
+
+    // The action has crossed every validation, priority, ordering, and dedup gate. Record it as
+    // accepted only now so rejected input can never suppress a later deliberate signal.
+    this.dedupWindow.recordAccepted(dedupKey);
+    if (hoverSentAtMs !== undefined) {
+      this.hoverOrdering.recordAccepted(envelope.source, hoverSentAtMs);
+    }
     this.options.onAccepted(action);
   }
 

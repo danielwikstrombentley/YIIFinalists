@@ -9,13 +9,21 @@ import type { PreviewHoverPayload } from '@yii/semantic-actions';
 export class HoverOrdering {
   private lastSentAtBySource = new Map<string, number>();
 
-  /** True if this hover should be processed; false if a newer one from the same source already won. */
-  shouldProcess(source: string, sentAtMs: number): boolean {
+  /** True if a hover has not been superseded by a previously accepted newer hover. */
+  canProcess(source: string, sentAtMs: number): boolean {
     const lastSentAt = this.lastSentAtBySource.get(source);
-    if (lastSentAt !== undefined && sentAtMs < lastSentAt) {
-      return false;
-    }
+    return lastSentAt === undefined || sentAtMs >= lastSentAt;
+  }
+
+  /** Records a hover only after every boundary gate accepts it. */
+  recordAccepted(source: string, sentAtMs: number): void {
     this.lastSentAtBySource.set(source, sentAtMs);
+  }
+
+  /** Backward-compatible check-and-record helper for callers that have no later rejection gates. */
+  shouldProcess(source: string, sentAtMs: number): boolean {
+    if (!this.canProcess(source, sentAtMs)) return false;
+    this.recordAccepted(source, sentAtMs);
     return true;
   }
 

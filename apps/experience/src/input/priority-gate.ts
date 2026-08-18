@@ -8,6 +8,18 @@ import { getActionPriority, type SemanticActionType } from '@yii/semantic-action
 
 export type ExclusivePriorityProvider = () => number | undefined;
 
+/**
+ * Returns the priority floor for a state-owned exclusive transition. The state machine remains
+ * the navigation authority; the input boundary calls this only to discard actions that are
+ * strictly lower priority than the transition currently holding renderer/camera ownership.
+ */
+export function exclusivePriorityForState(stateValue: unknown): number | undefined {
+  const stateId = flattenStateValue(stateValue);
+  if (stateId === 'transitionToProject') return getActionPriority('project.select');
+  if (stateId === 'transitionToPreview') return getActionPriority('nav.back');
+  return undefined;
+}
+
 export function canPassPriorityGate(
   actionType: SemanticActionType,
   exclusivePriority: number | undefined,
@@ -19,5 +31,19 @@ export function canPassPriorityGate(
   if (actionPriority === undefined) {
     return true; // diagnostics-only actions (connection.status) are never gated here
   }
-  return actionPriority > exclusivePriority;
+  // Boundary rule 3 permits rejection only for a *lower*-priority action. Equal-priority actions
+  // remain valid: for example, a repeated category request can update the pending destination
+  // during a reverse handover without invalidating its generation token.
+  return actionPriority >= exclusivePriority;
+}
+
+function flattenStateValue(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return undefined;
+
+  const [entry] = Object.entries(value as Record<string, unknown>);
+  if (!entry) return undefined;
+  const [key, child] = entry;
+  const childPath = flattenStateValue(child);
+  return childPath ? `${key}.${childPath}` : key;
 }

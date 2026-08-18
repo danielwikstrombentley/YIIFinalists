@@ -15,14 +15,22 @@ export class DedupWindow {
     this.now = options.now ?? Date.now;
   }
 
-  /** Returns true (and records `key` as accepted now) if `key` is NOT a duplicate within the window. */
-  accept(key: string): boolean {
+  /** Returns true when `key` is not a duplicate within the window, without mutating acceptance state. */
+  isAccepted(key: string): boolean {
     const now = this.now();
     const lastAt = this.lastAcceptedAt.get(key);
-    if (lastAt !== undefined && now - lastAt < this.windowMs) {
-      return false;
-    }
-    this.lastAcceptedAt.set(key, now);
+    return lastAt === undefined || now - lastAt >= this.windowMs;
+  }
+
+  /** Records an action only after every boundary gate has accepted it. */
+  recordAccepted(key: string): void {
+    this.lastAcceptedAt.set(key, this.now());
+  }
+
+  /** Backward-compatible check-and-record helper for callers that have no later rejection gates. */
+  accept(key: string): boolean {
+    if (!this.isAccepted(key)) return false;
+    this.recordAccepted(key);
     return true;
   }
 

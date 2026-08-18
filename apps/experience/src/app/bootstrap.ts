@@ -1,6 +1,7 @@
 import type { SemanticAction } from '@yii/semantic-actions';
 import { ContentLoader, type ContentLoaderOptions } from '../content/loader.js';
 import { InputBoundary } from '../input/boundary.js';
+import type { ExclusivePriorityProvider } from '../input/priority-gate.js';
 import type { Transport } from '../input/transports/transport.js';
 import { SimulatorTransport } from '../input/transports/simulator.js';
 import { WebSocketTransport } from '../input/transports/websocket.js';
@@ -59,6 +60,8 @@ export async function bootstrap(deps: BootstrapDeps): Promise<void> {
 export interface RuntimeDependenciesOptions {
   send: (event: ExperienceEvent) => void;
   contentLoaderOptions?: ContentLoaderOptions;
+  /** Reads the machine's current exclusive transition floor without giving the boundary state ownership. */
+  getExclusivePriority?: ExclusivePriorityProvider;
 }
 
 /** Builds the real, browser-facing dependency set used by the app shell (App.tsx). */
@@ -87,6 +90,7 @@ export function createRuntimeDependencies(options: RuntimeDependenciesOptions): 
       () => loader.activeRelease,
       (projectId) => loader.getCachedProject(projectId),
     ),
+    getExclusivePriority: options.getExclusivePriority,
   });
 
   const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
