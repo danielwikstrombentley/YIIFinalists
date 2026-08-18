@@ -8,9 +8,9 @@ import { voiceoverAssetSchema } from './voiceover.js';
 // is console-display only and MUST NOT appear on the LED as a menu (QR-006).
 
 /**
- * Reusable content-format library ids (FR-014). The real library lands with T027 (PH3); this is
- * a deliberately small placeholder registry so PH2's schema can reject unsupported ids now
- * without hard-coding a format catalog that belongs to a later phase.
+ * Reusable content-format library ids (FR-014). The core runtime library lands in PH5/T041;
+ * PH6/T042 extends it with geographic and specialised narrative compositions. Legacy ids remain
+ * valid aliases so existing approved package fixtures retain compatibility.
  */
 export const KNOWN_FORMAT_IDS = [
   'overview-hero',
@@ -18,6 +18,13 @@ export const KNOWN_FORMAT_IDS = [
   'media-gallery',
   'map-context',
   'quote-panel',
+  'text-led',
+  'text-image',
+  'full-image',
+  'video',
+  'hero-numbers',
+  'animated-metrics',
+  'quote',
 ] as const;
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number];
 
