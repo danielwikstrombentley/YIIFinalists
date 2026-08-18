@@ -562,8 +562,8 @@ clean switching (spec US3).
   - Tests: unit: stop/dispose idempotent; failure → fallback event (no throw to public path); concurrent-video cap enforced.
   - Accept: FR-025 playback rules implemented runtime-side.
 
-- [ ] T040 [US3] Implement timebase synchronization (voiceover clock authoritative, timeline seek within tolerance, video slaving) in apps/experience/src/orchestration/timebase.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T040-timebase` · PR — · Blockers —
+- [~] T040 [US3] Implement timebase synchronization (voiceover clock authoritative, timeline seek within tolerance, video slaving) in apps/experience/src/orchestration/timebase.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Per research R1: when narration present, sample `audio.currentTime` and correct GSAP timeline via `seek(t,false)` when drift exceeds the sequence's `syncTolerance`; timeline clock authoritative when no narration; video beats slaved by monitoring `video.currentTime`; holds after frame drops, interruption, replay, recovery.
   - Files: `apps/experience/src/orchestration/timebase.ts`
   - Deps: T039, T016
