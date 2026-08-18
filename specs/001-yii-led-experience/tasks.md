@@ -1039,7 +1039,7 @@ plan-recorded N/A rationale — currently none).
   - Accept: project → idle never displays the externally mirrored Cesium camera pose; the idle globe returns to its intended full-globe composition and existing preview-to-idle motion remains intact.
 
 - [R] T085 Prevent Playwright's offline-safe fixture seed from overwriting the active local Cesium profile
-  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T085-isolate-e2e-content-fixture` · PR #20 · Blockers —
+  - Meta: Phase PH4 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `task/001-T085-isolate-e2e-content-fixture` · PR #20 · Review `Claude Haiku 4.5 (Anthropic)` APPROVE (round 1, 2026-08-18) · Blockers —
   - Do: Generate the Playwright safe-composition release beneath an ignored test-results directory and pass that absolute directory to the kiosk child process through `KIOSK_CONTENT_ROOT`. Preserve the developer-selected `apps/content-pipeline/assets/sample` profile, including the opt-in photorealistic tier, when automated E2E starts.
   - Files: `apps/experience/playwright.config.ts`, `apps/experience/tests/config/playwright-config.test.ts`
   - Deps: T081, T083
