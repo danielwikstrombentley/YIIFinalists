@@ -554,8 +554,8 @@ clean switching (spec US3).
 
 ### Implementation for US3
 
-- [ ] T039 [P] [US3] Implement media adapters VoiceoverPlayer + VideoSurface (start/stop/seek/dispose, fallbacks) in apps/experience/src/media/VoiceoverPlayer.ts
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T039-media-adapters` · PR — · Blockers —
+- [~] T039 [P] [US3] Implement media adapters VoiceoverPlayer + VideoSurface (start/stop/seek/dispose, fallbacks) in apps/experience/src/media/VoiceoverPlayer.ts
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: VoiceoverPlayer: local package audio, start-with-content, immediate stop/fast fade on interruption, restart-from-zero on replay, exposes clock for timebase; VideoSurface: max 1 decoding + 1 preloading (R14), poster/delayed start, declared-fallback swap on failure without blanking (FR-028); both own elements/object URLs and dispose idempotently.
   - Files: `apps/experience/src/media/{VoiceoverPlayer.ts,VideoSurface.ts}`
   - Deps: T016
