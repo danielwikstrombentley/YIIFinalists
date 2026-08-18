@@ -15,6 +15,12 @@ function envelope(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function activateOperator(boundary: InputBoundary): void {
+  boundary.handle(envelope({ type: 'nav.back', payload: {}, source: 'simulator' }));
+  boundary.handle(envelope({ type: 'nav.idle', payload: {}, source: 'simulator' }));
+  boundary.handle(envelope({ type: 'project.select', payload: {}, source: 'simulator' }));
+}
+
 describe('Deduplication (boundary rule 2, FR-020)', () => {
   it('drops an identical action arriving within 1000ms of the previously accepted one', () => {
     let now = 0;
@@ -194,6 +200,8 @@ describe('Priority gate (boundary rule 3)', () => {
       getExclusivePriority: () => 3,
     });
 
+    activateOperator(boundary);
+    onAccepted.mockClear();
     boundary.handle(envelope({ type: 'operator.reset', payload: {}, source: 'operator' }));
     expect(onAccepted).toHaveBeenCalledTimes(1);
   });
@@ -294,10 +302,12 @@ describe('Operator gating (boundary rule 5)', () => {
     expect(onRejected).toHaveBeenCalledTimes(1);
   });
 
-  it('accepts operator.reset from the simulator source', () => {
+  it('accepts operator.reset from the simulator source after concealed activation', () => {
     const onAccepted = vi.fn();
     const boundary = new InputBoundary({ onAccepted });
 
+    activateOperator(boundary);
+    onAccepted.mockClear();
     boundary.handle(envelope({ type: 'operator.reset', payload: {}, source: 'simulator' }));
     expect(onAccepted).toHaveBeenCalledTimes(1);
   });

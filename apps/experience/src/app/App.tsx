@@ -1,5 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { bootstrap, createRuntimeDependencies, type BootstrapDeps } from './bootstrap.js';
+import { useEffect, useRef, useState } from 'react';
+import {
+  bootstrap,
+  createRuntimeDependencies,
+  type BootstrapDeps,
+  type RuntimeDependencies,
+} from './bootstrap.js';
 import { createContentPlaybackPresentation } from '../content/playback.js';
 import { createGlobePresentation } from './globe-presentation.js';
 import { MachineProvider, useMachineActor } from './MachineProvider.js';
@@ -10,6 +15,7 @@ import {
   type TransitionObservabilitySnapshot,
 } from '../renderers/handover/transition-observability.js';
 import { sharedTicker } from '../orchestration/ticker.js';
+import { OperatorOverlay } from '../operator/OperatorOverlay.js';
 import { StageMount } from './StageMount.js';
 
 // App shell (T020): kiosk bootstrap + machine provider + public stage + operator overlay mount
@@ -44,10 +50,24 @@ function isEditableTextTarget(target: EventTarget | null): boolean {
   );
 }
 
-function BootOrchestrator() {
+function machineStatePath(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return 'unknown';
+  const [parent, child] = Object.entries(value as Record<string, unknown>)[0] ?? [];
+  if (!parent) return 'unknown';
+  const childPath = machineStatePath(child);
+  return childPath === 'unknown' ? parent : `${parent}.${childPath}`;
+}
+
+interface BootOrchestratorProps {
+  onDependenciesReady(dependencies: RuntimeDependencies): void;
+  onOperatorActivated(): void;
+}
+
+function BootOrchestrator({ onDependenciesReady, onOperatorActivated }: BootOrchestratorProps) {
   const actor = useMachineActor();
   const hasBooted = useRef(false);
-  const depsRef = useRef<BootstrapDeps | null>(null);
+  const depsRef = useRef<RuntimeDependencies | null>(null);
   const categoryIdsRef = useRef<readonly string[]>([]);
   const lastProjectIdRef = useRef<string | null>(null);
   const lastCategoryIdRef = useRef<string | null>(null);
@@ -58,8 +78,10 @@ function BootOrchestrator() {
     const deps = createRuntimeDependencies({
       send: (event) => actor.send(event),
       getExclusivePriority: () => exclusivePriorityForState(actor.getSnapshot().value),
+      onOperatorActivated,
     });
     depsRef.current = deps;
+    onDependenciesReady(deps);
     if (isE2eRun()) {
       exposeE2eBridge(actor, deps);
     }
@@ -81,6 +103,10 @@ function BootOrchestrator() {
           }),
         );
         categoryIdsRef.current = release.categories.map(({ id }) => id);
+        deps.diagnostics.setRelease({
+          version: release.version,
+          contentHash: release.manifest.contentHash,
+        });
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- boot must run exactly once
@@ -150,9 +176,18 @@ function BootOrchestrator() {
     // category's own projects (PH2 round 2 finding #1 — a project from another category was
     // previously accepted) and `content.select { position }` against the active project (round 1
     // finding #2); also warms the loader's project cache so `hasContentPosition` has data to check.
-    const subscription = actor.subscribe((snapshot) => {
+    const observeSnapshot = (snapshot: ReturnType<typeof actor.getSnapshot>): void => {
       const deps = depsRef.current;
       if (!deps) return;
+
+      deps.diagnostics.updateMachine({
+        statePath: machineStatePath(snapshot.value),
+        activeCategoryId: snapshot.context.activeCategoryId,
+        previewedProjectId: snapshot.context.previewedProjectId,
+        selectedProjectId: snapshot.context.selectedProjectId,
+        activeContentPosition: snapshot.context.activeContentPosition,
+      });
+      deps.diagnostics.updatePerformance({ tickerCallbackCount: sharedTicker.rendererCount });
 
       const categoryId = snapshot.context.activeCategoryId;
       if (categoryId !== lastCategoryIdRef.current) {
@@ -170,7 +205,9 @@ function BootOrchestrator() {
           // until loadProject() succeeds; the renderer tasks (PH3+) retry loading for playback.
         });
       }
-    });
+    };
+    observeSnapshot(actor.getSnapshot());
+    const subscription = actor.subscribe(observeSnapshot);
     return () => subscription.unsubscribe();
   }, [actor]);
 
@@ -218,13 +255,50 @@ function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: Bootst
   };
 }
 
+function ExperienceShell() {
+  const [dependencies, setDependencies] = useState<RuntimeDependencies | null>(null);
+  const [operatorOpen, setOperatorOpen] = useState(false);
+  const simulator = dependencies?.transports.find(
+    (transport): transport is SimulatorTransport => transport instanceof SimulatorTransport,
+  );
+
+  const closeOperatorOverlay = (): void => {
+    dependencies?.boundary.deactivateOperator();
+    setOperatorOpen(false);
+  };
+
+  return (
+    <>
+      <BootOrchestrator
+        onDependenciesReady={setDependencies}
+        onOperatorActivated={() => setOperatorOpen(true)}
+      />
+      <StageMount />
+      <div id="operator-overlay-mount" style={{ display: operatorOpen ? 'block' : 'none' }}>
+        {dependencies && simulator ? (
+          <OperatorOverlay
+            diagnostics={dependencies.diagnostics}
+            onClose={closeOperatorOverlay}
+            onCommand={(command, params) => {
+              simulator.injectAction(
+                'operator.command',
+                { command, params },
+                { source: 'operator' },
+              );
+            }}
+            onReset={() => simulator.injectAction('operator.reset', {}, { source: 'operator' })}
+            open={operatorOpen}
+          />
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <MachineProvider>
-      <BootOrchestrator />
-      <StageMount />
-      {/* Hidden until the concealed activation sequence + operator UI land (T051/PH7). */}
-      <div id="operator-overlay-mount" style={{ display: 'none' }} />
+      <ExperienceShell />
     </MachineProvider>
   );
 }

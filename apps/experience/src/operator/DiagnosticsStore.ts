@@ -277,7 +277,7 @@ export class DiagnosticsStore {
 
   getSnapshot = (): DiagnosticsSnapshot => this.snapshot;
 
-  subscribe(listener: DiagnosticsListener): () => void {
+  subscribe = (listener: DiagnosticsListener): (() => void) => {
     this.listeners.add(listener);
     let subscribed = true;
     return () => {
@@ -285,7 +285,7 @@ export class DiagnosticsStore {
       subscribed = false;
       this.listeners.delete(listener);
     };
-  }
+  };
 
   updateMachine(update: MachineDiagnosticsUpdate): void {
     const current = this.snapshot.state;

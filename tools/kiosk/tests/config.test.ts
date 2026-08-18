@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   getKioskCesiumConfigurationWarning,
+  loadKioskConfig,
   loadKioskLocalEnv,
   type KioskConfig,
 } from '../src/config.js';
@@ -43,10 +44,28 @@ describe('kiosk local environment configuration', () => {
       logDir: '/tmp/logs',
       ionAccessToken: 'long-token-kept-private',
       ionGoogleTilesAssetId: 'not-an-ion-asset-id',
+      operatorActivationSequence: [{ type: 'nav.back', payload: {} }],
+      operatorActivationRateLimitMs: 1_000,
     };
 
     expect(getKioskCesiumConfigurationWarning(config)).toMatch(
       /positive numeric Cesium ion asset ID/i,
     );
+  });
+
+  it('provides a kiosk-configured hidden activation sequence and rate limit to the local runtime', () => {
+    const config = loadKioskConfig({
+      YII_OPERATOR_ACTIVATION_SEQUENCE: JSON.stringify([
+        { type: 'nav.idle', payload: {} },
+        { type: 'nav.back', payload: {} },
+      ]),
+      YII_OPERATOR_ACTIVATION_RATE_LIMIT_MS: '2500',
+    });
+
+    expect(config.operatorActivationSequence).toEqual([
+      { type: 'nav.idle', payload: {} },
+      { type: 'nav.back', payload: {} },
+    ]);
+    expect(config.operatorActivationRateLimitMs).toBe(2_500);
   });
 });
