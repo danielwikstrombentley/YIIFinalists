@@ -20,9 +20,11 @@ export default defineConfig({
   webServer: {
     // Run the real Vite + kiosk sidecar development stack rather than `vite preview`: it serves
     // the seeded local content through the dev proxy and exercises React StrictMode as operators
-    // do during development (the preview-only setup could not cover either boundary).
+    // do during development (the preview-only setup could not cover either boundary). The
+    // offline-safe fixture intentionally lives beneath test-results so an E2E run cannot
+    // overwrite the developer-selected assets/sample profile (including photorealistic Cesium).
     command:
-      'pnpm --filter content-pipeline seed:sample -- --tile-tier safe-composition && pnpm run dev',
+      'pnpm --filter content-pipeline seed:sample -- --tile-tier safe-composition --output "$PWD/test-results/e2e-content" && KIOSK_CONTENT_ROOT="$PWD/test-results/e2e-content" pnpm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,
   },
