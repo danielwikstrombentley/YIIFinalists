@@ -578,8 +578,8 @@ clean switching (spec US3).
   - Tests: unit per format: mounts from data, exposes animation targets, unmount leaves no residue.
   - Accept: formats addressable by `FormatId` from package data; no project-specific code.
 
-- [ ] T042 [P] [US3] Implement content-format library extended set in apps/experience/src/formats/extended/Timeline.tsx
-  - Meta: Phase PH5 · Feature F001 · Owner — · Branch `task/001-T042-formats-extended` · PR — · Blockers —
+- [~] T042 [P] [US3] Implement content-format library extended set in apps/experience/src/formats/extended/Timeline.tsx
+  - Meta: Phase PH5 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph5-us3-content-playback` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Remaining FR-014 formats: timeline, process/workflow diagram, before-after + side-by-side comparison, image sequence, animated map, geographic camera sequence (drives camera-flight adapter via orchestrator), highlighted region, 3D model/digital twin/reality model views, construction sequence, layer reveal, technology breakdown, multi-step narrative.
   - Files: `apps/experience/src/formats/extended/{Timeline.tsx,ProcessDiagram.tsx,Comparison.tsx,ImageSequence.tsx,AnimatedMap.tsx,GeoCameraSequence.tsx,HighlightRegion.tsx,Model3D.tsx,ConstructionSequence.tsx,LayerReveal.tsx,TechBreakdown.tsx,MultiStep.tsx}`
   - Deps: T041, T031
