@@ -1046,6 +1046,14 @@ plan-recorded N/A rationale — currently none).
   - Tests: red-first config contract proves the web-server command seeds and serves only the isolated fixture root; run the E2E suite and verify the normal `seed:sample` profile remains independently restorable.
   - Accept: test startup remains deterministically safe-composition and offline-capable, while normal local project confirmation can retain the camera-continuous photorealistic Cesium handover without an E2E run rewriting its content package.
 
+- [x] T086 Add a dedicated GitHub Copilot content-drafting agent for generated PH8 workspaces
+  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `task/001-T086-copilot-content-drafter` · PR #24 · Review `Claude Haiku 4.5 (Anthropic)` APPROVE (round 1, 2026-08-19) · Blockers —
+  - Do: Add a user-invocable, cost-conscious workspace agent pinned to `GPT-5.6 Luna (copilot)` that drafts one generated `work/<projectId>/drafting/` workspace at a time using only the normalised submission and supplied schemas; prohibit web/terminal/credential access, invention, automatic award-category assignment, approval, and publication; write only the two schema-governed draft files for later `ingest-drafts` validation.
+  - Files: `.github/agents/yii-content-drafter.agent.md`
+  - Deps: T059
+  - Tests: agent frontmatter validates in VS Code; file has no diagnostics or whitespace errors.
+  - Accept: the agent appears as **YII Content Drafter** in the workspace agent picker, uses GitHub Copilot credits without an external LLM API key, and produces only source-traceable draft analysis/options for human review.
+
 ---
 
 ## Dependencies & Execution Order
