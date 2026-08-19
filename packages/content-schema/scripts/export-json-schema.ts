@@ -8,7 +8,12 @@ import { categorySchema } from '../src/category.js';
 import { manifestSchema } from '../src/manifest.js';
 import { projectSchema } from '../src/project.js';
 import { channelsFileSchema } from '../src/channels.js';
-import { editorialOptionSchema, draftAnalysisSchema, submissionSchema } from '../src/editorial.js';
+import {
+  editorialOptionSchema,
+  draftAnalysisSchema,
+  proposedOptionContentsSchema,
+  submissionSchema,
+} from '../src/editorial.js';
 
 // Exports JSON Schema for every top-level content-package + editorial schema so the copilot-agent
 // drafting driver (research.md R9) and other non-TypeScript consumers can validate against the
@@ -23,6 +28,7 @@ const SCHEMAS: Record<string, z.core.$ZodType> = {
   'channels-file': channelsFileSchema,
   submission: submissionSchema,
   'draft-analysis': draftAnalysisSchema,
+  'proposed-options': proposedOptionContentsSchema,
   'editorial-option': editorialOptionSchema,
 };
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { passageRefSchema, slugSchema } from './shared.js';
+import { metricClaimSchema, passageRefSchema, slugSchema } from './shared.js';
 import { KNOWN_FORMAT_IDS } from './content-option.js';
 
 // Editorial / Pipeline Domain — data-model.md §2. Prep-time only; never read by the public
@@ -59,7 +59,17 @@ const producedBySchema = z.union([
 ]);
 export type ProducedBy = z.infer<typeof producedBySchema>;
 
-export const draftAnalysisSchema = z
+const draftProvenanceSchema = z
+  .object({
+    producedBy: producedBySchema,
+    promptVersion: z.string().min(1),
+    createdAt: z.iso.datetime({ offset: true }),
+    status: z.literal('draft'),
+  })
+  .strict();
+export type DraftProvenance = z.infer<typeof draftProvenanceSchema>;
+
+export const draftAnalysisContentSchema = z
   .object({
     submissionId: slugSchema,
     summary: sourcedTextSchema,
@@ -68,23 +78,15 @@ export const draftAnalysisSchema = z
     challenges: z.array(sourcedTextSchema),
     approaches: z.array(sourcedTextSchema),
     outcomes: z.array(sourcedTextSchema),
-    quantResults: z.array(
-      z
-        .object({
-          label: z.string().min(1),
-          value: z.string().min(1),
-          verified: z.boolean(),
-          sourceLinks: z.array(passageRefSchema).min(1),
-        })
-        .strict(),
-    ),
+    quantResults: z.array(metricClaimSchema),
     themes: z.array(sourcedTextSchema),
     needsVerification: z.array(claimSchema),
     missingInfo: z.array(z.string().min(1)),
-    producedBy: producedBySchema,
-    status: z.literal('draft'),
   })
   .strict();
+export type DraftAnalysisContent = z.infer<typeof draftAnalysisContentSchema>;
+
+export const draftAnalysisSchema = draftAnalysisContentSchema.extend(draftProvenanceSchema.shape);
 export type DraftAnalysis = z.infer<typeof draftAnalysisSchema>;
 
 export const REVIEW_STATES = [
@@ -125,6 +127,106 @@ export type ChangeRecord = z.infer<typeof changeRecordSchema>;
 
 const assetRequestSchema = z.object({ description: z.string().min(1) }).strict();
 
+export const proposedOptionContentSchema = z
+  .object({
+    projectId: slugSchema,
+    position: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
+      .nullable(),
+    title: sourcedTextSchema,
+    rationale: sourcedTextSchema,
+    draftDisplayText: sourcedTextSchema,
+    draftVoiceoverText: sourcedTextSchema,
+    formatRecommendation: z.enum(KNOWN_FORMAT_IDS).optional(),
+    mediaRecommendations: z.array(sourcedTextSchema),
+    missingAssets: z.array(assetRequestSchema),
+  })
+  .strict();
+export type ProposedOptionContent = z.infer<typeof proposedOptionContentSchema>;
+
+export const proposedOptionSchema = proposedOptionContentSchema.extend(draftProvenanceSchema.shape);
+export type ProposedOption = z.infer<typeof proposedOptionSchema>;
+
+/** Project Overview plus at most four additional options; meaningful drafts are never padded. */
+export const proposedOptionContentsSchema = z
+  .array(proposedOptionContentSchema)
+  .min(1)
+  .max(5)
+  .superRefine((options, context) => {
+    if (options[0]?.position !== 1) {
+      context.addIssue({
+        code: 'custom',
+        path: [0, 'position'],
+        message: 'the first proposed option must be the Project Overview at position 1',
+      });
+    }
+    const positions = options
+      .map((option) => option.position)
+      .filter((position): position is NonNullable<typeof position> => position !== null);
+    if (new Set(positions).size !== positions.length) {
+      context.addIssue({
+        code: 'custom',
+        path: [],
+        message: 'proposed option positions must be unique',
+      });
+    }
+  });
+
+export const proposedOptionsSchema = z
+  .array(proposedOptionSchema)
+  .min(1)
+  .max(5)
+  .superRefine((options, context) => {
+    if (options[0]?.position !== 1) {
+      context.addIssue({
+        code: 'custom',
+        path: [0, 'position'],
+        message: 'the first proposed option must be the Project Overview at position 1',
+      });
+    }
+  });
+
+export const draftAnalysisEnvelopeSchema = z
+  .object({
+    data: draftAnalysisContentSchema,
+    producedBy: producedBySchema,
+    model: z.string().min(1).optional(),
+    promptVersion: z.string().min(1),
+    createdAt: z.iso.datetime({ offset: true }),
+    status: z.literal('draft'),
+  })
+  .strict();
+
+export const proposedOptionsEnvelopeSchema = z
+  .object({
+    data: proposedOptionContentsSchema,
+    producedBy: producedBySchema,
+    model: z.string().min(1).optional(),
+    promptVersion: z.string().min(1),
+    createdAt: z.iso.datetime({ offset: true }),
+    status: z.literal('draft'),
+  })
+  .strict();
+
+export const textRevisionContentSchema = z
+  .object({
+    field: z.enum(['displayText', 'voiceoverText']),
+    text: sourcedTextSchema,
+  })
+  .strict();
+export type TextRevisionContent = z.infer<typeof textRevisionContentSchema>;
+
+export const textRevisionEnvelopeSchema = z
+  .object({
+    data: textRevisionContentSchema,
+    producedBy: producedBySchema,
+    model: z.string().min(1).optional(),
+    promptVersion: z.string().min(1),
+    createdAt: z.iso.datetime({ offset: true }),
+    status: z.literal('draft'),
+  })
+  .strict();
+
 /**
  * ProposedOption → EditorialOption — one schema covers the whole lifecycle; `reviewState`
  * distinguishes a freshly-proposed record (`draft`) from a reviewed/approved one. `producedBy` is
@@ -136,16 +238,19 @@ export const editorialOptionSchema = z
     position: z
       .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
       .nullable(),
-    title: z.string().min(1),
-    rationale: z.string().min(1),
+    title: sourcedTextSchema,
+    rationale: sourcedTextSchema,
     sourceLinks: z.array(passageRefSchema).min(1),
-    draftDisplayText: z.string().min(1),
-    draftVoiceoverText: z.string().min(1),
+    draftDisplayText: sourcedTextSchema,
+    draftVoiceoverText: sourcedTextSchema,
+    displayTextVersion: z.number().int().positive(),
+    voiceoverTextVersion: z.number().int().positive(),
     formatRecommendation: z.enum(KNOWN_FORMAT_IDS).optional(),
-    mediaRecommendations: z.array(z.string().min(1)),
+    mediaRecommendations: z.array(sourcedTextSchema),
     missingAssets: z.array(assetRequestSchema),
     reviewState: z.enum(REVIEW_STATES),
     producedBy: producedBySchema.optional(),
+    promptVersion: z.string().min(1).optional(),
     audit: z.array(changeRecordSchema),
   })
   .strict();

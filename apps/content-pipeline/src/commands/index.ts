@@ -1,4 +1,8 @@
 import { generateSampleRelease, parseSampleTileTier } from '../seed/sample.ts';
+import { runAnalyzeCommand } from './analyze.ts';
+import { runIngestCommand } from './ingest.ts';
+import { runIngestDraftsCommand } from './ingest-drafts.ts';
+import { runReviewCommand } from '../review/cli.ts';
 
 export interface CliCommand {
   name: string;
@@ -19,23 +23,23 @@ export const commands: CliCommand[] = [
   {
     name: 'ingest',
     description: 'Ingest submissions from ClickUp or a manual export (research R10).',
-    run: notYetImplemented('ingest'),
+    run: runIngestCommand,
   },
   {
     name: 'analyze',
     description:
       'Run provider-agnostic LLM drafting analysis on ingested submissions (research R9).',
-    run: notYetImplemented('analyze'),
+    run: runAnalyzeCommand,
   },
   {
     name: 'ingest-drafts',
     description: 'Import externally produced draft analyses (e.g. Copilot agent workflow output).',
-    run: notYetImplemented('ingest-drafts'),
+    run: runIngestDraftsCommand,
   },
   {
     name: 'review',
     description: 'Open the editorial review/approval workflow for proposed content options.',
-    run: notYetImplemented('review'),
+    run: runReviewCommand,
   },
   {
     name: 'validate',
