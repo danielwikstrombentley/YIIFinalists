@@ -744,7 +744,7 @@ traceability, human review/edit/approve; nothing unapproved can ever publish.
 **Independent Test**: ingest a representative submission; verify drafts with traceability; edit
 and approve; confirm unapproved/rejected material never reaches the live app (spec US6).
 **Phase branch**: `phase/001-ph8-us6-pipeline-drafting` · **Depends on**: PH2 (parallel to Track A)
-`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/23 · Implementer model(s): agent:GPT-5.6 Sol (OpenAI) · Review model: — · Verdict: —`
+`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/23 · Implementer model(s): agent:GPT-5.6 Sol (OpenAI) · Review model: Claude Haiku 4.5 (Anthropic) · Verdict: APPROVE (round 1, 2026-08-19)`
 
 ### Verification for US6 (red-first) ⚠️
 
