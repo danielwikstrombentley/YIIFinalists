@@ -8,9 +8,13 @@ import {
   beginTransitionToProject,
   cancelOwnedHandles,
   completeTransitionToPreview,
+  deepResetToIdle,
   enterCategoryPreview,
   enterProjectLanding,
   enterRecovering,
+  executeOperatorCommand,
+  isCurrentRecovery,
+  isRendererRecoveryCommand,
   preloadLandingOptionAssets,
   registerReleaseCategories,
   requestCategorySwitch,
@@ -21,7 +25,9 @@ import {
   returnToPreviewAfterHandoverFailure,
   startContentPlayback,
   startForwardHandover,
+  startRecovery,
   startReverseHandover,
+  queueRendererRecovery,
 } from './actions.js';
 import { createCleanupRegistry } from './cleanup-registry.js';
 import { isCurrentGeneration, outranks } from './guards.js';
@@ -60,7 +66,18 @@ export const experienceMachine = setup({
   // their camera-continuous reverse first, then complete the same reset.
   on: {
     'internal.releaseLoaded': { actions: [registerReleaseCategories] },
-    'operator.reset': { target: '.idle', actions: [cancelOwnedHandles, resetToIdle] },
+    'operator.reset': {
+      target: '.idle',
+      actions: [cancelOwnedHandles, deepResetToIdle, resetToIdle],
+    },
+    'operator.command': [
+      {
+        guard: isRendererRecoveryCommand,
+        target: '.recovering',
+        actions: [cancelOwnedHandles, queueRendererRecovery],
+      },
+      { actions: [executeOperatorCommand] },
+    ],
     'nav.idle': { target: '.idle', actions: [cancelOwnedHandles, resetToIdle] },
     'internal.adapterFailure': { target: '.recovering', actions: [enterRecovering] },
   },
@@ -211,8 +228,13 @@ export const experienceMachine = setup({
       },
     },
     recovering: {
+      entry: [startRecovery],
       on: {
-        'internal.recovered': { target: 'idle', actions: [resetToIdle] },
+        'internal.recovered': {
+          target: 'idle',
+          guard: ({ context, event }) => isCurrentRecovery(context, event),
+          actions: [resetToIdle],
+        },
       },
     },
   },

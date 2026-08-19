@@ -66,64 +66,91 @@ export function createCesiumPresentation(
   stageElement: HTMLElement,
   globe: GlobePresentation,
 ): CesiumPresentation {
-  const stage = new CesiumStageAdapter();
-  stage.start(stageElement);
-  // The renderer and its safe surface are available synchronously, preserving a visible stage
-  // while configuration loads. State-owned preview/handover work waits for this promise before
-  // it asks the adapter to choose a streamed or fallback tier.
-  const configurationReady = configureFromKiosk(stage);
-
-  const preloadManager = new PreloadManager();
-  const prewarm = new CesiumPrewarmController({
-    stage,
-    preloadManager,
-    landingAssetPreloader: {
-      preload(project, signal) {
-        return preloadPackageAssets(
-          landingAssetPaths(project as Project),
-          globe.resolveAssetUrl,
-          signal,
-        );
-      },
-    },
-  });
-  const handover = new HandoverController({
-    stage: stageElement,
-    globe: {
-      element: globe.adapter.canvas,
-      captureGeographicPose: () => globe.adapter.captureGeographicPose(),
-      captureTargetProjection: (projectId) =>
-        globe.adapter.transitionProbe(projectId).targetProjection,
-      applyGeographicPose: (pose) => globe.adapter.applyGeographicPose(pose),
-      beginExternalFrameControl: () => globe.adapter.beginExternalFrameControl(),
-      suspendRendering: () => globe.adapter.stop(),
-      resumeRendering: () => {
-        globe.adapter.start(stageElement);
-      },
-      // The machine's category-preview entry action restores the exact selected project after an
-      // interruption. This immediate resume preserves the existing canvas meanwhile.
-      restorePreview: () => {
-        globe.adapter.start(stageElement);
-        globe.adapter.restorePreviewCamera();
-      },
-    },
-    cesium: stage,
-    prewarm,
-  });
+  let stage!: CesiumStageAdapter;
+  let preloadManager!: PreloadManager;
+  let prewarm!: CesiumPrewarmController;
+  let handover!: HandoverController;
+  let configurationReady!: Promise<void>;
   let prewarmGeneration = 0;
+  let disposed = false;
+
+  const initialize = (): void => {
+    stage = new CesiumStageAdapter();
+    stage.start(stageElement);
+    // The renderer and its safe surface are available synchronously, preserving a visible stage
+    // while configuration loads. State-owned preview/handover work waits for this promise before
+    // it asks the adapter to choose a streamed or fallback tier.
+    configurationReady = configureFromKiosk(stage);
+    preloadManager = new PreloadManager();
+    prewarm = new CesiumPrewarmController({
+      stage,
+      preloadManager,
+      landingAssetPreloader: {
+        preload(project, signal) {
+          return preloadPackageAssets(
+            landingAssetPaths(project as Project),
+            globe.resolveAssetUrl,
+            signal,
+          );
+        },
+      },
+    });
+    handover = new HandoverController({
+      stage: stageElement,
+      globe: {
+        element: globe.adapter.canvas,
+        captureGeographicPose: () => globe.adapter.captureGeographicPose(),
+        captureTargetProjection: (projectId) =>
+          globe.adapter.transitionProbe(projectId).targetProjection,
+        applyGeographicPose: (pose) => globe.adapter.applyGeographicPose(pose),
+        beginExternalFrameControl: () => globe.adapter.beginExternalFrameControl(),
+        suspendRendering: () => globe.adapter.stop(),
+        resumeRendering: () => {
+          globe.adapter.start(stageElement);
+        },
+        // The machine's category-preview entry action restores the exact selected project after
+        // an interruption. This immediate resume preserves the existing canvas meanwhile.
+        restorePreview: () => {
+          globe.adapter.start(stageElement);
+          globe.adapter.restorePreviewCamera();
+        },
+      },
+      cesium: stage,
+      prewarm,
+    });
+  };
+
+  const release = (): void => {
+    prewarmGeneration += 1;
+    handover.dispose();
+    prewarm.dispose();
+    preloadManager.clear();
+    stage.dispose();
+  };
+
+  initialize();
 
   return {
-    stage,
-    prewarm,
-    handover,
-    configurationReady,
+    get stage() {
+      return stage;
+    },
+    get prewarm() {
+      return prewarm;
+    },
+    get handover() {
+      return handover;
+    },
+    get configurationReady() {
+      return configurationReady;
+    },
     prewarmPreview(project) {
       const generation = ++prewarmGeneration;
-      void configurationReady.then(() => {
+      const ready = configurationReady;
+      void ready.then(() => {
         // Category/hover changes can arrive while configuration is still in flight. Only the
         // current preview gets to warm tiles; `CesiumPrewarmController.warm()` cancels the prior
         // real warm after configuration has become available.
-        if (generation !== prewarmGeneration) return;
+        if (disposed || generation !== prewarmGeneration || ready !== configurationReady) return;
         prewarm.warm(project);
       });
     },
@@ -145,18 +172,26 @@ export function createCesiumPresentation(
         },
       };
     },
+    clearPreloadCache() {
+      prewarm.cancel();
+      preloadManager.clear();
+    },
+    rebuild() {
+      if (disposed) return;
+      release();
+      initialize();
+    },
     reset() {
+      if (disposed) return;
       prewarmGeneration += 1;
       prewarm.cancel();
       preloadManager.clear();
       stage.reset();
     },
     dispose() {
-      prewarmGeneration += 1;
-      handover.dispose();
-      prewarm.dispose();
-      preloadManager.clear();
-      stage.dispose();
+      if (disposed) return;
+      disposed = true;
+      release();
     },
   };
 }

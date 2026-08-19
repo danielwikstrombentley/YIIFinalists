@@ -90,4 +90,22 @@ describe('ContentPlaybackPresentation', () => {
     pause.mockRestore();
     load.mockRestore();
   });
+
+  it('keeps the active composition mounted and marks it as a fallback after an operator-injected media failure', () => {
+    const project = createProject();
+    const onMediaFailure = vi.fn();
+    const presentation = createContentPlaybackPresentation({
+      getProject: (projectId) => (projectId === project.id ? project : undefined),
+      resolveAssetUrl: (path) => `/content/releases/v1/${path}`,
+      send: vi.fn(),
+      onMediaFailure,
+    });
+
+    expect(presentation.start(project.id, 1, 7)).toBe(true);
+    expect(presentation.forceMediaFailure()).toBe(true);
+    expect(presentation.snapshot).toMatchObject({ mediaFallback: true });
+    expect(onMediaFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.stringMatching(/operator-injected/i) }),
+    );
+  });
 });

@@ -1,5 +1,7 @@
 import { assign } from 'xstate';
+import { parseOperatorCommand, type RecoveryRenderer } from '../operator/commands.js';
 import { nextGeneration } from './generation.js';
+import { deepResetRuntime, executeRecoveryCommand } from './recovery.js';
 import type { ExperienceContext, ExperienceEvent } from './types.js';
 
 // Entry/exit actions. Renderer/orchestrator adapters are stubbed in PH2 (T011 scope) — actions
@@ -27,8 +29,14 @@ export const resetToIdle = assign<
   activeSequenceId: null,
   activeVoiceoverId: null,
   lastError: null,
+  recoveryRequest: null,
   generation: nextGeneration(context.generation),
 }));
+
+/** Rung 1: cancel state handles plus every runtime resource before returning to the idle reducer. */
+export function deepResetToIdle({ context }: { context: ExperienceContext }): void {
+  deepResetRuntime(context.runtime);
+}
 
 /** Records validated category ordering at the machine boundary (the source for FR-005 first preview). */
 export const registerReleaseCategories = assign<
@@ -452,5 +460,86 @@ export const enterRecovering = assign<
     atState: 'unknown',
     reason: event.type === 'internal.adapterFailure' ? event.reason : 'unknown',
   },
+  recoveryRequest:
+    context.recoveryRequest ??
+    ({
+      kind: 'fallback',
+      reason: event.type === 'internal.adapterFailure' ? event.reason : 'Unknown adapter failure',
+    } as const),
   generation: nextGeneration(context.generation),
 }));
+
+function rendererFromEvent(event: ExperienceEvent): RecoveryRenderer | null {
+  if (event.type !== 'operator.command') return null;
+  const command = parseOperatorCommand(event.payload);
+  return command?.kind === 'rendererRecover' ? command.renderer : null;
+}
+
+/** Guard exported for the machine so only adapter rebuilds enter the dedicated recovering state. */
+export function isRendererRecoveryCommand({ event }: { event: ExperienceEvent }): boolean {
+  return rendererFromEvent(event) !== null;
+}
+
+export const queueRendererRecovery = assign<
+  ExperienceContext,
+  ExperienceEvent,
+  undefined,
+  ExperienceEvent,
+  never
+>(({ context, event }) => {
+  const renderer = rendererFromEvent(event);
+  if (!renderer) return {};
+  return {
+    recoveryRequest: { kind: 'rendererRecover', renderer } as const,
+    generation: nextGeneration(context.generation),
+  };
+});
+
+/** Executes safe non-state-changing rungs: media fallback, cache clear, reload request, support aids. */
+export function executeOperatorCommand({
+  context,
+  event,
+}: {
+  context: ExperienceContext;
+  event: ExperienceEvent;
+}): void {
+  if (event.type !== 'operator.command') return;
+  void executeRecoveryCommand(context.runtime, parseOperatorCommand(event.payload));
+}
+
+interface RecoveryActionSelf {
+  send(event: ExperienceEvent): void;
+  getSnapshot(): { context: ExperienceContext };
+}
+
+/** Rebuilds the requested renderer (or safely falls back) and rejects stale async completion tokens. */
+export function startRecovery({
+  context,
+  self,
+}: {
+  context: ExperienceContext;
+  self: RecoveryActionSelf;
+}): void {
+  const generation = context.generation;
+  const request = context.recoveryRequest;
+  const command =
+    request?.kind === 'rendererRecover'
+      ? { kind: 'rendererRecover' as const, renderer: request.renderer }
+      : null;
+  // An adapter failure leaves the named `recovering` state active so the safe fallback is
+  // observable to the operator and the normal `internal.recovered` transition controls exit.
+  // Only an explicit renderer-rebuild command owns an automatic completion callback.
+  if (!command) return;
+  void executeRecoveryCommand(context.runtime, command).then(() => {
+    if (self.getSnapshot().context.generation !== generation) return;
+    self.send({ type: 'internal.recovered', generation });
+  });
+}
+
+/** Supports existing manual state tests while retaining stale-completion protection for real recovery. */
+export function isCurrentRecovery(
+  context: ExperienceContext,
+  event: Extract<ExperienceEvent, { type: 'internal.recovered' }>,
+): boolean {
+  return event.generation === undefined || event.generation === context.generation;
+}

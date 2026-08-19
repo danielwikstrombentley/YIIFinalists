@@ -32,6 +32,9 @@ describe('kiosk server', () => {
       logDir,
       ionAccessToken: 'test-ion-token',
       ionGoogleTilesAssetId: '123',
+      operatorActivationSequence: [{ type: 'nav.back', payload: {} }],
+      operatorActivationRateLimitMs: 1_000,
+      operatorActivationSources: ['operator'],
     };
     kiosk = createKioskServer(config);
     await kiosk.listen();
@@ -65,6 +68,9 @@ describe('kiosk server', () => {
     expect(await response.json()).toEqual({
       ionAccessToken: 'test-ion-token',
       ionGoogleTilesAssetId: '123',
+      operatorActivationSequence: [{ type: 'nav.back', payload: {} }],
+      operatorActivationRateLimitMs: 1_000,
+      operatorActivationSources: ['operator'],
     });
   });
 

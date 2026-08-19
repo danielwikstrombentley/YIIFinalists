@@ -1,6 +1,7 @@
 import type { SemanticAction } from '@yii/semantic-actions';
 import type { CleanupRegistry } from './cleanup-registry.js';
 import type { ExperienceRuntime } from './runtime.js';
+import type { RecoveryRenderer } from '../operator/commands.js';
 
 // `connection.status` is diagnostics-only and must never reach the machine (contracts/
 // semantic-input.md boundary rule 6) — excluded from the event union at the type level too.
@@ -20,7 +21,11 @@ export type InternalEvent =
   | { type: 'internal.handoverToPreviewComplete'; generation: number }
   | { type: 'internal.sequenceComplete'; generation: number }
   | { type: 'internal.adapterFailure'; reason: string }
-  | { type: 'internal.recovered' };
+  | { type: 'internal.recovered'; generation?: number };
+
+export type RecoveryRequest =
+  | { readonly kind: 'rendererRecover'; readonly renderer: RecoveryRenderer }
+  | { readonly kind: 'fallback'; readonly reason: string };
 
 export type ExperienceEvent = MachineBoundSemanticAction | InternalEvent;
 
@@ -44,6 +49,8 @@ export interface ExperienceContext {
   /** Bumped on every state-scoped async operation; stale completions are discarded (research.md R5/R6). */
   generation: number;
   lastError: { atState: string; reason: string } | null;
+  /** Pending recovery work owned by the `recovering` state only. */
+  recoveryRequest: RecoveryRequest | null;
   /** Adapter-handle registry (renderer/orchestrator handles are stubbed until PH3+). */
   cleanup: CleanupRegistry;
   /** Runtime adapter registry populated by the app shell only after release revalidation. */
@@ -62,4 +69,5 @@ export const INITIAL_CONTEXT: Omit<ExperienceContext, 'cleanup' | 'runtime'> = {
   activeVoiceoverId: null,
   generation: 0,
   lastError: null,
+  recoveryRequest: null,
 };

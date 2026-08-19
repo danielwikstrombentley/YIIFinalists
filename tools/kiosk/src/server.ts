@@ -10,6 +10,11 @@ import {
 } from './config.js';
 import { TelemetrySink } from './telemetry-sink.js';
 import { WsInputBridge } from './ws-input.js';
+import {
+  isLoopbackAddress,
+  isValidWatchdogReloadPayload,
+  type WatchdogReloadRequester,
+} from '../watchdog.js';
 
 // Kiosk sidecar dev server (T019): local static server for the built app + active content
 // release, a WS input relay, and the telemetry sink endpoint. No dependency beyond `ws` — plain
@@ -80,14 +85,26 @@ async function serveStatic(
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let bytes = 0;
   for await (const chunk of req) {
-    chunks.push(chunk as Buffer);
+    const buffer = Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > 64 * 1024) throw new Error('Request body too large');
+    chunks.push(buffer);
   }
   const raw = Buffer.concat(chunks).toString('utf8');
-  return raw.length > 0 ? JSON.parse(raw) : [];
+  return raw.length > 0 ? JSON.parse(raw) : undefined;
 }
 
-export function createKioskServer(config: KioskConfig = loadKioskConfig()) {
+export interface KioskServerOptions {
+  /** In-process test/embedding hook; production uses the loopback watchdog control port. */
+  watchdog?: WatchdogReloadRequester;
+}
+
+export function createKioskServer(
+  config: KioskConfig = loadKioskConfig(),
+  options: KioskServerOptions = {},
+) {
   const telemetrySink = new TelemetrySink(config.logDir);
   const wsInputBridge = new WsInputBridge();
 
@@ -113,15 +130,51 @@ export function createKioskServer(config: KioskConfig = loadKioskConfig()) {
         JSON.stringify({
           ionAccessToken: config.ionAccessToken,
           ionGoogleTilesAssetId: config.ionGoogleTilesAssetId,
+          operatorActivationSequence: config.operatorActivationSequence,
+          operatorActivationRateLimitMs: config.operatorActivationRateLimitMs,
+          operatorActivationSources: config.operatorActivationSources,
         }),
       );
+      return;
+    }
+
+    if (url.split('?')[0] === '/watchdog/reload') {
+      if (req.method !== 'POST') {
+        res.writeHead(405, { Allow: 'POST' }).end('Method not allowed');
+        return;
+      }
+      if (!isLoopbackAddress(req.socket.remoteAddress)) {
+        res.writeHead(403).end('Loopback only');
+        return;
+      }
+
+      let body: unknown;
+      try {
+        body = await readJsonBody(req);
+      } catch {
+        res
+          .writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' })
+          .end(JSON.stringify({ requested: false, error: 'Invalid reload request' }));
+        return;
+      }
+      if (!isValidWatchdogReloadPayload(body)) {
+        res
+          .writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' })
+          .end(JSON.stringify({ requested: false, error: 'Invalid reload request' }));
+        return;
+      }
+
+      const requested = await signalWatchdog(config, options.watchdog);
+      res
+        .writeHead(202, { 'Content-Type': 'application/json; charset=utf-8' })
+        .end(JSON.stringify({ requested }));
       return;
     }
 
     if (req.method === 'POST' && url === '/telemetry') {
       try {
         const body = await readJsonBody(req);
-        const events = Array.isArray(body) ? body : [body];
+        const events = body === undefined ? [] : Array.isArray(body) ? body : [body];
         const result = await telemetrySink.appendBatch(events);
         res.writeHead(202, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
       } catch (error) {
@@ -164,6 +217,34 @@ export function createKioskServer(config: KioskConfig = loadKioskConfig()) {
       });
     },
   };
+}
+
+async function signalWatchdog(
+  config: KioskConfig,
+  watchdog: WatchdogReloadRequester | undefined,
+): Promise<boolean> {
+  if (watchdog) {
+    try {
+      return await watchdog.requestReload();
+    } catch {
+      return false;
+    }
+  }
+  const port = config.watchdogControlPort;
+  if (!port) return false;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/reload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'kiosk-sidecar' }),
+      signal: AbortSignal.timeout(500),
+    });
+    return response.ok;
+  } catch {
+    // A stopped/unconfigured watchdog must not turn an operator request into a sidecar 5xx.
+    return false;
+  }
 }
 
 function describeError(error: unknown): string {

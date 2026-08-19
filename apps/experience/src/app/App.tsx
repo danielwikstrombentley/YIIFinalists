@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { bootstrap, createRuntimeDependencies, type BootstrapDeps } from './bootstrap.js';
+import { useEffect, useRef, useState } from 'react';
+import { bootstrap, createRuntimeDependencies, type RuntimeDependencies } from './bootstrap.js';
 import { createContentPlaybackPresentation } from '../content/playback.js';
 import { createGlobePresentation } from './globe-presentation.js';
 import { MachineProvider, useMachineActor } from './MachineProvider.js';
@@ -10,6 +10,7 @@ import {
   type TransitionObservabilitySnapshot,
 } from '../renderers/handover/transition-observability.js';
 import { sharedTicker } from '../orchestration/ticker.js';
+import { OperatorOverlay } from '../operator/OperatorOverlay.js';
 import { StageMount } from './StageMount.js';
 
 // App shell (T020): kiosk bootstrap + machine provider + public stage + operator overlay mount
@@ -19,9 +20,15 @@ import { StageMount } from './StageMount.js';
 
 interface E2eRuntimeBridge {
   simulator: {
-    injectAction(type: string, payload: unknown): void;
+    injectAction(
+      type: string,
+      payload: unknown,
+      source?: 'console' | 'simulator' | 'operator',
+    ): void;
   };
   stateHistory(): unknown[];
+  diagnosticsSnapshot(): unknown;
+  contentSnapshot(): unknown;
   transitionSnapshot(): TransitionObservabilitySnapshot;
 }
 
@@ -44,10 +51,65 @@ function isEditableTextTarget(target: EventTarget | null): boolean {
   );
 }
 
-function BootOrchestrator() {
+function machineStatePath(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return 'unknown';
+  const [parent, child] = Object.entries(value as Record<string, unknown>)[0] ?? [];
+  if (!parent) return 'unknown';
+  const childPath = machineStatePath(child);
+  return childPath === 'unknown' ? parent : `${parent}.${childPath}`;
+}
+
+function diagnosticsVoiceoverStatus(
+  status: string | undefined,
+): 'unknown' | 'playing' | 'stopped' | 'fallback' | 'error' {
+  if (status === 'playing' || status === 'stopped' || status === 'fallback') return status;
+  return status === 'idle' || status === undefined ? 'stopped' : 'error';
+}
+
+function diagnosticsHandoverStatus(
+  status: string | undefined,
+):
+  | 'idle'
+  | 'approaching'
+  | 'flying'
+  | 'blending'
+  | 'covering'
+  | 'revealing'
+  | 'settled'
+  | 'fallback'
+  | 'cancelled'
+  | 'unknown' {
+  const known = new Set([
+    'idle',
+    'approaching',
+    'flying',
+    'blending',
+    'covering',
+    'revealing',
+    'settled',
+    'fallback',
+    'cancelled',
+  ]);
+  return known.has(status ?? '')
+    ? (status as Exclude<ReturnType<typeof diagnosticsHandoverStatus>, 'unknown'>)
+    : 'unknown';
+}
+
+interface BootOrchestratorProps {
+  onDependenciesReady(dependencies: RuntimeDependencies): void;
+  onOperatorActivated(): void;
+  onCategoryIdsLoaded(categoryIds: readonly string[]): void;
+}
+
+function BootOrchestrator({
+  onDependenciesReady,
+  onOperatorActivated,
+  onCategoryIdsLoaded,
+}: BootOrchestratorProps) {
   const actor = useMachineActor();
   const hasBooted = useRef(false);
-  const depsRef = useRef<BootstrapDeps | null>(null);
+  const depsRef = useRef<RuntimeDependencies | null>(null);
   const categoryIdsRef = useRef<readonly string[]>([]);
   const lastProjectIdRef = useRef<string | null>(null);
   const lastCategoryIdRef = useRef<string | null>(null);
@@ -58,8 +120,22 @@ function BootOrchestrator() {
     const deps = createRuntimeDependencies({
       send: (event) => actor.send(event),
       getExclusivePriority: () => exclusivePriorityForState(actor.getSnapshot().value),
+      onOperatorActivated,
     });
     depsRef.current = deps;
+    onDependenciesReady(deps);
+    const runtime = actor.getSnapshot().context.runtime;
+    runtime.setRecoveryControls({
+      clearPreloadCache: () => {
+        deps.loader.clearPreloadCache();
+        runtime.cesium?.clearPreloadCache?.();
+      },
+      requestReload: () => {
+        // A watchdog request is intentionally not awaited; it cannot delay an operator command,
+        // visual fallback, or public navigation if the local sidecar is unavailable.
+        void fetch('/watchdog/reload', { method: 'POST' }).catch(() => undefined);
+      },
+    });
     if (isE2eRun()) {
       exposeE2eBridge(actor, deps);
     }
@@ -67,7 +143,6 @@ function BootOrchestrator() {
       ...deps,
       onReleaseLoaded: async (release) => {
         const projects = await deps.loader.loadAllProjects();
-        const runtime = actor.getSnapshot().context.runtime;
         const globe = createGlobePresentation(
           projects,
           (packageRelativePath) => `/content/releases/${release.version}/${packageRelativePath}`,
@@ -78,9 +153,26 @@ function BootOrchestrator() {
             getProject: (projectId) => globe.getProject(projectId),
             resolveAssetUrl: globe.resolveAssetUrl,
             send: (event) => actor.send(event),
+            onMediaFailure: ({ assetId, error }) => {
+              deps.diagnostics.recordAssetFailure({
+                assetId,
+                error,
+                fallbackApplied: true,
+              });
+              deps.diagnostics.updateVideo({ status: 'fallback', assetId });
+            },
           }),
         );
         categoryIdsRef.current = release.categories.map(({ id }) => id);
+        onCategoryIdsLoaded(categoryIdsRef.current);
+        deps.diagnostics.setRelease({
+          version: release.version,
+          contentHash: release.manifest.contentHash,
+        });
+        deps.telemetry.setReleaseContext({
+          version: release.version,
+          contentHash: release.manifest.contentHash,
+        });
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- boot must run exactly once
@@ -150,9 +242,68 @@ function BootOrchestrator() {
     // category's own projects (PH2 round 2 finding #1 — a project from another category was
     // previously accepted) and `content.select { position }` against the active project (round 1
     // finding #2); also warms the loader's project cache so `hasContentPosition` has data to check.
-    const subscription = actor.subscribe((snapshot) => {
+    const observeSnapshot = (snapshot: ReturnType<typeof actor.getSnapshot>): void => {
       const deps = depsRef.current;
       if (!deps) return;
+
+      deps.diagnostics.updateMachine({
+        statePath: machineStatePath(snapshot.value),
+        activeCategoryId: snapshot.context.activeCategoryId,
+        previewedProjectId: snapshot.context.previewedProjectId,
+        selectedProjectId: snapshot.context.selectedProjectId,
+        activeContentPosition: snapshot.context.activeContentPosition,
+      });
+      deps.telemetry.observeStateTransition({
+        stateAfter: machineStatePath(snapshot.value),
+        refs: {
+          categoryId: snapshot.context.activeCategoryId,
+          projectId: snapshot.context.selectedProjectId ?? snapshot.context.previewedProjectId,
+          position: snapshot.context.activeContentPosition,
+        },
+      });
+      deps.diagnostics.updatePerformance({ tickerCallbackCount: sharedTicker.rendererCount });
+
+      const content = snapshot.context.runtime.content;
+      const contentSnapshot = content?.snapshot;
+      deps.diagnostics.updateVoiceover({
+        status: diagnosticsVoiceoverStatus(content?.voiceoverStatus),
+        positionSeconds: null,
+        assetId: contentSnapshot?.option.voiceover.file ?? null,
+      });
+      deps.diagnostics.updateVideo({
+        status: contentSnapshot?.mediaFallback ? 'fallback' : 'paused',
+        assetId: content?.videoSurface.activeAssetId ?? null,
+      });
+      deps.diagnostics.updateSequenceProgress({
+        beat: contentSnapshot?.phase ?? null,
+        percent: contentSnapshot?.phase === 'final-hold' ? 100 : null,
+        elapsedMs: null,
+      });
+
+      const runtime = snapshot.context.runtime;
+      deps.diagnostics.updateRenderer('globe', {
+        status: runtime.globe?.adapter.isDisposed
+          ? 'disposed'
+          : runtime.globe?.adapter.idleLoopRunning
+            ? 'ready'
+            : 'inactive',
+      });
+      deps.diagnostics.updateRenderer('cesium', {
+        status: runtime.cesium?.stage.isRendering
+          ? 'ready'
+          : runtime.cesium
+            ? 'inactive'
+            : 'unknown',
+        tier: runtime.cesium?.stage.tier ?? null,
+      });
+      const handover = runtime.cesium?.handover.transitionProbe;
+      deps.diagnostics.updateHandover({
+        status: diagnosticsHandoverStatus(handover?.status),
+        lastDurationMs:
+          handover?.startedAtMs === null || handover?.startedAtMs === undefined
+            ? null
+            : Math.max(0, performance.now() - handover.startedAtMs),
+      });
 
       const categoryId = snapshot.context.activeCategoryId;
       if (categoryId !== lastCategoryIdRef.current) {
@@ -170,14 +321,19 @@ function BootOrchestrator() {
           // until loadProject() succeeds; the renderer tasks (PH3+) retry loading for playback.
         });
       }
-    });
+    };
+    observeSnapshot(actor.getSnapshot());
+    const subscription = actor.subscribe(observeSnapshot);
     return () => subscription.unsubscribe();
   }, [actor]);
 
   return null;
 }
 
-function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: BootstrapDeps): void {
+function exposeE2eBridge(
+  actor: ReturnType<typeof useMachineActor>,
+  deps: RuntimeDependencies,
+): void {
   const simulator = deps.transports.find(
     (transport): transport is SimulatorTransport => transport instanceof SimulatorTransport,
   );
@@ -196,11 +352,13 @@ function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: Bootst
 
   window.__YII_E2E__ = {
     simulator: {
-      injectAction(type, payload) {
-        simulator.injectAction(type, payload);
+      injectAction(type, payload, source) {
+        simulator.injectAction(type, payload, source ? { source } : {});
       },
     },
     stateHistory: () => [...history],
+    diagnosticsSnapshot: () => deps.diagnostics.getSnapshot(),
+    contentSnapshot: () => actor.getSnapshot().context.runtime.content?.snapshot ?? null,
     transitionSnapshot() {
       const snapshot = actor.getSnapshot();
       const runtime = snapshot.context.runtime;
@@ -218,13 +376,54 @@ function exposeE2eBridge(actor: ReturnType<typeof useMachineActor>, deps: Bootst
   };
 }
 
+function ExperienceShell() {
+  const [dependencies, setDependencies] = useState<RuntimeDependencies | null>(null);
+  const [operatorOpen, setOperatorOpen] = useState(false);
+  const [categoryIds, setCategoryIds] = useState<readonly string[]>([]);
+  const simulator = dependencies?.transports.find(
+    (transport): transport is SimulatorTransport => transport instanceof SimulatorTransport,
+  );
+
+  const closeOperatorOverlay = (): void => {
+    dependencies?.boundary.deactivateOperator();
+    setOperatorOpen(false);
+  };
+
+  return (
+    <>
+      <BootOrchestrator
+        onCategoryIdsLoaded={setCategoryIds}
+        onDependenciesReady={setDependencies}
+        onOperatorActivated={() => setOperatorOpen(true)}
+      />
+      <StageMount />
+      <div id="operator-overlay-mount" style={{ display: operatorOpen ? 'block' : 'none' }}>
+        {dependencies && simulator ? (
+          <OperatorOverlay
+            categoryId={categoryIds[0] ?? null}
+            diagnostics={dependencies.diagnostics}
+            onClose={closeOperatorOverlay}
+            onCommand={(command, params) => {
+              simulator.injectAction(
+                'operator.command',
+                { command, params },
+                { source: 'operator' },
+              );
+            }}
+            onReset={() => simulator.injectAction('operator.reset', {}, { source: 'operator' })}
+            open={operatorOpen}
+            simulator={simulator}
+          />
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <MachineProvider>
-      <BootOrchestrator />
-      <StageMount />
-      {/* Hidden until the concealed activation sequence + operator UI land (T051/PH7). */}
-      <div id="operator-overlay-mount" style={{ display: 'none' }} />
+      <ExperienceShell />
     </MachineProvider>
   );
 }

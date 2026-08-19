@@ -24,14 +24,29 @@ export function createGlobePresentation(
       previewEmphasis: project.geographicFraming.previewEmphasis,
     };
   });
-  const adapter = new GlobeRendererAdapter({ projects: globeProjects });
+  const createAdapter = (): GlobeRendererAdapter =>
+    new GlobeRendererAdapter({ projects: globeProjects });
+  let adapter = createAdapter();
+  let mountedContainer: HTMLElement | null = null;
 
   return {
-    adapter,
+    get adapter() {
+      return adapter;
+    },
     projectIds: globeProjects.map((project) => project.id),
     getProject(projectId) {
       return projectsById.get(projectId);
     },
     resolveAssetUrl,
+    mount(container) {
+      mountedContainer = container;
+      return adapter.start(container);
+    },
+    rebuild() {
+      const previous = adapter;
+      previous.dispose();
+      adapter = createAdapter();
+      if (mountedContainer) adapter.start(mountedContainer);
+    },
   };
 }

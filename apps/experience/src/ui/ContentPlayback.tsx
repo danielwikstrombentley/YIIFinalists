@@ -1,4 +1,5 @@
 import { ContentFormatComposition } from '../formats/registry.js';
+import { useSyncExternalStore } from 'react';
 import type { ContentPlaybackPresentation } from '../content/playback.js';
 import './ContentPlayback.css';
 
@@ -7,13 +8,19 @@ export interface ContentPlaybackProps {
   presentation: ContentPlaybackPresentation | null;
 }
 
+const subscribeNothing = (): (() => void) => () => {};
+const getEmptySnapshot = () => null;
+
 function isContentState(state: string): boolean {
   return state === 'contentPlaying' || state === 'contentFinalHold';
 }
 
 /** Public story canvas driven exclusively by the state-owned playback presentation. */
 export function ContentPlayback({ state, presentation }: ContentPlaybackProps) {
-  const snapshot = presentation?.snapshot;
+  const snapshot = useSyncExternalStore(
+    presentation?.subscribe ?? subscribeNothing,
+    presentation?.getSnapshot ?? getEmptySnapshot,
+  );
   if (!presentation || !snapshot || !isContentState(state)) return null;
 
   const isFinalHold = state === 'contentFinalHold';
@@ -29,6 +36,7 @@ export function ContentPlayback({ state, presentation }: ContentPlaybackProps) {
       className="yii-story-content"
       data-content-position={snapshot.option.position}
       data-final-frame-held={String(isFinalHold)}
+      data-media-fallback={String(snapshot.mediaFallback)}
       data-opening-state-restored={String(snapshot.openingStateRestored)}
       data-playback-phase={isFinalHold ? 'final-hold' : snapshot.phase}
       data-playback-run={snapshot.run}

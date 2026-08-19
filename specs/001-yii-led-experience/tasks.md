@@ -143,7 +143,7 @@ The review agent lives at [.github/agents/code-review.agent.md](../../.github/ag
    Verdict `APPROVE` → the phase PR may be merged by a human.
 
 Each phase header carries a tracking line:
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: — · Implementer model(s): agent:GPT-5.6 Terra (OpenAI) · Review model: — · Verdict: —`
 
 ---
 
@@ -669,12 +669,12 @@ reconnect; force media failure; verify diagnostics accuracy, recovery to known s
 technical exposure (spec US5).
 **Phase branch**: `phase/001-ph7-us5-operator` · **Depends on**: PH2 (T049, T053 additionally
 need PH5 merged)
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: https://github.com/danielwikstrombentley/YIIFinalists/pull/22 · Implementer model(s): agent:GPT-5.6 Terra (OpenAI) · Review model: Claude Haiku 4.5 (Anthropic) · Verdict: APPROVE (round 1, 2026-08-19)`
 
 ### Verification for US5 (red-first) ⚠️
 
-- [ ] T049 [P] [US5] Author failing E2E spec for operator journeys (simulator coverage, disconnect/reconnect, media failure, renderer recovery, public purity) in apps/experience/tests/e2e/us5-operator.spec.ts *(red-first)*
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T049-us5-e2e` · PR — · Blockers — (needs PH5 merged)
+- [x] T049 [P] [US5] Author failing E2E spec for operator journeys (simulator coverage, disconnect/reconnect, media failure, renderer recovery, public purity) in apps/experience/tests/e2e/us5-operator.spec.ts *(red-first)*
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: US5 scenarios 1–4: every public action + operator reset + failure scenarios drivable via simulator; disconnect → diagnostics show status/last message/last action while presentation continues, reconnect resumes handling; forced media failure → in-composition fallback + operator-visible log; renderer recovery → known visual state; assert zero technical text/diagnostics on public surface throughout (SC-010).
   - Files: `apps/experience/tests/e2e/us5-operator.spec.ts`
   - Deps: T044, T014
@@ -683,48 +683,48 @@ need PH5 merged)
 
 ### Implementation for US5
 
-- [ ] T050 [P] [US5] Implement DiagnosticsStore read model (full QR-008 field set) in apps/experience/src/operator/DiagnosticsStore.ts
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T050-diagnostics-store` · PR — · Blockers —
+- [x] T050 [P] [US5] Implement DiagnosticsStore read model (full QR-008 field set) in apps/experience/src/operator/DiagnosticsStore.ts
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Push-based store fed by machine, input boundary, orchestrator, renderer adapters, media adapters, content loader, telemetry: state path, active category/preview/selection/content, sequence progress, voiceover/video status, per-transport connection (status/lastMessageAt/lastAction/dedup drops), renderer statuses + last handover duration, fps/frame-time p95/heap trend/ticker count, asset-failure ring, release version+contentHash, last errors. Read-only; subscribing never mutates experience state.
   - Files: `apps/experience/src/operator/DiagnosticsStore.ts`
   - Deps: T011, T013, T016 (feeds extend as later phases merge)
   - Tests: unit: every field group populated from simulated feeds; store updates allocation-light.
   - Accept: field set matches [contracts/operator-diagnostics.md](./contracts/operator-diagnostics.md) table exactly.
 
-- [ ] T051 [US5] Implement the hidden operator overlay with concealed activation in apps/experience/src/operator/OperatorOverlay.tsx
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T051-operator-overlay` · PR — · Blockers —
+- [x] T051 [US5] Implement the hidden operator overlay with concealed activation in apps/experience/src/operator/OperatorOverlay.tsx
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Concealed activation sequence evaluated inside the input boundary (config-driven from kiosk config, rate-limited, never rendered/hinted publicly); overlay in separate DOM layer above the stage; renders DiagnosticsSnapshot groups + recovery/simulation controls; closing restores untouched public presentation; operator commands emitted through the semantic input boundary at operator priority (no side channel).
   - Files: `apps/experience/src/operator/{OperatorOverlay.tsx,activation.ts}`, `apps/experience/src/input/boundary.ts` (activation hook)
   - Deps: T050, T014
   - Tests: unit: activation only on exact sequence + rate limit; no public DOM leakage when closed (T049 asserts e2e).
   - Accept: QR-008 activation clarification implemented; public/operator separation total.
 
-- [ ] T052 [P] [US5] Implement the simulator UI panel (every public action + all failure injections) in apps/experience/src/operator/SimulatorPanel.tsx
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T052-simulator-ui` · PR — · Blockers —
+- [x] T052 [P] [US5] Implement the simulator UI panel (every public action + all failure injections) in apps/experience/src/operator/SimulatorPanel.tsx
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Operator-overlay panel over SimulatorTransport: category/hover/select/content/replay/back/idle/reset buttons, duplicate-burst and deliberate-repeat generators, invalid-id/unknown-type injection, rapid wheel stream, disconnect/reconnect toggle, transition-midpoint interrupt trigger; coverage checklist view showing which scenarios have been exercised.
   - Files: `apps/experience/src/operator/SimulatorPanel.tsx`
   - Deps: T014, T051
   - Tests: unit: each control emits the exact semantic action/failure through the boundary.
   - Accept: simulator obligation of the semantic-input contract fully met (SC-006).
 
-- [ ] T053 [US5] Implement the recovery ladder (operator reset, media recovery, renderer rebuild, reload request, fallback landing/idle) in apps/experience/src/state/recovery.ts
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T053-recovery-ladder` · PR — · Blockers — (needs PH5 merged)
+- [x] T053 [US5] Implement the recovery ladder (operator reset, media recovery, renderer rebuild, reload request, fallback landing/idle) in apps/experience/src/state/recovery.ts
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: `operator.reset` → deep cleanup to idle from any state; `rendererRecover globe|cesium` rebuilds the adapter in place via `recovering` state; `forceMediaFailure` test hook; `reloadApp` request to watchdog; `clearPreloadCache`; critical failure → fallback landing or fallback idle (static safe visual) with operator notification, never public technical output (FR-028).
   - Files: `apps/experience/src/state/recovery.ts`, `apps/experience/src/operator/commands.ts`
   - Deps: T051, T026, T030, T039
   - Tests: T049 green; unit: each ladder rung idempotent and re-runnable.
   - Accept: research R12 ladder complete; every rung operator-executable.
 
-- [ ] T054 [P] [US5] Implement TelemetryLogger (ring buffer, batched fire-and-forget, drop-oldest) + failure-injection tests in apps/experience/src/telemetry/TelemetryLogger.ts
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T054-telemetry` · PR — · Blockers —
+- [x] T054 [P] [US5] Implement TelemetryLogger (ring buffer, batched fire-and-forget, drop-oldest) + failure-injection tests in apps/experience/src/telemetry/TelemetryLogger.ts
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, delegated cost-bounded chunk) · PR — · Blockers —
   - Do: FR-038 event set per [contracts/analytics-events.md](./contracts/analytics-events.md): envelope (v, ts, sessionId boot-UUID, seq, kind, stateBefore/After, refs, latencyMs, detail); 5k ring buffer, batched non-awaited POST to sidecar, retry/backoff, drop-oldest silently, `telemetryDropped` diagnostics counter; latencyMs sampling hooks at the input boundary for SC-002 evidence; no PII.
   - Files: `apps/experience/src/telemetry/TelemetryLogger.ts`, boundary emit hooks
   - Deps: T019, T013
   - Tests: failure injection: sink down/slow/erroring → zero effect on action handling (timing-asserted); overflow drops oldest; event schema conformance.
   - Accept: logging can never block navigation/rendering/media/recovery (Principle IV).
 
-- [ ] T055 [P] [US5] Kiosk hardening: autostart, Chromium kiosk flags, watchdog relaunch, launch scripts, runbook draft in tools/kiosk/watchdog.ts
-  - Meta: Phase PH7 · Feature F001 · Owner — · Branch `task/001-T055-kiosk-hardening` · PR — · Blockers —
+- [x] T055 [P] [US5] Kiosk hardening: autostart, Chromium kiosk flags, watchdog relaunch, launch scripts, runbook draft in tools/kiosk/watchdog.ts
+  - Meta: Phase PH7 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph7-us5-operator` (consolidated, delegated cost-bounded chunk) · PR — · Blockers —
   - Do: Launch scripts starting sidecar + Chromium with `--kiosk --autoplay-policy=no-user-gesture-required --disable-session-crashed-bubble --noerrdialogs` (+ GPU flags placeholder for event hardware); process watchdog relaunching browser on death and serving `reloadApp` requests; OS autostart templates; first draft of `runbook.md` (startup, soft reset, renderer recovery, reload, restart, reconnect procedures).
   - Files: `tools/kiosk/{watchdog.ts,launch/start.sh,launch/autostart.md,runbook.md}`
   - Deps: T019

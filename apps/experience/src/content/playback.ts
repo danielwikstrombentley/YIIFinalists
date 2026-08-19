@@ -16,14 +16,19 @@ export interface ContentPlaybackSnapshot {
   phase: 'playing' | 'final-hold';
   run: number;
   openingStateRestored: boolean;
+  mediaFallback: boolean;
 }
 
 export interface ContentPlaybackPresentation {
   readonly snapshot: ContentPlaybackSnapshot | null;
   readonly videoSurface: VideoSurface;
   readonly voiceoverStatus: VoiceoverStatus;
+  getSnapshot(): ContentPlaybackSnapshot | null;
+  subscribe(listener: () => void): () => void;
   resolveAssetUrl(packageRelativePath: string): string;
   start(projectId: string, position: number, generation: number): boolean;
+  /** Operator-only test/recovery hook: holds the current safe composition and records fallback. */
+  forceMediaFailure(): boolean;
   cancel(): void;
   dispose(): void;
 }
@@ -32,6 +37,7 @@ export interface ContentPlaybackPresentationOptions {
   getProject(projectId: string): Project | undefined;
   resolveAssetUrl(packageRelativePath: string): string;
   send(event: ExperienceEvent): void;
+  onMediaFailure?: (failure: { assetId: string; error: string }) => void;
 }
 
 type SequenceTarget = Record<string, unknown>;
@@ -44,9 +50,11 @@ class ContentPlaybackController implements ContentPlaybackPresentation {
   private readonly getProject: ContentPlaybackPresentationOptions['getProject'];
   private readonly resolveAsset: ContentPlaybackPresentationOptions['resolveAssetUrl'];
   private readonly send: ContentPlaybackPresentationOptions['send'];
+  private readonly onMediaFailure: ContentPlaybackPresentationOptions['onMediaFailure'];
   private readonly voiceover: VoiceoverPlayer;
   readonly videoSurface: VideoSurface;
   private readonly targets = new Map<string, SequenceTarget>();
+  private readonly listeners = new Set<() => void>();
   private playback: CompiledSequencePlayback | null = null;
   private snapshotValue: ContentPlaybackSnapshot | null = null;
   private activeRun: number | null = null;
@@ -58,6 +66,7 @@ class ContentPlaybackController implements ContentPlaybackPresentation {
     this.getProject = options.getProject;
     this.resolveAsset = options.resolveAssetUrl;
     this.send = options.send;
+    this.onMediaFailure = options.onMediaFailure;
     this.voiceover = new VoiceoverPlayer({ resolveAssetUrl: this.resolveAsset });
     this.videoSurface = new VideoSurface({ resolveAssetUrl: this.resolveAsset });
   }
@@ -65,6 +74,13 @@ class ContentPlaybackController implements ContentPlaybackPresentation {
   get snapshot(): ContentPlaybackSnapshot | null {
     return this.snapshotValue;
   }
+
+  getSnapshot = (): ContentPlaybackSnapshot | null => this.snapshotValue;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
 
   get voiceoverStatus(): VoiceoverStatus {
     return this.voiceover.status;
@@ -90,7 +106,9 @@ class ContentPlaybackController implements ContentPlaybackPresentation {
       phase: 'playing',
       run,
       openingStateRestored: true,
+      mediaFallback: false,
     };
+    this.notify();
 
     const resolveTarget = (targetId: string): SequenceTarget => {
       let target = this.targets.get(targetId);
@@ -132,6 +150,20 @@ class ContentPlaybackController implements ContentPlaybackPresentation {
     this.snapshotValue = null;
     this.activeRun = null;
     this.targets.clear();
+    this.notify();
+  }
+
+  forceMediaFailure(): boolean {
+    const snapshot = this.snapshotValue;
+    if (this.disposed || !snapshot) return false;
+    const assetId = snapshot.option.mediaRefs[0]?.id ?? snapshot.option.voiceover.file;
+    this.snapshotValue = { ...snapshot, mediaFallback: true };
+    this.onMediaFailure?.({
+      assetId,
+      error: 'Operator-injected media failure; safe composition retained.',
+    });
+    this.notify();
+    return true;
   }
 
   dispose(): void {
@@ -154,6 +186,17 @@ class ContentPlaybackController implements ContentPlaybackPresentation {
       ...this.snapshotValue,
       phase: phase === 'final-hold' || phase === 'failed' ? 'final-hold' : 'playing',
     };
+    this.notify();
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch {
+        // A passive visual subscriber must never disrupt sequence playback or recovery.
+      }
+    }
   }
 }
 

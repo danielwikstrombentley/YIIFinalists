@@ -6,7 +6,10 @@ import type { Transport } from '../input/transports/transport.js';
 import { SimulatorTransport } from '../input/transports/simulator.js';
 import { WebSocketTransport } from '../input/transports/websocket.js';
 import { createReleaseRefValidator } from '../input/validate.js';
+import { DiagnosticsStore } from '../operator/DiagnosticsStore.js';
+import { resolveOperatorActivationConfig } from '../operator/activation.js';
 import type { ExperienceEvent } from '../state/types.js';
+import { TelemetryLogger } from '../telemetry/TelemetryLogger.js';
 
 // Boot sequence (T020): load+revalidate the release, start the input boundary + transports,
 // verify console connectivity (non-blocking), then enter idle — or fall back to `recovering` on
@@ -29,6 +32,15 @@ export async function bootstrap(deps: BootstrapDeps): Promise<void> {
   // before content finishes loading, though nothing routes anywhere until idle is reached.
   for (const transport of deps.transports) {
     transport.onMessage((raw) => deps.boundary.handle(raw));
+    transport.onStatusChange((status) => {
+      deps.boundary.handle({
+        v: 1,
+        type: 'connection.status',
+        payload: { connected: status === 'connected', transportId: transport.id },
+        source: 'simulator',
+        sentAt: new Date().toISOString(),
+      });
+    });
     try {
       transport.connect();
     } catch (error) {
@@ -62,10 +74,33 @@ export interface RuntimeDependenciesOptions {
   contentLoaderOptions?: ContentLoaderOptions;
   /** Reads the machine's current exclusive transition floor without giving the boundary state ownership. */
   getExclusivePriority?: ExclusivePriorityProvider;
+  onOperatorActivated?: () => void;
+}
+
+export interface RuntimeDependencies extends Omit<BootstrapDeps, 'loader'> {
+  loader: ContentLoader;
+  diagnostics: DiagnosticsStore;
+  telemetry: TelemetryLogger;
+}
+
+async function configureOperatorActivationFromKiosk(boundary: InputBoundary): Promise<void> {
+  try {
+    const response = await fetch('/runtime-config.json', { cache: 'no-store' });
+    if (!response.ok) return;
+    boundary.setOperatorActivationConfig(resolveOperatorActivationConfig(await response.json()));
+  } catch {
+    // The boundary keeps its deterministic development-safe fallback if the local sidecar is down.
+  }
 }
 
 /** Builds the real, browser-facing dependency set used by the app shell (App.tsx). */
-export function createRuntimeDependencies(options: RuntimeDependenciesOptions): BootstrapDeps {
+export function createRuntimeDependencies(
+  options: RuntimeDependenciesOptions,
+): RuntimeDependencies {
+  const diagnostics = new DiagnosticsStore();
+  const telemetry = new TelemetryLogger({
+    onDropped: (telemetryDropped) => diagnostics.updatePerformance({ telemetryDropped }),
+  });
   const loader = new ContentLoader({
     basePath: '/content',
     channel: 'staging',
@@ -83,6 +118,36 @@ export function createRuntimeDependencies(options: RuntimeDependenciesOptions): 
     },
     onRejected: (reason, raw) => console.debug('[input] rejected', reason, raw),
     onConnectionStatus: (status) => console.debug('[input] connection', status),
+    onObservation: (observation) => {
+      telemetry.observeInputObservation(observation);
+      if (observation.kind === 'accepted') {
+        diagnostics.recordAcceptedAction(
+          observation.source,
+          observation.action.type,
+          observation.atMs,
+        );
+        return;
+      }
+      if (observation.kind === 'connection') {
+        diagnostics.recordTransportStatus(
+          observation.payload.transportId,
+          observation.payload.connected ? 'connected' : 'disconnected',
+          observation.atMs,
+        );
+        return;
+      }
+      if (observation.kind === 'rejected') {
+        if (observation.reason === 'duplicate' && observation.source) {
+          diagnostics.recordDedupDrop(observation.source);
+        }
+        diagnostics.recordError({
+          source: 'input',
+          message: observation.reason,
+          atMs: observation.atMs,
+        });
+      }
+    },
+    onOperatorActivated: options.onOperatorActivated,
     // Real release-backed validation (PH2 review round 1 finding #2) — reads through to the
     // loader at call time, so it safely rejects every ref (fail-closed) until `loader.load()`
     // resolves, then validates against the live release with no further wiring needed.
@@ -99,10 +164,14 @@ export function createRuntimeDependencies(options: RuntimeDependenciesOptions): 
     new SimulatorTransport({ id: 'simulator' }),
   ];
 
+  void configureOperatorActivationFromKiosk(boundary);
+
   return {
     loader,
     boundary,
     transports,
+    diagnostics,
+    telemetry,
     send: options.send,
     onBootError: (error) => console.error('[boot]', error),
   };

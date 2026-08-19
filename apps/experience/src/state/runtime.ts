@@ -12,6 +12,10 @@ export interface GlobePresentation {
   getProject(projectId: string): Project | undefined;
   /** Package-relative asset resolver bound to this validated release version. */
   resolveAssetUrl(packageRelativePath: string): string;
+  /** Recreates owned renderer resources in the same stage container for operator recovery. */
+  rebuild?(): void | Promise<void>;
+  /** Starts/mounts the mutable current adapter and records its stage owner for later rebuilds. */
+  mount?(container: HTMLElement): { cancel(): void };
 }
 
 /** Runtime-only geographic resources owned by the renderer shell, not by React or the machine. */
@@ -24,6 +28,9 @@ export interface CesiumPresentation {
   /** Starts only the latest preview target after kiosk configuration is ready. */
   prewarmPreview(project: Project): void;
   preloadLandingOptions(project: Project): { cancel(): void };
+  clearPreloadCache?(): void;
+  /** Disposes and recreates the Cesium adapter, controller, and preload boundary in place. */
+  rebuild?(): void | Promise<void>;
   reset(): void;
   dispose(): void;
 }
@@ -43,6 +50,12 @@ export interface ExperienceRuntime {
   setCesium(cesium: CesiumPresentation | null): void;
   setContent(content: ContentPlaybackPresentation | null): void;
   setCesiumReady(ready: Promise<CesiumPresentation | null> | null): void;
+  clearPreloadCache(): void;
+  requestReload(): void;
+  setRecoveryControls(controls: {
+    clearPreloadCache?: () => void;
+    requestReload?: () => void;
+  }): void;
 }
 
 export function createExperienceRuntime(): ExperienceRuntime {
@@ -50,6 +63,8 @@ export function createExperienceRuntime(): ExperienceRuntime {
   let cesium: CesiumPresentation | null = null;
   let content: ContentPlaybackPresentation | null = null;
   let cesiumReady: Promise<CesiumPresentation | null> | null = null;
+  let clearPreloadCache = (): void => undefined;
+  let requestReload = (): void => undefined;
   return {
     get globe() {
       return globe;
@@ -74,6 +89,16 @@ export function createExperienceRuntime(): ExperienceRuntime {
     },
     setCesiumReady(nextReady) {
       cesiumReady = nextReady;
+    },
+    clearPreloadCache() {
+      clearPreloadCache();
+    },
+    requestReload() {
+      requestReload();
+    },
+    setRecoveryControls(controls) {
+      clearPreloadCache = controls.clearPreloadCache ?? (() => undefined);
+      requestReload = controls.requestReload ?? (() => undefined);
     },
   };
 }

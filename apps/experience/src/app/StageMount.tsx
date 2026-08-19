@@ -26,7 +26,7 @@ export function StageMount() {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || !globe) return;
-    const handle = globe.adapter.start(stage);
+    const handle = globe.mount?.(stage) ?? globe.adapter.start(stage);
     return () => handle.cancel();
   }, [globe]);
 
