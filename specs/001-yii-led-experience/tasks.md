@@ -1047,7 +1047,7 @@ plan-recorded N/A rationale — currently none).
   - Accept: test startup remains deterministically safe-composition and offline-capable, while normal local project confirmation can retain the camera-continuous photorealistic Cesium handover without an E2E run rewriting its content package.
 
 - [x] T086 Add a dedicated GitHub Copilot content-drafting agent for generated PH8 workspaces
-  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `task/001-T086-copilot-content-drafter` · PR pending · Blockers —
+  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `task/001-T086-copilot-content-drafter` · PR #24 · Blockers —
   - Do: Add a user-invocable, cost-conscious workspace agent pinned to `GPT-5.6 Luna (copilot)` that drafts one generated `work/<projectId>/drafting/` workspace at a time using only the normalised submission and supplied schemas; prohibit web/terminal/credential access, invention, automatic award-category assignment, approval, and publication; write only the two schema-governed draft files for later `ingest-drafts` validation.
   - Files: `.github/agents/yii-content-drafter.agent.md`
   - Deps: T059
