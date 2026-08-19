@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { passageRefSchema, slugSchema } from './shared.js';
+import { metricClaimSchema, passageRefSchema, slugSchema } from './shared.js';
 import { KNOWN_FORMAT_IDS } from './content-option.js';
 
 // Editorial / Pipeline Domain — data-model.md §2. Prep-time only; never read by the public
@@ -78,16 +78,7 @@ export const draftAnalysisContentSchema = z
     challenges: z.array(sourcedTextSchema),
     approaches: z.array(sourcedTextSchema),
     outcomes: z.array(sourcedTextSchema),
-    quantResults: z.array(
-      z
-        .object({
-          label: z.string().min(1),
-          value: z.string().min(1),
-          verified: z.boolean(),
-          sourceLinks: z.array(passageRefSchema).min(1),
-        })
-        .strict(),
-    ),
+    quantResults: z.array(metricClaimSchema),
     themes: z.array(sourcedTextSchema),
     needsVerification: z.array(claimSchema),
     missingInfo: z.array(z.string().min(1)),
@@ -157,7 +148,43 @@ export const proposedOptionSchema = proposedOptionContentSchema.extend(draftProv
 export type ProposedOption = z.infer<typeof proposedOptionSchema>;
 
 /** Project Overview plus at most four additional options; meaningful drafts are never padded. */
-export const proposedOptionsSchema = z.array(proposedOptionSchema).min(1).max(5);
+export const proposedOptionContentsSchema = z
+  .array(proposedOptionContentSchema)
+  .min(1)
+  .max(5)
+  .superRefine((options, context) => {
+    if (options[0]?.position !== 1) {
+      context.addIssue({
+        code: 'custom',
+        path: [0, 'position'],
+        message: 'the first proposed option must be the Project Overview at position 1',
+      });
+    }
+    const positions = options
+      .map((option) => option.position)
+      .filter((position): position is NonNullable<typeof position> => position !== null);
+    if (new Set(positions).size !== positions.length) {
+      context.addIssue({
+        code: 'custom',
+        path: [],
+        message: 'proposed option positions must be unique',
+      });
+    }
+  });
+
+export const proposedOptionsSchema = z
+  .array(proposedOptionSchema)
+  .min(1)
+  .max(5)
+  .superRefine((options, context) => {
+    if (options[0]?.position !== 1) {
+      context.addIssue({
+        code: 'custom',
+        path: [0, 'position'],
+        message: 'the first proposed option must be the Project Overview at position 1',
+      });
+    }
+  });
 
 export const draftAnalysisEnvelopeSchema = z
   .object({
@@ -172,7 +199,7 @@ export const draftAnalysisEnvelopeSchema = z
 
 export const proposedOptionsEnvelopeSchema = z
   .object({
-    data: z.array(proposedOptionContentSchema).min(1).max(5),
+    data: proposedOptionContentsSchema,
     producedBy: producedBySchema,
     model: z.string().min(1).optional(),
     promptVersion: z.string().min(1),

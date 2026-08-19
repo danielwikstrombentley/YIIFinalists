@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { categorySchema, manifestSchema, projectSchema, releaseSchema } from '../src/index.js';
+import {
+  categorySchema,
+  draftAnalysisContentSchema,
+  manifestSchema,
+  projectSchema,
+  proposedOptionContentsSchema,
+  releaseSchema,
+} from '../src/index.js';
 
 // T009 Tests: "JSON Schema export snapshot test" — the copilot-agent drafting driver and other
 // non-TypeScript consumers (research.md R9) depend on this shape staying stable/reviewable.
@@ -47,8 +54,23 @@ describe('JSON Schema export (z.toJSONSchema)', () => {
   });
 
   it('does not throw for any exported top-level schema (unrepresentable checks tolerated)', () => {
-    for (const schema of [manifestSchema, categorySchema, projectSchema, releaseSchema]) {
+    for (const schema of [
+      manifestSchema,
+      categorySchema,
+      projectSchema,
+      releaseSchema,
+      draftAnalysisContentSchema,
+      proposedOptionContentsSchema,
+    ]) {
       expect(() => z.toJSONSchema(schema, { unrepresentable: 'any' })).not.toThrow();
     }
+  });
+
+  it('exports Copilot-agent draft schemas with the option-count bounds', () => {
+    const options = z.toJSONSchema(proposedOptionContentsSchema, {
+      unrepresentable: 'any',
+    }) as unknown as { minItems: number; maxItems: number };
+    expect(options.minItems).toBe(1);
+    expect(options.maxItems).toBe(5);
   });
 });

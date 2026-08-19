@@ -11,7 +11,7 @@ import { channelsFileSchema } from '../src/channels.js';
 import {
   editorialOptionSchema,
   draftAnalysisSchema,
-  proposedOptionsSchema,
+  proposedOptionContentsSchema,
   submissionSchema,
 } from '../src/editorial.js';
 
@@ -28,7 +28,7 @@ const SCHEMAS: Record<string, z.core.$ZodType> = {
   'channels-file': channelsFileSchema,
   submission: submissionSchema,
   'draft-analysis': draftAnalysisSchema,
-  'proposed-options': proposedOptionsSchema,
+  'proposed-options': proposedOptionContentsSchema,
   'editorial-option': editorialOptionSchema,
 };
 

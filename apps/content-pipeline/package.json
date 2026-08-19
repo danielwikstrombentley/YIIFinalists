@@ -22,6 +22,7 @@
     "@ai-sdk/google": "^4.0.45",
     "@ai-sdk/openai": "^4.0.43",
     "@yii/content-schema": "workspace:^",
-    "ai": "^7.0.68"
+    "ai": "^7.0.68",
+    "zod": "^4.4.3"
   }
 }

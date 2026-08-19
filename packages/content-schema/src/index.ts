@@ -81,6 +81,7 @@ export {
   isApprovedForPublish,
   isLegalReviewStateTransition,
   proposedOptionContentSchema,
+  proposedOptionContentsSchema,
   proposedOptionSchema,
   proposedOptionsEnvelopeSchema,
   proposedOptionsSchema,
