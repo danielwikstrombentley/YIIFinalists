@@ -744,12 +744,12 @@ traceability, human review/edit/approve; nothing unapproved can ever publish.
 **Independent Test**: ingest a representative submission; verify drafts with traceability; edit
 and approve; confirm unapproved/rejected material never reaches the live app (spec US6).
 **Phase branch**: `phase/001-ph8-us6-pipeline-drafting` · **Depends on**: PH2 (parallel to Track A)
-`Phase PR: — · Implementer model(s): — · Review model: — · Verdict: —`
+`Phase PR: — · Implementer model(s): agent:GPT-5.6 Sol (OpenAI) · Review model: — · Verdict: —`
 
 ### Verification for US6 (red-first) ⚠️
 
-- [ ] T056 [P] [US6] Author failing pipeline contract tests (draft schemas, traceability, editorial lifecycle invariants) in apps/content-pipeline/tests/drafting.contract.test.ts *(red-first)*
-  - Meta: Phase PH8 · Feature F001 · Owner — · Branch `task/001-T056-pipeline-contract-tests` · PR — · Blockers —
+- [~] T056 [P] [US6] Author failing pipeline contract tests (draft schemas, traceability, editorial lifecycle invariants) in apps/content-pipeline/tests/drafting.contract.test.ts *(red-first)*
+  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `phase/001-ph8-us6-pipeline-drafting` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Tests per [contracts/llm-drafting.md](./contracts/llm-drafting.md) + data-model editorial lifecycle: DraftAnalysis/ProposedOption schema validation; outputs with unreferenced claims rejected; drafts always `status: draft` with producedBy/promptVersion provenance; lifecycle `draft→in-review→returned/approved→published`, `rejected` terminal; **invariant: no producedBy≠null record with reviewState≠approved can be referenced by a Release**; weak submission → fewer options, never padded to five.
   - Files: `apps/content-pipeline/tests/{drafting.contract.test.ts,lifecycle.test.ts}`, fixtures
   - Deps: T009
@@ -758,32 +758,32 @@ and approve; confirm unapproved/rejected material never reaches the live app (sp
 
 ### Implementation for US6
 
-- [ ] T057 [P] [US6] Implement ingestion: ClickUp API v2 + manual folder import → normalized Submission with stable passage anchors in apps/content-pipeline/src/ingest/clickup.ts
-  - Meta: Phase PH8 · Feature F001 · Owner — · Branch `task/001-T057-ingest` · PR — · Blockers —
+- [~] T057 [P] [US6] Implement ingestion: ClickUp API v2 + manual folder import → normalized Submission with stable passage anchors in apps/content-pipeline/src/ingest/clickup.ts
+  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `phase/001-ph8-us6-pipeline-drafting` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Per research R10: enumerate configured list, pull name/description/custom fields (organisation, category, country, location, links)/comments/attachments; download attachments locally; normalise into Submission records with stable field/paragraph passage anchors preserved across idempotent re-ingest; manual import from folder of markdown+attachments with synthetic source ids; `CLICKUP_API_TOKEN` env-only.
   - Files: `apps/content-pipeline/src/ingest/{clickup.ts,manual.ts,normalize.ts,passages.ts}`
   - Deps: T003, T009
   - Tests: unit with recorded fixtures: normalization, anchor stability across re-ingest, attachment localisation; no network in CI.
   - Accept: FR-031 complete; SC-012 anchor foundation in place.
 
-- [ ] T058 [US6] Implement DraftingProvider interface + api-llm driver (Vercel AI SDK, structured output, provider by config) in apps/content-pipeline/src/analyze/api-llm.ts
-  - Meta: Phase PH8 · Feature F001 · Owner — · Branch `task/001-T058-api-llm-driver` · PR — · Blockers —
+- [~] T058 [US6] Implement DraftingProvider interface + api-llm driver (Vercel AI SDK, structured output, provider by config) in apps/content-pipeline/src/analyze/api-llm.ts
+  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `phase/001-ph8-us6-pipeline-drafting` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: `DraftingProvider` interface (`analyzeSubmission`, `proposeOptions`, `assistRewrite`) per contract; api-llm driver with `generateObject` + shared Zod schemas, provider switch openai/anthropic/google via `pipeline.config`, versioned prompt files, provenance recorded on every draft; API keys env-only, only submission content sent to providers; validation failure → draft rejected + logged, drivers never write editorial records directly.
   - Files: `apps/content-pipeline/src/analyze/{provider.ts,api-llm.ts,prompts/analyze.v1.md,prompts/propose.v1.md,config.ts}`
   - Deps: T056, T057
   - Tests: T056 drafting tests green with mocked model responses (valid, invalid, unreferenced-claim cases).
   - Accept: FR-032 draft outputs complete incl. missing-asset requests; provider swap is config-only.
 
-- [ ] T059 [P] [US6] Implement copilot-agent driver: drafting-workspace emitter + ingest-drafts import in apps/content-pipeline/src/analyze/copilot-agent.ts
-  - Meta: Phase PH8 · Feature F001 · Owner — · Branch `task/001-T059-copilot-driver` · PR — · Blockers —
+- [~] T059 [P] [US6] Implement copilot-agent driver: drafting-workspace emitter + ingest-drafts import in apps/content-pipeline/src/analyze/copilot-agent.ts
+  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `phase/001-ph8-us6-pipeline-drafting` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Emit self-contained `work/<projectId>/drafting/` workspace (normalised submission, anchored passages, JSON output schema from T009 export, instructions file); `ingest-drafts <projectId>` validates `analysis.draft.json`/`options.draft.json` with the same Zod schemas and imports with `producedBy: "copilot-agent"` — downstream flow identical to api-llm.
   - Files: `apps/content-pipeline/src/analyze/{copilot-agent.ts,workspace-emitter.ts}`, `apps/content-pipeline/src/commands/ingest-drafts.ts`
   - Deps: T058
   - Tests: round-trip: emitted workspace + hand-written valid/invalid draft files → import accepts/rejects identically to api-llm path.
   - Accept: both drivers interchangeable per contract; drafts indistinguishable downstream except provenance.
 
-- [ ] T060 [US6] Implement the review workflow: editorial store, lifecycle, audit trail, review CLI in apps/content-pipeline/src/review/cli.ts
-  - Meta: Phase PH8 · Feature F001 · Owner — · Branch `task/001-T060-review-workflow` · PR — · Blockers —
+- [~] T060 [US6] Implement the review workflow: editorial store, lifecycle, audit trail, review CLI in apps/content-pipeline/src/review/cli.ts
+  - Meta: Phase PH8 · Feature F001 · Owner `agent:GPT-5.6 Sol (OpenAI)` · Branch `phase/001-ph8-us6-pipeline-drafting` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: File-backed editorial store (git-diffable JSON); lifecycle transitions with human-only approval (no automated path to `approved`); ChangeRecord audit (original wording + every edit); review CLI: accept/reject/rename/reorder positions, rewrite display + voiceover text separately (separately versioned — FR-025), remove unsupported claims, edit metrics, select media, change formats, set geographic framing, mark ready/returned; per-claim source-passage display for traceability review.
   - Files: `apps/content-pipeline/src/review/{store.ts,lifecycle.ts,audit.ts,cli.ts}`
   - Deps: T057, T058
