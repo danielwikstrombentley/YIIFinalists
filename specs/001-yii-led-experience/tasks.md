@@ -851,7 +851,7 @@ needs PH5)
   - Tests: this task IS the test artifact (write red-first alongside T064 where practical).
   - Accept: US7 scenarios 2–4 automated; live app provably consumes only validated approved versioned content.
 
-- [~] T066 [US7] Implement preview-without-console workflow (staging channel in dev app + documented full-journey preview procedure) in tools/kiosk/README.md
+- [x] T066 [US7] Implement preview-without-console workflow (staging channel in dev app + documented full-journey preview procedure) in tools/kiosk/README.md
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Dev/kiosk config to point the app at the staging channel; documented procedure for the team to preview every public journey (idle, category, preview, transition, landing, each option, voiceover, sequences, final frame, replay, back, category change) via the simulator (FR-035); wire into review workflow docs as the pre-approval visual check.
   - Files: `tools/kiosk/README.md`, `tools/kiosk/src/config.ts`, `apps/content-pipeline/src/review/preview.md`

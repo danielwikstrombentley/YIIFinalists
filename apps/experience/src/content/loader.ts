@@ -41,7 +41,7 @@ async function defaultFetchJson(path: string): Promise<unknown> {
 export class ContentLoader {
   private readonly fetchJson: (path: string) => Promise<unknown>;
   private readonly basePath: string;
-  private readonly channel: ReleaseChannelName;
+  private channel: ReleaseChannelName;
   private readonly onOperatorAlert?: (message: string) => void;
   private readonly cache = new ContentCache();
   private cachedRelease: LoadedRelease | null = null;
@@ -184,6 +184,14 @@ export class ContentLoader {
 
   get activeRelease(): LoadedRelease | null {
     return this.cachedRelease;
+  }
+
+  /** Kiosk runtime configuration selects the local staging/production channel before boot. */
+  setChannel(channel: ReleaseChannelName): void {
+    if (this.cachedRelease) {
+      throw new ContentLoadError('setChannel() is only valid before the first release load');
+    }
+    this.channel = channel;
   }
 
   private alert(message: string): void {

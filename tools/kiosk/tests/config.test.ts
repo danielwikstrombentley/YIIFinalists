@@ -42,6 +42,7 @@ describe('kiosk local environment configuration', () => {
       staticRoot: '/tmp/static',
       contentRoot: '/tmp/content',
       logDir: '/tmp/logs',
+      contentChannel: 'staging',
       ionAccessToken: 'long-token-kept-private',
       ionGoogleTilesAssetId: 'not-an-ion-asset-id',
       operatorActivationSequence: [{ type: 'nav.back', payload: {} }],
@@ -70,5 +71,13 @@ describe('kiosk local environment configuration', () => {
     ]);
     expect(config.operatorActivationRateLimitMs).toBe(2_500);
     expect(config.operatorActivationSources).toEqual(['operator', 'simulator']);
+  });
+
+  it('defaults previews to staging and permits an explicit production channel only', () => {
+    expect(loadKioskConfig({}).contentChannel).toBe('staging');
+    expect(loadKioskConfig({ KIOSK_CONTENT_CHANNEL: 'production' }).contentChannel).toBe(
+      'production',
+    );
+    expect(loadKioskConfig({ KIOSK_CONTENT_CHANNEL: 'other' }).contentChannel).toBe('staging');
   });
 });

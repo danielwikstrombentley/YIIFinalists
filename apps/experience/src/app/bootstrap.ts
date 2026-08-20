@@ -1,3 +1,4 @@
+import type { ReleaseChannelName } from '@yii/content-schema';
 import type { SemanticAction } from '@yii/semantic-actions';
 import { ContentLoader, type ContentLoaderOptions } from '../content/loader.js';
 import { InputBoundary } from '../input/boundary.js';
@@ -22,6 +23,8 @@ export interface BootstrapDeps {
   boundary: InputBoundary;
   transports: readonly Transport[];
   send: (event: ExperienceEvent) => void;
+  /** Resolves kiosk-only configuration before the selected local content channel is loaded. */
+  runtimeConfigurationReady?: Promise<void>;
   onBootError?: (error: unknown) => void;
   /** Completes renderer-specific release preparation before the machine is allowed to enter idle. */
   onReleaseLoaded?: (release: Awaited<ReturnType<ContentLoader['load']>>) => Promise<void> | void;
@@ -50,6 +53,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<void> {
   }
 
   try {
+    await deps.runtimeConfigurationReady;
     const release = await deps.loader.load();
     deps.send({
       type: 'internal.releaseLoaded',
@@ -83,13 +87,22 @@ export interface RuntimeDependencies extends Omit<BootstrapDeps, 'loader'> {
   telemetry: TelemetryLogger;
 }
 
-async function configureOperatorActivationFromKiosk(boundary: InputBoundary): Promise<void> {
+interface KioskRuntimeConfiguration {
+  contentChannel?: ReleaseChannelName;
+}
+
+async function loadKioskRuntimeConfiguration(
+  boundary: InputBoundary,
+): Promise<KioskRuntimeConfiguration> {
   try {
     const response = await fetch('/runtime-config.json', { cache: 'no-store' });
-    if (!response.ok) return;
-    boundary.setOperatorActivationConfig(resolveOperatorActivationConfig(await response.json()));
+    if (!response.ok) return {};
+    const configuration = (await response.json()) as KioskRuntimeConfiguration;
+    boundary.setOperatorActivationConfig(resolveOperatorActivationConfig(configuration));
+    return configuration;
   } catch {
     // The boundary keeps its deterministic development-safe fallback if the local sidecar is down.
+    return {};
   }
 }
 
@@ -101,12 +114,12 @@ export function createRuntimeDependencies(
   const telemetry = new TelemetryLogger({
     onDropped: (telemetryDropped) => diagnostics.updatePerformance({ telemetryDropped }),
   });
-  const loader = new ContentLoader({
+  const defaultLoaderOptions = {
     basePath: '/content',
     channel: 'staging',
     onOperatorAlert: (message) => console.warn(`[operator-alert] ${message}`),
-    ...options.contentLoaderOptions,
-  });
+  } satisfies ContentLoaderOptions;
+  const loader = new ContentLoader({ ...defaultLoaderOptions, ...options.contentLoaderOptions });
 
   const boundary = new InputBoundary({
     onAccepted: (action: SemanticAction) => {
@@ -164,7 +177,12 @@ export function createRuntimeDependencies(
     new SimulatorTransport({ id: 'simulator' }),
   ];
 
-  void configureOperatorActivationFromKiosk(boundary);
+  const runtimeConfigurationReady = loadKioskRuntimeConfiguration(boundary).then(
+    (configuration) => {
+      if (options.contentLoaderOptions?.channel || !configuration.contentChannel) return;
+      loader.setChannel(configuration.contentChannel);
+    },
+  );
 
   return {
     loader,
@@ -173,6 +191,7 @@ export function createRuntimeDependencies(
     diagnostics,
     telemetry,
     send: options.send,
+    runtimeConfigurationReady,
     onBootError: (error) => console.error('[boot]', error),
   };
 }
