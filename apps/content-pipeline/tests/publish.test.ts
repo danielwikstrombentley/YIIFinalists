@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -133,6 +133,9 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
       base.projectHashes['cat-1-project-1'],
     );
     expect(changed.projectHashes['cat-1-project-2']).toBe(base.projectHashes['cat-1-project-2']);
+    expect(
+      await stat(join(root, 'releases', '1.0.1', 'projects', 'cat-1-project-2', 'project.json')),
+    ).toBeDefined();
   });
 
   it('refuses a candidate that merely has 36 entries but mismatches the category project references', async () => {

@@ -64,6 +64,25 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await rename(temporary, path);
 }
 
+async function copyUnchangedProjectFromBase(options: {
+  root: string;
+  baseVersion: string;
+  projectId: string;
+  targetReleaseRoot: string;
+}): Promise<void> {
+  const source = join(
+    options.root,
+    'releases',
+    options.baseVersion,
+    'projects',
+    options.projectId,
+    'project.json',
+  );
+  const target = join(options.targetReleaseRoot, 'projects', options.projectId, 'project.json');
+  await mkdir(resolve(target, '..'), { recursive: true });
+  await writeFile(target, await readFile(source), { flag: 'wx' });
+}
+
 function isPackageRelativePath(path: string): boolean {
   return path.length > 0 && !path.startsWith('/') && !path.includes('..') && !path.includes('\\');
 }
@@ -136,10 +155,19 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
     const nextHash = await contentHash(project.project ?? project.content);
     const existingHash = base?.projectHashes[project.id];
     projectHashes[project.id] = existingHash === nextHash ? existingHash : nextHash;
-    await writeJson(
-      join(releaseRoot, 'projects', project.id, 'project.json'),
-      project.project ?? project,
-    );
+    if (existingHash === nextHash && options.baseVersion) {
+      await copyUnchangedProjectFromBase({
+        root,
+        baseVersion: options.baseVersion,
+        projectId: project.id,
+        targetReleaseRoot: releaseRoot,
+      });
+    } else {
+      await writeJson(
+        join(releaseRoot, 'projects', project.id, 'project.json'),
+        project.project ?? project,
+      );
+    }
   }
 
   for (const [relativePath, asset] of Object.entries(options.candidate.assets ?? {})) {
