@@ -27,7 +27,7 @@ export interface PublishCandidate {
     frozen: boolean;
   };
   categories: Category[];
-  projects: Array<{ id: string; content: string; project?: Project }>;
+  projects: Project[];
   /** The T062 report that admitted this exact candidate to the release boundary. */
   validationReport: ValidationReport;
   /** Candidate-local asset path → byte content. Paths must be package-relative. */
@@ -83,6 +83,18 @@ async function copyUnchangedProjectFromBase(options: {
   await writeFile(target, await readFile(source), { flag: 'wx' });
 }
 
+async function copyUnchangedAssetFromBase(options: {
+  root: string;
+  baseVersion: string;
+  relativePath: string;
+  targetReleaseRoot: string;
+}): Promise<void> {
+  const source = join(options.root, 'releases', options.baseVersion, options.relativePath);
+  const target = join(options.targetReleaseRoot, options.relativePath);
+  await mkdir(resolve(target, '..'), { recursive: true });
+  await writeFile(target, await readFile(source), { flag: 'wx' });
+}
+
 function isPackageRelativePath(path: string): boolean {
   return path.length > 0 && !path.startsWith('/') && !path.includes('..') && !path.includes('\\');
 }
@@ -113,13 +125,25 @@ function validateCandidate(candidate: PublishCandidate): void {
     throw new Error('Candidate project identities must match the 12×3 category references.');
   }
   for (const project of candidate.projects) {
-    if (project.project && !projectSchema.safeParse(project.project).success) {
+    if (!projectSchema.safeParse(project).success) {
       throw new Error(`Candidate project "${project.id}" is not schema-valid. Run validate first.`);
     }
   }
-  for (const path of Object.keys(candidate.assets ?? {})) {
+  const assets = candidate.assets ?? {};
+  for (const path of Object.keys(assets)) {
     if (!isPackageRelativePath(path)) {
       throw new Error(`Candidate asset "${path}" must use a package-relative path.`);
+    }
+  }
+  const requiredAssetPaths = candidate.projects.flatMap((project) =>
+    project.contentOptions.flatMap((option) => [
+      option.voiceover.file,
+      ...option.mediaRefs.map((asset) => asset.file),
+    ]),
+  );
+  for (const path of requiredAssetPaths) {
+    if (!assets[path]) {
+      throw new Error(`Candidate is missing the package asset "${path}" referenced by content.`);
     }
   }
 }
@@ -152,7 +176,7 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
   const projectHashes: Record<string, string> = {};
   const fileHashes: Record<string, string> = {};
   for (const project of options.candidate.projects) {
-    const nextHash = await contentHash(project.project ?? project.content);
+    const nextHash = await contentHash(project);
     const existingHash = base?.projectHashes[project.id];
     projectHashes[project.id] = existingHash === nextHash ? existingHash : nextHash;
     if (existingHash === nextHash && options.baseVersion) {
@@ -163,18 +187,26 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
         targetReleaseRoot: releaseRoot,
       });
     } else {
-      await writeJson(
-        join(releaseRoot, 'projects', project.id, 'project.json'),
-        project.project ?? project,
-      );
+      await writeJson(join(releaseRoot, 'projects', project.id, 'project.json'), project);
     }
   }
 
   for (const [relativePath, asset] of Object.entries(options.candidate.assets ?? {})) {
-    fileHashes[relativePath] = await fileHash(asset);
-    const assetPath = join(releaseRoot, relativePath);
-    await mkdir(resolve(assetPath, '..'), { recursive: true });
-    await writeFile(assetPath, asset, { flag: 'wx' });
+    const nextHash = await fileHash(asset);
+    const existingHash = base?.fileHashes[relativePath];
+    fileHashes[relativePath] = existingHash === nextHash ? existingHash : nextHash;
+    if (existingHash === nextHash && options.baseVersion) {
+      await copyUnchangedAssetFromBase({
+        root,
+        baseVersion: options.baseVersion,
+        relativePath,
+        targetReleaseRoot: releaseRoot,
+      });
+    } else {
+      const assetPath = join(releaseRoot, relativePath);
+      await mkdir(resolve(assetPath, '..'), { recursive: true });
+      await writeFile(assetPath, asset, { flag: 'wx' });
+    }
   }
 
   const normalizedManifest = manifestSchema.parse({

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ValidationReport } from '../src/validate/report.ts';
 import type { PublishCandidate } from '../src/publish/release.ts';
+import type { Project } from '@yii/content-schema';
 import {
   publishRelease,
   promoteRelease,
@@ -23,6 +24,72 @@ afterEach(async () => {
 });
 
 function validCandidate(version: string, projectText = 'Initial release text'): PublishCandidate {
+  const project = (index: number): Project => {
+    const categoryNumber = Math.floor(index / 3) + 1;
+    const projectNumber = (index % 3) + 1;
+    const id = `cat-${categoryNumber}-project-${projectNumber}`;
+    return {
+      id,
+      name: `${projectText} ${String(index + 1)}`,
+      organisation: 'Example Organisation',
+      country: 'Example Country',
+      location: 'Example Location',
+      categoryId: `cat-${categoryNumber}`,
+      marker: { lat: 1, lon: 2 },
+      geographicFraming: {
+        scopeType: 'city',
+        landingCamera: {
+          destination: { lat: 1, lon: 2, height: 100 },
+          orientation: { heading: 0, pitch: -30, roll: 0 },
+          range: 500,
+        },
+        previewEmphasis: {},
+        tileTier: 'safe-composition',
+        canvasTreatment: {},
+      },
+      contentOptions: [
+        {
+          position: 1,
+          title: 'Overview',
+          formats: ['overview-hero'],
+          sequence: {
+            openingState: { id: 'opening', elements: [{ target: 'hero', properties: {} }] },
+            timebase: 'timeline',
+            syncToleranceMs: 100,
+            beats: [],
+            finalFrame: { id: 'final', elements: [{ target: 'hero', properties: {} }] },
+            interruptionExit: 'fade-out',
+          },
+          displayText: [{ type: 'paragraph', text: `${projectText} display text.` }],
+          voiceover: {
+            file: `projects/${id}/voiceover/overview.opus`,
+            scriptVersion: 'voiceover-v1',
+            voiceId: 'editorial-voice',
+            durationMs: 1_000,
+            captionText: [{ type: 'paragraph', text: `${projectText} caption.` }],
+          },
+          mediaRefs: [
+            {
+              id: 'hero-image',
+              kind: 'image',
+              file: `projects/${id}/media/hero.jpg`,
+              rights: { holder: 'Example Organisation', status: 'approved' },
+              aiGenerated: false,
+            },
+          ],
+          available: true,
+        },
+      ],
+      inactivePositions: [2, 3, 4, 5],
+    };
+  };
+  const projects = Array.from({ length: 36 }, (_, index) => project(index));
+  const assets = Object.fromEntries(
+    projects.flatMap((item) => [
+      [item.contentOptions[0]!.voiceover.file, Buffer.from(`voiceover:${item.id}`)],
+      [item.contentOptions[0]!.mediaRefs[0]!.file, Buffer.from(`media:${item.id}`)],
+    ]),
+  );
   return {
     version,
     manifest: {
@@ -42,10 +109,7 @@ function validCandidate(version: string, projectText = 'Initial release text'): 
         `cat-${index + 1}-project-3`,
       ],
     })),
-    projects: Array.from({ length: 36 }, (_, index) => ({
-      id: `cat-${Math.floor(index / 3) + 1}-project-${(index % 3) + 1}`,
-      content: `${projectText} ${String(index + 1)}`,
-    })),
+    projects,
     validationReport: {
       schemaVersion: 1 as const,
       generatedAt: FIXED_NOW,
@@ -53,6 +117,7 @@ function validCandidate(version: string, projectText = 'Initial release text'): 
       valid: true,
       issues: [],
     },
+    assets,
   };
 }
 
@@ -121,7 +186,7 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
       channel: 'staging',
     });
     const update = validCandidate('1.0.1');
-    update.projects[0]!.content = 'Only this project changed';
+    update.projects[0]!.name = 'Only this project changed';
     const changed = await publishRelease({
       root,
       candidate: update,
@@ -170,6 +235,7 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
   it('hashes and writes package-relative local assets into the immutable release', async () => {
     const candidate = validCandidate('1.0.0');
     candidate.assets = {
+      ...candidate.assets,
       'projects/cat-1-project-1/voiceover/overview.opus': Buffer.from('local-voiceover'),
     };
 
