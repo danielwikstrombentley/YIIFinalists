@@ -809,8 +809,8 @@ needs PH5)
 
 ### Verification for US7 (red-first) ⚠️
 
-- [ ] T061 [P] [US7] Author failing validation tests: every FR-036 defect class flags with a specific report line in apps/content-pipeline/tests/validate.test.ts *(red-first)*
-  - Meta: Phase PH9 · Feature F001 · Owner — · Branch `task/001-T061-validation-tests` · PR — · Blockers —
+- [~] T061 [P] [US7] Author failing validation tests: every FR-036 defect class flags with a specific report line in apps/content-pipeline/tests/validate.test.ts *(red-first)*
+  - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Reuse/extend T007 broken fixtures at the release-candidate level: each FR-036 defect produces a distinct, actionable report line and blocks publish; valid candidate passes and emits `validation-report.json`; unverified metrics and unapproved items block (Principle VII).
   - Files: `apps/content-pipeline/tests/validate.test.ts`, `apps/content-pipeline/tests/fixtures/broken-releases/*`
   - Deps: T009, T018
