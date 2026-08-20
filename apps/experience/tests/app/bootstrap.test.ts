@@ -170,6 +170,75 @@ describe('createRuntimeDependencies(): release-ref validation', () => {
     expect(events).toEqual([]);
   });
 
+  it('applies a kiosk-provided production channel before boot when no explicit loader channel is supplied', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/runtime-config.json') {
+        return new Response(JSON.stringify({ contentChannel: 'production' }), { status: 200 });
+      }
+      throw new Error(`Unexpected fetch ${String(input)}`);
+    });
+    const events: ExperienceEvent[] = [];
+    const fetchJson = vi.fn(
+      fakeFetchJson({
+        '/content/channels.json': {
+          staging: null,
+          production: '1.0.0',
+          frozen: false,
+          history: [],
+        },
+        '/content/releases/1.0.0/manifest.json': VALID_MANIFEST,
+        '/content/releases/1.0.0/categories.json': VALID_CATEGORIES,
+      }),
+    );
+    const deps = createRuntimeDependencies({
+      send: (event) => events.push(event),
+      contentLoaderOptions: { fetchJson },
+    });
+
+    try {
+      await bootstrap({ ...deps, transports: [] });
+      expect(events).toEqual([
+        releaseLoaded(VALID_CATEGORIES),
+        { type: 'internal.assetsVerified' },
+      ]);
+      expect(fetchJson).toHaveBeenCalledWith('/content/channels.json');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('does not let an unavailable kiosk runtime configuration delay boot', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => {}));
+    const events: ExperienceEvent[] = [];
+    const deps = createRuntimeDependencies({
+      send: (event) => events.push(event),
+      contentLoaderOptions: {
+        fetchJson: fakeFetchJson({
+          '/content/channels.json': {
+            staging: '1.0.0',
+            production: null,
+            frozen: false,
+            history: [],
+          },
+          '/content/releases/1.0.0/manifest.json': VALID_MANIFEST,
+          '/content/releases/1.0.0/categories.json': VALID_CATEGORIES,
+        }),
+      },
+    });
+
+    try {
+      await bootstrap({ ...deps, transports: [] });
+      expect(events).toEqual([
+        releaseLoaded(VALID_CATEGORIES),
+        { type: 'internal.assetsVerified' },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('rejects an unknown category and accepts a known one once the release has loaded', async () => {
     const events: ExperienceEvent[] = [];
     const deps = createRuntimeDependencies({

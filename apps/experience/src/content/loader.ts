@@ -1,7 +1,15 @@
 import type { Category, Manifest, Project, ReleaseChannelName } from '@yii/content-schema';
 import { ContentCache } from './cache.js';
 import { resolveActiveRelease } from './channels.js';
-import { revalidateCategories, revalidateManifest, revalidateProject } from './revalidate.js';
+import {
+  revalidateAssetHash,
+  revalidateCategories,
+  revalidateManifest,
+  revalidateProject,
+  revalidateReleaseContentHash,
+  revalidateReleaseIntegrity,
+  revalidateValidationReport,
+} from './revalidate.js';
 
 // Content loader (T017) — consumer obligations of contracts/content-package.md, fully
 // implemented: revalidate at load (untrusted input), refuse on failure -> previous cached release
@@ -20,6 +28,8 @@ export interface LoadedRelease {
 export interface ContentLoaderOptions {
   /** Fetches and JSON-parses a path; defaults to `fetch(path).then(r => r.json())`. */
   fetchJson?: (path: string) => Promise<unknown>;
+  /** Fetches binary package assets for integrity checks; defaults to browser fetch. */
+  fetchBytes?: (path: string) => Promise<Uint8Array>;
   basePath?: string;
   channel?: ReleaseChannelName;
   onOperatorAlert?: (message: string) => void;
@@ -33,16 +43,26 @@ async function defaultFetchJson(path: string): Promise<unknown> {
   return response.json() as Promise<unknown>;
 }
 
+async function defaultFetchBytes(path: string): Promise<Uint8Array> {
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new ContentLoadError(`failed to fetch "${path}": HTTP ${response.status}`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
 export class ContentLoader {
   private readonly fetchJson: (path: string) => Promise<unknown>;
+  private readonly fetchBytes: (path: string) => Promise<Uint8Array>;
   private readonly basePath: string;
-  private readonly channel: ReleaseChannelName;
+  private channel: ReleaseChannelName;
   private readonly onOperatorAlert?: (message: string) => void;
   private readonly cache = new ContentCache();
   private cachedRelease: LoadedRelease | null = null;
 
   constructor(options: ContentLoaderOptions = {}) {
     this.fetchJson = options.fetchJson ?? defaultFetchJson;
+    this.fetchBytes = options.fetchBytes ?? defaultFetchBytes;
     this.basePath = options.basePath ?? '';
     this.channel = options.channel ?? 'production';
     this.onOperatorAlert = options.onOperatorAlert;
@@ -85,6 +105,56 @@ export class ContentLoader {
       throw new ContentLoadError(
         `categories.json failed schema validation for release "${version}"`,
       );
+    }
+
+    if (manifestResult.data.contentHash.startsWith('sha256:')) {
+      const integrityRaw = await this.fetchJson(`${releaseBase}/publication.json`);
+      const integrityResult = revalidateReleaseIntegrity(integrityRaw);
+      if (!integrityResult.success || integrityResult.data.version !== version) {
+        throw new ContentLoadError(
+          `publication.json failed integrity validation for release "${version}"`,
+        );
+      }
+      const validationRaw = await this.fetchJson(`${releaseBase}/validation-report.json`);
+      const validationResult = revalidateValidationReport(validationRaw);
+      if (
+        !validationResult.success ||
+        !validationResult.data.valid ||
+        validationResult.data.candidateVersion !== version
+      ) {
+        throw new ContentLoadError(`validation-report.json does not admit release "${version}"`);
+      }
+      const projects = await Promise.all(
+        categoriesResult.data
+          .flatMap((category) => category.projectIds)
+          .map(async (projectId) => {
+            const raw = await this.fetchJson(`${releaseBase}/projects/${projectId}/project.json`);
+            const result = revalidateProject(raw);
+            if (!result.success) {
+              throw new ContentLoadError(
+                `project "${projectId}" failed schema validation while verifying release integrity`,
+              );
+            }
+            return result.data;
+          }),
+      );
+      if (
+        !(await revalidateReleaseContentHash({
+          manifest: manifestResult.data,
+          categories: categoriesResult.data,
+          projects,
+          fileHashes: integrityResult.data.fileHashes,
+          validationReport: validationResult.data,
+        }))
+      ) {
+        throw new ContentLoadError(`release "${version}" contentHash verification failed`);
+      }
+      for (const [relativePath, expectedHash] of Object.entries(integrityResult.data.fileHashes)) {
+        const asset = await this.fetchBytes(`${releaseBase}/${relativePath}`);
+        if (!(await revalidateAssetHash(asset, expectedHash))) {
+          throw new ContentLoadError(`asset "${relativePath}" contentHash verification failed`);
+        }
+      }
     }
 
     return { version, manifest: manifestResult.data, categories: categoriesResult.data };
@@ -153,6 +223,14 @@ export class ContentLoader {
 
   get activeRelease(): LoadedRelease | null {
     return this.cachedRelease;
+  }
+
+  /** Kiosk runtime configuration selects the local staging/production channel before boot. */
+  setChannel(channel: ReleaseChannelName): void {
+    if (this.cachedRelease) {
+      throw new ContentLoadError('setChannel() is only valid before the first release load');
+    }
+    this.channel = channel;
   }
 
   private alert(message: string): void {

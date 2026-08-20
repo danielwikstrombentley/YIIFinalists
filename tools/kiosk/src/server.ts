@@ -130,6 +130,7 @@ export function createKioskServer(
         JSON.stringify({
           ionAccessToken: config.ionAccessToken,
           ionGoogleTilesAssetId: config.ionGoogleTilesAssetId,
+          contentChannel: config.contentChannel,
           operatorActivationSequence: config.operatorActivationSequence,
           operatorActivationRateLimitMs: config.operatorActivationRateLimitMs,
           operatorActivationSources: config.operatorActivationSources,

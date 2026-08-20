@@ -77,6 +77,7 @@ All configuration is env-based (never committed — see `.gitignore`'s `.env` ru
 | `KIOSK_PORT` | `4174` | HTTP/WS port |
 | `KIOSK_STATIC_ROOT` | `apps/experience/dist` | Built app to serve at `/` |
 | `KIOSK_CONTENT_ROOT` | `apps/content-pipeline/assets/sample` | Active content release tree, served at `/content` |
+| `KIOSK_CONTENT_CHANNEL` | `staging` | Local release channel resolved by the runtime; use `production` only for the event build |
 | `KIOSK_LOG_DIR` | `tools/kiosk/logs` | Telemetry JSONL output directory (gitignored) |
 | `KIOSK_WATCHDOG_PORT` | — (sidecar reload is inert) | Loopback port of the separate watchdog process |
 | `YII_OPERATOR_ACTIVATION_SOURCES` | `operator` | Comma-separated dedicated local sources allowed to evaluate the concealed gesture; leave at the safe default unless event hardware requires another source |
@@ -109,3 +110,34 @@ Operator-facing startup/recovery procedures (soft reset → media/renderer recov
 restart → console reconnect) are documented in [runbook.md](runbook.md). The sidecar remains
 independent of the app's state and keeps serving static content/telemetry while the watchdog
 replaces the browser.
+
+## Staging preview without the physical console (FR-035)
+
+Use this procedure **before approving** editorial content. It intentionally keeps the public
+runtime on the locally served `staging` channel and drives every journey through the same hidden
+`SimulatorTransport` path as the physical console; it never adds public UI controls.
+
+1. Build or publish the approved candidate to the local content root's `staging` channel. Leave
+  `KIOSK_CONTENT_CHANNEL` unset (it defaults to `staging`) and set `KIOSK_CONTENT_ROOT` to that
+  root. Do not point this procedure at `production`.
+2. Start the development stack with the content root selected, then open the stage. Wait for the
+  globe idle state; record the release version and content hash from the hidden operator overlay.
+3. Open the hidden operator overlay using the configured concealed activation sequence. Use its
+  simulator controls only — never send events directly to the browser actor.
+4. For **each category**: select it, confirm its first finalist previews with correct metadata,
+  move through all three finalists, and verify a rapid preview burst ends on the last selected
+  project without queued motion.
+5. For **each finalist**: confirm the project; inspect the globe→geographic transition and
+  landing metadata; then select each active content position. Verify local voiceover starts with
+  the sequence, media/fallbacks are correct, and the declared final frame remains held.
+6. For **every active option**: deliberately replay it after the dedup window, then use back to
+  return through the reverse handover. Test a category change while content is active and a
+  return to idle. The public surface must show no technical text or menus at any point.
+7. Record every checked category/project/position plus observed fallback, voiceover, final-frame,
+  replay, back, and category-change outcomes in
+  [preview-procedure-run.md](../../specs/001-yii-led-experience/evidence/preview-procedure-run.md).
+  Any failure returns the item to editorial review; only a clean recorded run may proceed to
+  approval/publish.
+
+For a production rehearsal, set `KIOSK_CONTENT_CHANNEL=production` explicitly and repeat the
+same checklist. This does not replace the required staging review run.

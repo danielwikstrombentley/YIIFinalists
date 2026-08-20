@@ -117,6 +117,7 @@ describe('kiosk sidecar watchdog reload endpoint', () => {
       staticRoot,
       contentRoot,
       logDir,
+      contentChannel: 'staging',
       ionAccessToken: undefined,
       ionGoogleTilesAssetId: undefined,
       operatorActivationSequence: [{ type: 'nav.back', payload: {} }],

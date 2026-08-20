@@ -1,6 +1,8 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export type KioskContentChannel = 'staging' | 'production';
+
 // Kiosk config (T019): env-based, never committed (research.md R4/R12). `ION_ACCESS_TOKEN` /
 // `ION_GOOGLE_TILES_ASSET_ID` pass through to the served app's runtime config only — this module
 // never logs their values.
@@ -30,6 +32,8 @@ export interface KioskConfig {
   contentRoot: string;
   /** Directory telemetry JSONL files are appended to. */
   logDir: string;
+  /** Channel the public runtime resolves from the active local content root. */
+  contentChannel: KioskContentChannel;
   ionAccessToken: string | undefined;
   ionGoogleTilesAssetId: string | undefined;
   /** Non-secret hidden-overlay sequence delivered only to the local runtime configuration endpoint. */
@@ -110,6 +114,10 @@ function parseOptionalPositivePort(value: string | undefined): number | undefine
   return Number.isInteger(parsed) && parsed > 0 && parsed <= 65_535 ? parsed : undefined;
 }
 
+function parseContentChannel(value: string | undefined): KioskContentChannel {
+  return value === 'production' ? 'production' : 'staging';
+}
+
 /** Reports configuration mistakes without ever including the configured token or asset value. */
 export function getKioskCesiumConfigurationWarning(config: KioskConfig): string | undefined {
   if (!config.ionAccessToken && !config.ionGoogleTilesAssetId) return undefined;
@@ -132,6 +140,7 @@ export function loadKioskConfig(env: NodeJS.ProcessEnv = process.env): KioskConf
     contentRoot:
       env.KIOSK_CONTENT_ROOT ?? join(repoRoot, 'apps', 'content-pipeline', 'assets', 'sample'),
     logDir: env.KIOSK_LOG_DIR ?? join(here, '..', 'logs'),
+    contentChannel: parseContentChannel(env.KIOSK_CONTENT_CHANNEL),
     ionAccessToken: env.ION_ACCESS_TOKEN,
     ionGoogleTilesAssetId: env.ION_GOOGLE_TILES_ASSET_ID,
     operatorActivationSequence: parseOperatorActivationSequence(
