@@ -93,10 +93,11 @@ project's declared fallback tier without blanking; degradation visible in diagno
 
 ```bash
 pnpm --filter content-pipeline ingest -- --source clickup --list <listId>   # or --source folder ./samples/submission-01
-pnpm --filter content-pipeline analyze -- --project p-001 --driver api-llm  # or --driver copilot-agent, then: ingest-drafts p-001
+pnpm --filter content-pipeline analyze -- --project p-001 --driver copilot-agent # default: draft in the GitHub Copilot workspace agent, then ingest-drafts p-001
+# `--driver api-llm` remains the optional API-provider fallback.
 pnpm --filter content-pipeline review -- --project p-001                    # approve/reject/edit via review CLI/UI
-pnpm --filter content-pipeline validate -- --root <contentRoot> --version <semver>  # FR-036 rule set
-pnpm --filter content-pipeline publish -- --root <contentRoot> --version <semver> --channel staging
+pnpm --filter content-pipeline validate -- --root <candidateRoot> --version <semver> # FR-036 rule set
+pnpm --filter content-pipeline publish -- --root <contentRoot> --candidate-root <candidateRoot> --version <semver> --channel staging
 pnpm --filter content-pipeline promote -- --root <contentRoot> --version <semver>
 pnpm --filter content-pipeline rollback -- --root <contentRoot> --channel staging # returns to prior release
 pnpm --filter content-pipeline freeze -- --root <contentRoot>                     # production write refused afterwards

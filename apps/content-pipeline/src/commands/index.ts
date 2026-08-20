@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { generateSampleRelease, parseSampleTileTier } from '../seed/sample.ts';
 import { runAnalyzeCommand } from './analyze.ts';
 import { runIngestCommand } from './ingest.ts';
@@ -23,16 +24,22 @@ function valueAfter(args: readonly string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
-async function runPublishCommand(args: string[]): Promise<void> {
+export async function runPublishCommand(args: string[]): Promise<void> {
   const root = valueAfter(args, '--root');
+  const candidateRoot = valueAfter(args, '--candidate-root');
   const version = valueAfter(args, '--version');
   const channel = valueAfter(args, '--channel');
-  if (!root || !version || (channel !== 'staging' && channel !== 'production')) {
+  if (!root || !candidateRoot || !version || (channel !== 'staging' && channel !== 'production')) {
     throw new Error(
-      'Usage: publish --root <content-root> --version <semver> --channel staging|production.',
+      'Usage: publish --root <content-root> --candidate-root <validated-candidate-root> --version <semver> --channel staging|production.',
     );
   }
-  const candidate = await loadPublishCandidate({ root, version });
+  if (resolve(root) === resolve(candidateRoot)) {
+    throw new Error(
+      'publish requires a separate candidate root so immutable releases are never overwritten.',
+    );
+  }
+  const candidate = await loadPublishCandidate({ root: candidateRoot, version });
   const release = await publishRelease({
     root,
     candidate,
