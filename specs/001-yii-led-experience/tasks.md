@@ -809,7 +809,7 @@ needs PH5)
 
 ### Verification for US7 (red-first) ⚠️
 
-- [~] T061 [P] [US7] Author failing validation tests: every FR-036 defect class flags with a specific report line in apps/content-pipeline/tests/validate.test.ts *(red-first)*
+- [x] T061 [P] [US7] Author failing validation tests: every FR-036 defect class flags with a specific report line in apps/content-pipeline/tests/validate.test.ts *(red-first)*
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Reuse/extend T007 broken fixtures at the release-candidate level: each FR-036 defect produces a distinct, actionable report line and blocks publish; valid candidate passes and emits `validation-report.json`; unverified metrics and unapproved items block (Principle VII).
   - Files: `apps/content-pipeline/tests/validate.test.ts`, `apps/content-pipeline/tests/fixtures/broken-releases/*`
@@ -819,8 +819,8 @@ needs PH5)
 
 ### Implementation for US7
 
-- [ ] T062 [US7] Implement the validation engine (FR-036 rule set + report) in apps/content-pipeline/src/validate/run.ts
-  - Meta: Phase PH9 · Feature F001 · Owner — · Branch `task/001-T062-validation-engine` · PR — · Blockers —
+- [x] T062 [US7] Implement the validation engine (FR-036 rule set + report) in apps/content-pipeline/src/validate/run.ts
+  - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Rule modules covering all FR-036 classes + cross-domain invariants (data-model §4): structure 12×3, Overview position 1, ≤5 options, metadata/framing presence, media resolution+budget or declared fallback, voiceover presence/playability, display text, broken refs, unsupported formats, invalid sequences (openingState/timebase/syncTolerance/finalFrame), empty/duplicate positions, duplicate project refs, approval status, unverified metrics, rights records, AI-flag presence; emits `validation-report.json` embedded in the release.
   - Files: `apps/content-pipeline/src/validate/{run.ts,rules/*.ts,report.ts}`
   - Deps: T061, T060

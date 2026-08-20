@@ -3,6 +3,7 @@ import { runAnalyzeCommand } from './analyze.ts';
 import { runIngestCommand } from './ingest.ts';
 import { runIngestDraftsCommand } from './ingest-drafts.ts';
 import { runReviewCommand } from '../review/cli.ts';
+import { runValidateCommand } from './validate.ts';
 
 export interface CliCommand {
   name: string;
@@ -45,7 +46,7 @@ export const commands: CliCommand[] = [
     name: 'validate',
     description:
       'Validate a content package against the schema and the FR-036 rule set before publish.',
-    run: notYetImplemented('validate'),
+    run: runValidateCommand,
   },
   {
     name: 'publish',

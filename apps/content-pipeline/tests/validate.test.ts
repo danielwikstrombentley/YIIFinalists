@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
@@ -107,6 +107,7 @@ function manifest(): Manifest {
 }
 
 async function writeJson(path: string, value: unknown): Promise<void> {
+  await mkdir(join(path, '..'), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
@@ -127,6 +128,8 @@ async function writeValidCandidate(root: string): Promise<void> {
       const current = project(projectId, category.id);
       const projectRoot = join(releaseRoot, 'projects', projectId);
       await writeJson(join(projectRoot, 'project.json'), current);
+      await mkdir(join(projectRoot, 'media'), { recursive: true });
+      await mkdir(join(projectRoot, 'voiceover'), { recursive: true });
       await writeFile(join(projectRoot, 'media', 'hero.jpg'), 'image', 'utf8');
       await writeFile(join(projectRoot, 'voiceover', 'overview.opus'), 'audio', 'utf8');
       await writeJson(join(projectRoot, 'editorial.json'), {
