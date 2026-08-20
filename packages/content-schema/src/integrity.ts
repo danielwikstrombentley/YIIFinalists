@@ -26,9 +26,10 @@ export function canonicalJson(value: unknown): string {
  * WebCrypto, keeping this package free of a Node-only import that would leak into the LED runtime.
  */
 export async function contentHash(value: unknown): Promise<ContentHash> {
-  const subtle = globalThis.crypto?.subtle ?? (await nodeSubtleCrypto());
-  if (!subtle) throw new Error('WebCrypto SubtleCrypto is required to verify release content hashes.');
-  const digest = await subtle.digest(
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('WebCrypto SubtleCrypto is required to verify release content hashes.');
+  }
+  const digest = await globalThis.crypto.subtle.digest(
     'SHA-256',
     new TextEncoder().encode(canonicalJson(value)),
   );
@@ -36,15 +37,6 @@ export async function contentHash(value: unknown): Promise<ContentHash> {
     '',
   );
   return `sha256:${hex}`;
-}
-
-async function nodeSubtleCrypto(): Promise<Crypto['subtle'] | undefined> {
-  try {
-    const crypto = await import('node:crypto');
-    return crypto.webcrypto.subtle as unknown as Crypto['subtle'];
-  } catch {
-    return undefined;
-  }
 }
 
 export const releaseIntegritySchema = z

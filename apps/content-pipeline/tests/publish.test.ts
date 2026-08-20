@@ -85,4 +85,13 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
     expect(changed.projectHashes['cat-1-project-1']).not.toBe(base.projectHashes['cat-1-project-1']);
     expect(changed.projectHashes['cat-1-project-2']).toBe(base.projectHashes['cat-1-project-2']);
   });
+
+  it('refuses a candidate that merely has 36 entries but mismatches the category project references', async () => {
+    const candidate = validCandidate('1.0.0');
+    candidate.projects[0]!.id = 'unreferenced-project';
+
+    await expect(publishRelease({ root, candidate, channel: 'staging' })).rejects.toThrow(
+      /identities/i,
+    );
+  });
 });

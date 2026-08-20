@@ -1,6 +1,14 @@
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { canPublishToProduction, manifestSchema, type ReleaseChannelName } from '@yii/content-schema';
+import {
+  canPublishToProduction,
+  categoriesFileSchema,
+  manifestSchema,
+  projectSchema,
+  type Category,
+  type Project,
+  type ReleaseChannelName,
+} from '@yii/content-schema';
 import { readChannels, setChannelVersion, writeChannels } from './channels.ts';
 import { withProductionFreeze } from './freeze.ts';
 import { contentHash } from './hash.ts';
@@ -14,8 +22,8 @@ export interface PublishCandidate {
     approvedBy: string;
     frozen: boolean;
   };
-  categories: unknown[];
-  projects: Array<{ id: string; content: string; project?: unknown }>;
+  categories: Category[];
+  projects: Array<{ id: string; content: string; project?: Project }>;
 }
 
 export interface PublishedRelease {
@@ -51,8 +59,21 @@ function validateCandidate(candidate: PublishCandidate): void {
   if (candidate.manifest.version !== candidate.version) {
     throw new Error('Candidate manifest version must match the requested release version.');
   }
-  if (candidate.categories.length !== 12 || candidate.projects.length !== 36) {
-    throw new Error('Only a fully validated 12-category / 36-project candidate may publish.');
+  const categories = categoriesFileSchema.safeParse(candidate.categories);
+  if (!categories.success) {
+    throw new Error('Only a schema-valid 12-category candidate may publish. Run validate first.');
+  }
+  if (candidate.projects.length !== 36) {
+    throw new Error('Only a fully validated 36-project candidate may publish. Run validate first.');
+  }
+  const referencedIds = new Set(categories.data.flatMap((category) => category.projectIds));
+  if (referencedIds.size !== 36 || candidate.projects.some((project) => !referencedIds.has(project.id))) {
+    throw new Error('Candidate project identities must match the 12×3 category references.');
+  }
+  for (const project of candidate.projects) {
+    if (project.project && !projectSchema.safeParse(project.project).success) {
+      throw new Error(`Candidate project "${project.id}" is not schema-valid. Run validate first.`);
+    }
   }
 }
 
