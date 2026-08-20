@@ -63,6 +63,20 @@ export const releaseValidationReportSchema = z
 
 export type ReleaseValidationReport = z.infer<typeof releaseValidationReportSchema>;
 
+/** Excludes execution time so an identical validated candidate yields the same content hash. */
+export function canonicalValidationReportForHash(
+  report: ReleaseValidationReport,
+): Omit<ReleaseValidationReport, 'generatedAt'> & { generatedAt: null } {
+  return { ...report, generatedAt: null };
+}
+
+/** Excludes the recursive manifest hash field while covering all other manifest metadata. */
+export function canonicalManifestForHash(
+  manifest: Record<string, unknown>,
+): Record<string, unknown> {
+  return { ...manifest, contentHash: null };
+}
+
 export const releaseIntegritySchema = z
   .object({
     version: semverSchema,

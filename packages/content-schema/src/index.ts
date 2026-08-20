@@ -51,7 +51,9 @@ export type { Category } from './category.js';
 
 export {
   binaryContentHash,
+  canonicalManifestForHash,
   canonicalJson,
+  canonicalValidationReportForHash,
   contentHash,
   releaseIntegritySchema,
   releaseValidationReportSchema,

@@ -1,22 +1,18 @@
-import { binaryContentHash, contentHash, type ReleaseIntegrity } from '@yii/content-schema';
+import {
+  binaryContentHash,
+  canonicalManifestForHash,
+  canonicalValidationReportForHash,
+  contentHash,
+  type ReleaseIntegrity,
+} from '@yii/content-schema';
 import { describe, expect, it, vi } from 'vitest';
 import { ContentLoader, ContentLoadError } from '../../src/content/loader.js';
 
-async function validManifest(version: string) {
-  const categories = validCategories();
-  const projects = categories
-    .flatMap((category) => category.projectIds)
-    .map((id) => validProject(id));
-  const projectHashes = Object.fromEntries(
-    await Promise.all(
-      projects.map(async (project) => [project.id, await contentHash(project)] as const),
-    ),
-  );
-  const fileHashes: Record<string, string> = {};
+function baseManifest(version: string) {
   return {
     schemaVersion: 1,
     version,
-    contentHash: await contentHash({ categories, projectHashes, fileHashes }),
+    contentHash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
     createdAt: '2026-08-19T10:00:00.000Z',
     approvedBy: 'editor@example.test',
     frozen: false,
@@ -96,7 +92,21 @@ async function validReleaseFiles(version: string): Promise<Record<string, unknow
       projects.map(async (project) => [project.id, await contentHash(project)] as const),
     ),
   );
-  const manifest = await validManifest(version);
+  const validationReport = {
+    schemaVersion: 1 as const,
+    generatedAt: '2026-08-19T10:00:00.000Z',
+    candidateVersion: version,
+    valid: true,
+    issues: [],
+  };
+  const manifest = baseManifest(version);
+  manifest.contentHash = await contentHash({
+    manifest: canonicalManifestForHash(manifest),
+    categories,
+    projectHashes,
+    fileHashes: {},
+    validationReport: canonicalValidationReportForHash(validationReport),
+  });
   const integrity: ReleaseIntegrity = {
     version,
     contentHash: manifest.contentHash,
@@ -107,13 +117,7 @@ async function validReleaseFiles(version: string): Promise<Record<string, unknow
   files[`/releases/${version}/manifest.json`] = manifest;
   files[`/releases/${version}/categories.json`] = categories;
   files[`/releases/${version}/publication.json`] = integrity;
-  files[`/releases/${version}/validation-report.json`] = {
-    schemaVersion: 1,
-    generatedAt: '2026-08-19T10:00:00.000Z',
-    candidateVersion: version,
-    valid: true,
-    issues: [],
-  };
+  files[`/releases/${version}/validation-report.json`] = validationReport;
   for (const project of projects) {
     files[`/releases/${version}/projects/${project.id}/project.json`] = project;
   }
@@ -127,15 +131,22 @@ async function validHashedReleaseFiles(version: string): Promise<{
   const files = await validReleaseFiles(version);
   const relativePath = 'projects/cat-1-project-1/voiceover/overview.opus';
   const asset = new TextEncoder().encode('approved local voiceover');
-  const manifest = files[`/releases/${version}/manifest.json`] as Awaited<
-    ReturnType<typeof validManifest>
-  >;
+  const manifest = files[`/releases/${version}/manifest.json`] as ReturnType<typeof baseManifest>;
   const integrity = files[`/releases/${version}/publication.json`] as ReleaseIntegrity;
   integrity.fileHashes[relativePath] = await binaryContentHash(asset);
+  const validationReport = files[`/releases/${version}/validation-report.json`] as {
+    schemaVersion: 1;
+    generatedAt: string;
+    candidateVersion: string;
+    valid: boolean;
+    issues: [];
+  };
   manifest.contentHash = await contentHash({
+    manifest: canonicalManifestForHash(manifest),
     categories: files[`/releases/${version}/categories.json`],
     projectHashes: integrity.projectHashes,
     fileHashes: integrity.fileHashes,
+    validationReport: canonicalValidationReportForHash(validationReport),
   });
   integrity.contentHash = manifest.contentHash;
   return { files, bytes: { [`/releases/${version}/${relativePath}`]: asset } };
@@ -145,7 +156,7 @@ describe('ContentLoader publication-integrity refusal (T065)', () => {
   it('refuses a tampered release hash before accepting it as the active runtime release', async () => {
     const files = await validReleaseFiles('1.0.0');
     files['/releases/1.0.0/manifest.json'] = {
-      ...(await validManifest('1.0.0')),
+      ...baseManifest('1.0.0'),
       contentHash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
     };
     const fetchJson = vi.fn(async (path: string) => {
@@ -171,7 +182,7 @@ describe('ContentLoader publication-integrity refusal (T065)', () => {
     files['/channels.json'] = { staging: '1.0.1', production: null, frozen: false, history: [] };
     Object.assign(files, await validReleaseFiles('1.0.1'));
     files['/releases/1.0.1/manifest.json'] = {
-      ...(await validManifest('1.0.1')),
+      ...baseManifest('1.0.1'),
       contentHash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
     };
 

@@ -2,6 +2,8 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   canPublishToProduction,
+  canonicalManifestForHash,
+  canonicalValidationReportForHash,
   categoriesFileSchema,
   manifestSchema,
   projectSchema,
@@ -131,7 +133,7 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
   const projectHashes: Record<string, string> = {};
   const fileHashes: Record<string, string> = {};
   for (const project of options.candidate.projects) {
-    const nextHash = await contentHash(project.content);
+    const nextHash = await contentHash(project.project ?? project.content);
     const existingHash = base?.projectHashes[project.id];
     projectHashes[project.id] = existingHash === nextHash ? existingHash : nextHash;
     await writeJson(
@@ -150,9 +152,11 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
   const normalizedManifest = manifestSchema.parse({
     ...options.candidate.manifest,
     contentHash: await contentHash({
+      manifest: canonicalManifestForHash(options.candidate.manifest),
       categories: options.candidate.categories,
       projectHashes,
       fileHashes,
+      validationReport: canonicalValidationReportForHash(options.candidate.validationReport),
     }),
   });
   await writeJson(join(releaseRoot, 'manifest.json'), normalizedManifest);

@@ -1,6 +1,8 @@
 import {
   categoriesFileSchema,
   binaryContentHash,
+  canonicalManifestForHash,
+  canonicalValidationReportForHash,
   contentHash,
   releaseIntegritySchema,
   releaseValidationReportSchema,
@@ -43,7 +45,10 @@ export async function revalidateReleaseContentHash(options: {
   categories: Category[];
   projects: Project[];
   fileHashes: Record<string, string>;
+  validationReport: unknown;
 }): Promise<boolean> {
+  const validationResult = releaseValidationReportSchema.safeParse(options.validationReport);
+  if (!validationResult.success) return false;
   const projectHashes = Object.fromEntries(
     await Promise.all(
       options.projects.map(async (project) => [project.id, await contentHash(project)] as const),
@@ -52,9 +57,11 @@ export async function revalidateReleaseContentHash(options: {
   return (
     options.manifest.contentHash ===
     (await contentHash({
+      manifest: canonicalManifestForHash(options.manifest),
       categories: options.categories,
       projectHashes,
       fileHashes: options.fileHashes,
+      validationReport: canonicalValidationReportForHash(validationResult.data),
     }))
   );
 }

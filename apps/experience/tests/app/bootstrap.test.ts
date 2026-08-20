@@ -208,6 +208,37 @@ describe('createRuntimeDependencies(): release-ref validation', () => {
     }
   });
 
+  it('does not let an unavailable kiosk runtime configuration delay boot', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => {}));
+    const events: ExperienceEvent[] = [];
+    const deps = createRuntimeDependencies({
+      send: (event) => events.push(event),
+      contentLoaderOptions: {
+        fetchJson: fakeFetchJson({
+          '/content/channels.json': {
+            staging: '1.0.0',
+            production: null,
+            frozen: false,
+            history: [],
+          },
+          '/content/releases/1.0.0/manifest.json': VALID_MANIFEST,
+          '/content/releases/1.0.0/categories.json': VALID_CATEGORIES,
+        }),
+      },
+    });
+
+    try {
+      await bootstrap({ ...deps, transports: [] });
+      expect(events).toEqual([
+        releaseLoaded(VALID_CATEGORIES),
+        { type: 'internal.assetsVerified' },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('rejects an unknown category and accepts a known one once the release has loaded', async () => {
     const events: ExperienceEvent[] = [];
     const deps = createRuntimeDependencies({

@@ -91,18 +91,20 @@ interface KioskRuntimeConfiguration {
   contentChannel?: ReleaseChannelName;
 }
 
-async function loadKioskRuntimeConfiguration(
-  boundary: InputBoundary,
-): Promise<KioskRuntimeConfiguration> {
+function loadKioskRuntimeConfiguration(): Promise<KioskRuntimeConfiguration> {
   try {
-    const response = await fetch('/runtime-config.json', { cache: 'no-store' });
-    if (!response.ok) return {};
-    const configuration = (await response.json()) as KioskRuntimeConfiguration;
-    boundary.setOperatorActivationConfig(resolveOperatorActivationConfig(configuration));
-    return configuration;
+    return Promise.race([
+      fetch('/runtime-config.json', { cache: 'no-store' })
+        .then(async (response) =>
+          response.ok ? ((await response.json()) as KioskRuntimeConfiguration) : {},
+        )
+        .catch(() => ({})),
+      new Promise<KioskRuntimeConfiguration>((resolve) => {
+        window.setTimeout(() => resolve({}), 250);
+      }),
+    ]);
   } catch {
-    // The boundary keeps its deterministic development-safe fallback if the local sidecar is down.
-    return {};
+    return Promise.resolve({});
   }
 }
 
@@ -177,12 +179,12 @@ export function createRuntimeDependencies(
     new SimulatorTransport({ id: 'simulator' }),
   ];
 
-  const runtimeConfigurationReady = loadKioskRuntimeConfiguration(boundary).then(
-    (configuration) => {
-      if (options.contentLoaderOptions?.channel || !configuration.contentChannel) return;
-      loader.setChannel(configuration.contentChannel);
-    },
-  );
+  const runtimeConfiguration = loadKioskRuntimeConfiguration();
+  const runtimeConfigurationReady = runtimeConfiguration.then((configuration) => {
+    boundary.setOperatorActivationConfig(resolveOperatorActivationConfig(configuration));
+    if (options.contentLoaderOptions?.channel || !configuration.contentChannel) return;
+    loader.setChannel(configuration.contentChannel);
+  });
 
   return {
     loader,

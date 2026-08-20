@@ -144,6 +144,7 @@ export class ContentLoader {
           categories: categoriesResult.data,
           projects,
           fileHashes: integrityResult.data.fileHashes,
+          validationReport: validationResult.data,
         }))
       ) {
         throw new ContentLoadError(`release "${version}" contentHash verification failed`);
