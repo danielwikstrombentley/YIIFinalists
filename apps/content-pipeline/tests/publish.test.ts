@@ -2,6 +2,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { ValidationReport } from '../src/validate/report.ts';
+import type { PublishCandidate } from '../src/publish/release.ts';
 import {
   publishRelease,
   promoteRelease,
@@ -20,7 +22,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-function validCandidate(version: string, projectText = 'Initial release text') {
+function validCandidate(version: string, projectText = 'Initial release text'): PublishCandidate {
   return {
     version,
     manifest: {
@@ -44,6 +46,13 @@ function validCandidate(version: string, projectText = 'Initial release text') {
       id: `cat-${Math.floor(index / 3) + 1}-project-${(index % 3) + 1}`,
       content: `${projectText} ${String(index + 1)}`,
     })),
+    validationReport: {
+      schemaVersion: 1 as const,
+      generatedAt: FIXED_NOW,
+      candidateVersion: version,
+      valid: true,
+      issues: [],
+    },
   };
 }
 
@@ -132,6 +141,26 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
 
     await expect(publishRelease({ root, candidate, channel: 'staging' })).rejects.toThrow(
       /identities/i,
+    );
+  });
+
+  it('refuses a candidate with an unresolved T062 validation report error', async () => {
+    const candidate = validCandidate('1.0.0');
+    candidate.validationReport = {
+      ...candidate.validationReport,
+      valid: false,
+      issues: [
+        {
+          rule: 'editorial.approval',
+          severity: 'error',
+          path: 'projects/cat-1-project-1/editorial.json',
+          message: 'Editorial option is not approved.',
+        },
+      ],
+    } satisfies ValidationReport;
+
+    await expect(publishRelease({ root, candidate, channel: 'staging' })).rejects.toThrow(
+      /validation-passing/i,
     );
   });
 });

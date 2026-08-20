@@ -12,6 +12,7 @@ import {
 import { readChannels, setChannelVersion, writeChannels } from './channels.ts';
 import { withProductionFreeze } from './freeze.ts';
 import { contentHash } from './hash.ts';
+import type { ValidationReport } from '../validate/report.ts';
 
 export interface PublishCandidate {
   version: string;
@@ -24,6 +25,8 @@ export interface PublishCandidate {
   };
   categories: Category[];
   projects: Array<{ id: string; content: string; project?: Project }>;
+  /** The T062 report that admitted this exact candidate to the release boundary. */
+  validationReport: ValidationReport;
 }
 
 export interface PublishedRelease {
@@ -56,6 +59,12 @@ async function writeJson(path: string, value: unknown): Promise<void> {
 }
 
 function validateCandidate(candidate: PublishCandidate): void {
+  if (!candidate.validationReport.valid) {
+    throw new Error('Only a validation-passing candidate may publish. Resolve T062 report errors.');
+  }
+  if (candidate.validationReport.candidateVersion !== candidate.version) {
+    throw new Error('Validation report version must match the requested release version.');
+  }
   if (candidate.manifest.version !== candidate.version) {
     throw new Error('Candidate manifest version must match the requested release version.');
   }
@@ -122,6 +131,7 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
   });
   await writeJson(join(releaseRoot, 'manifest.json'), normalizedManifest);
   await writeJson(join(releaseRoot, 'categories.json'), options.candidate.categories);
+  await writeJson(join(releaseRoot, 'validation-report.json'), options.candidate.validationReport);
   const published: PublishedRelease = {
     version: options.candidate.version,
     contentHash: normalizedManifest.contentHash,
