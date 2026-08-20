@@ -835,7 +835,7 @@ needs PH5)
   - Tests: unit with mock TTS: linkage/versioning, re-review trigger, budget check; no generation from unapproved scripts.
   - Accept: FR-025 pipeline side complete; VoiceoverAsset fields per data-model populated.
 
-- [~] T064 [US7] Implement publishing: immutable releases, channels, promote, project-level update, rollback, freeze in apps/content-pipeline/src/publish/release.ts
+- [x] T064 [US7] Implement publishing: immutable releases, channels, promote, project-level update, rollback, freeze in apps/content-pipeline/src/publish/release.ts
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Per research R8 + contract: build immutable `releases/<semver>/` (contentHash over full tree, content-hash media dedupe for project-level updates); `channels.json` staging/production pointers with history; `publish/promote/rollback/freeze/unfreeze` commands; freeze makes production writes fail; only validation-passing candidates can be written; reproducible builds (hash-stable).
   - Files: `apps/content-pipeline/src/publish/{release.ts,channels.ts,freeze.ts,hash.ts}`
@@ -843,7 +843,7 @@ needs PH5)
   - Tests: covered by T065.
   - Accept: FR-037 operations complete; quickstart Scenario 7 command set works.
 
-- [~] T065 [P] [US7] Add publish/rollback/freeze tests + runtime-refusal integration test in apps/content-pipeline/tests/publish.test.ts
+- [x] T065 [P] [US7] Add publish/rollback/freeze tests + runtime-refusal integration test in apps/content-pipeline/tests/publish.test.ts
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Publish→staging, promote→production, project-level update touches one subtree (hash dedupe verified), rollback repoints to retained prior release, freeze blocks production publish; integration: runtime loader (T017) refuses a tampered/unapproved package and falls back per contract (previous release → fallback idle + operator alert).
   - Files: `apps/content-pipeline/tests/publish.test.ts`, `apps/experience/tests/content/loader-refusal.test.ts`

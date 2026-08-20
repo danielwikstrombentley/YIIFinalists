@@ -1,9 +1,16 @@
+import { readFile } from 'node:fs/promises';
 import { generateSampleRelease, parseSampleTileTier } from '../seed/sample.ts';
 import { runAnalyzeCommand } from './analyze.ts';
 import { runIngestCommand } from './ingest.ts';
 import { runIngestDraftsCommand } from './ingest-drafts.ts';
 import { runReviewCommand } from '../review/cli.ts';
 import { runValidateCommand } from './validate.ts';
+import {
+  promoteRelease,
+  publishRelease,
+  rollbackChannel,
+  setProductionFreeze,
+} from '../publish/release.ts';
 
 export interface CliCommand {
   name: string;
@@ -11,11 +18,46 @@ export interface CliCommand {
   run: (args: string[]) => Promise<void> | void;
 }
 
-const notYetImplemented = (name: string) => async (): Promise<void> => {
-  console.log(
-    `[content-pipeline] "${name}" is not implemented yet (scaffolded in T003; real behaviour lands in later PH8/PH9 tasks).`,
-  );
-};
+function valueAfter(args: readonly string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
+}
+
+async function runPublishCommand(args: string[]): Promise<void> {
+  const root = valueAfter(args, '--root');
+  const candidateFile = valueAfter(args, '--candidate');
+  const channel = valueAfter(args, '--channel');
+  if (!root || !candidateFile || (channel !== 'staging' && channel !== 'production')) {
+    throw new Error('Usage: publish --root <content-root> --candidate <candidate.json> --channel staging|production.');
+  }
+  const candidate = JSON.parse(
+    await readFile(candidateFile, 'utf8'),
+  ) as Parameters<typeof publishRelease>[0]['candidate'];
+  const release = await publishRelease({
+    root,
+    candidate,
+    channel,
+    ...(valueAfter(args, '--base-version') ? { baseVersion: valueAfter(args, '--base-version') } : {}),
+  });
+  console.log(`[content-pipeline] published ${release.version} to ${channel}.`);
+}
+
+async function runRollbackCommand(args: string[]): Promise<void> {
+  const root = valueAfter(args, '--root');
+  const channel = valueAfter(args, '--channel');
+  if (!root || (channel !== 'staging' && channel !== 'production')) {
+    throw new Error('Usage: rollback --root <content-root> --channel staging|production.');
+  }
+  await rollbackChannel({ root, channel });
+  console.log(`[content-pipeline] rolled ${channel} back to its prior retained release.`);
+}
+
+async function runFreezeCommand(args: string[]): Promise<void> {
+  const root = valueAfter(args, '--root');
+  if (!root) throw new Error('Usage: freeze --root <content-root> [--unfreeze].');
+  await setProductionFreeze({ root, frozen: !args.includes('--unfreeze') });
+  console.log(`[content-pipeline] production channel ${args.includes('--unfreeze') ? 'unfrozen' : 'frozen'}.`);
+}
 
 // Stub subcommand registry (T003). Each command is fleshed out by its owning task:
 // ingest → T057-ish ingestion tasks, analyze → drafting pipeline, review → editorial workflow,
@@ -51,17 +93,28 @@ export const commands: CliCommand[] = [
   {
     name: 'publish',
     description: 'Bundle and publish a validated release to a channel (staging or production).',
-    run: notYetImplemented('publish'),
+    run: runPublishCommand,
+  },
+  {
+    name: 'promote',
+    description: 'Promote a retained validated release to the production channel.',
+    run: async (args) => {
+      const root = valueAfter(args, '--root');
+      const version = valueAfter(args, '--version');
+      if (!root || !version) throw new Error('Usage: promote --root <content-root> --version <semver>.');
+      await promoteRelease({ root, version });
+      console.log(`[content-pipeline] promoted ${version} to production.`);
+    },
   },
   {
     name: 'rollback',
     description: 'Roll a release channel back to a previously retained version.',
-    run: notYetImplemented('rollback'),
+    run: runRollbackCommand,
   },
   {
     name: 'freeze',
     description: 'Freeze the production channel to block further overwrites.',
-    run: notYetImplemented('freeze'),
+    run: runFreezeCommand,
   },
   {
     name: 'seed:sample',

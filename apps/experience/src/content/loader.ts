@@ -1,7 +1,12 @@
 import type { Category, Manifest, Project, ReleaseChannelName } from '@yii/content-schema';
 import { ContentCache } from './cache.js';
 import { resolveActiveRelease } from './channels.js';
-import { revalidateCategories, revalidateManifest, revalidateProject } from './revalidate.js';
+import {
+  revalidateCategories,
+  revalidateManifest,
+  revalidateProject,
+  revalidateReleaseContentHash,
+} from './revalidate.js';
 
 // Content loader (T017) — consumer obligations of contracts/content-package.md, fully
 // implemented: revalidate at load (untrusted input), refuse on failure -> previous cached release
@@ -85,6 +90,30 @@ export class ContentLoader {
       throw new ContentLoadError(
         `categories.json failed schema validation for release "${version}"`,
       );
+    }
+
+    if (manifestResult.data.contentHash.startsWith('sha256:')) {
+      const projects = await Promise.all(
+        categoriesResult.data.flatMap((category) => category.projectIds).map(async (projectId) => {
+          const raw = await this.fetchJson(`${releaseBase}/projects/${projectId}/project.json`);
+          const result = revalidateProject(raw);
+          if (!result.success) {
+            throw new ContentLoadError(
+              `project "${projectId}" failed schema validation while verifying release integrity`,
+            );
+          }
+          return result.data;
+        }),
+      );
+      if (
+        !(await revalidateReleaseContentHash({
+          manifest: manifestResult.data,
+          categories: categoriesResult.data,
+          projects,
+        }))
+      ) {
+        throw new ContentLoadError(`release "${version}" contentHash verification failed`);
+      }
     }
 
     return { version, manifest: manifestResult.data, categories: categoriesResult.data };

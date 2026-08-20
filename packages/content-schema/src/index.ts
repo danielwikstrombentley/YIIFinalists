@@ -49,6 +49,14 @@ export type { MarkerSpec, Project } from './project.js';
 export { categorySchema } from './category.js';
 export type { Category } from './category.js';
 
+export {
+  canonicalJson,
+  contentHash,
+  releaseIntegritySchema,
+  sha256ContentHashSchema,
+} from './integrity.js';
+export type { ContentHash, ReleaseIntegrity } from './integrity.js';
+
 export { CONTENT_PACKAGE_SCHEMA_VERSION, manifestSchema } from './manifest.js';
 export type { Manifest } from './manifest.js';
 
