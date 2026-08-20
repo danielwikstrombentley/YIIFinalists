@@ -1,9 +1,9 @@
 # Staging Preview Procedure Run
 
-**Release version:** Pending execution  
-**Content hash:** Pending execution  
-**Channel:** staging  
-**Operator/editor:** Pending execution  
+**Release version:** Pending execution
+**Content hash:** Pending execution
+**Channel:** staging
+**Operator/editor:** Pending execution
 **Date:** Pending execution
 
 > T066 template. Complete one row for every project and active position before human approval.
