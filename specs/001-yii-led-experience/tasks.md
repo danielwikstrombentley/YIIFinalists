@@ -809,7 +809,7 @@ needs PH5)
 
 ### Verification for US7 (red-first) ⚠️
 
-- [R] T061 [P] [US7] Author failing validation tests: every FR-036 defect class flags with a specific report line in apps/content-pipeline/tests/validate.test.ts *(red-first)*
+- [x] T061 [P] [US7] Author failing validation tests: every FR-036 defect class flags with a specific report line in apps/content-pipeline/tests/validate.test.ts *(red-first)*
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR #25 · Blockers —
   - Do: Reuse/extend T007 broken fixtures at the release-candidate level: each FR-036 defect produces a distinct, actionable report line and blocks publish; valid candidate passes and emits `validation-report.json`; unverified metrics and unapproved items block (Principle VII).
   - Files: `apps/content-pipeline/tests/validate.test.ts`, `apps/content-pipeline/tests/fixtures/broken-releases/*`
@@ -819,7 +819,7 @@ needs PH5)
 
 ### Implementation for US7
 
-- [R] T062 [US7] Implement the validation engine (FR-036 rule set + report) in apps/content-pipeline/src/validate/run.ts
+- [x] T062 [US7] Implement the validation engine (FR-036 rule set + report) in apps/content-pipeline/src/validate/run.ts
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR #25 · Blockers —
   - Do: Rule modules covering all FR-036 classes + cross-domain invariants (data-model §4): structure 12×3, Overview position 1, ≤5 options, metadata/framing presence, media resolution+budget or declared fallback, voiceover presence/playability, display text, broken refs, unsupported formats, invalid sequences (openingState/timebase/syncTolerance/finalFrame), empty/duplicate positions, duplicate project refs, approval status, unverified metrics, rights records, AI-flag presence; emits `validation-report.json` embedded in the release.
   - Files: `apps/content-pipeline/src/validate/{run.ts,rules/*.ts,report.ts}`
@@ -827,7 +827,7 @@ needs PH5)
   - Tests: T061 green.
   - Accept: producer obligations of the content-package contract fully enforced; unpublishable until resolved or explicitly handled.
 
-- [R] T063 [P] [US7] Implement voiceover pre-generation (TTS adapter, mastering, script-version linkage, regeneration re-review) in apps/content-pipeline/src/voiceover/generate.ts
+- [x] T063 [P] [US7] Implement voiceover pre-generation (TTS adapter, mastering, script-version linkage, regeneration re-review) in apps/content-pipeline/src/voiceover/generate.ts
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR #25 · Blockers —
   - Do: Per research R11: thin TTS provider adapter (provider/voice = open editorial decision → config); generate from approved voiceover scripts only; WAV master → AAC/Opus delivery within R14 budget; store per-option with scriptVersion, voiceId, params, duration, captionText carried; script change → regeneration → re-enters review; prep-time only (no runtime TTS path exists).
   - Files: `apps/content-pipeline/src/voiceover/{tts-adapter.ts,generate.ts,master.ts}`
@@ -835,7 +835,7 @@ needs PH5)
   - Tests: unit with mock TTS: linkage/versioning, re-review trigger, budget check; no generation from unapproved scripts.
   - Accept: FR-025 pipeline side complete; VoiceoverAsset fields per data-model populated.
 
-- [R] T064 [US7] Implement publishing: immutable releases, channels, promote, project-level update, rollback, freeze in apps/content-pipeline/src/publish/release.ts
+- [x] T064 [US7] Implement publishing: immutable releases, channels, promote, project-level update, rollback, freeze in apps/content-pipeline/src/publish/release.ts
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR #25 · Blockers —
   - Do: Per research R8 + contract: build immutable `releases/<semver>/` (contentHash over full tree, content-hash media dedupe for project-level updates); `channels.json` staging/production pointers with history; `publish/promote/rollback/freeze/unfreeze` commands; freeze makes production writes fail; only validation-passing candidates can be written; reproducible builds (hash-stable).
   - Files: `apps/content-pipeline/src/publish/{release.ts,channels.ts,freeze.ts,hash.ts}`
@@ -843,7 +843,7 @@ needs PH5)
   - Tests: covered by T065.
   - Accept: FR-037 operations complete; quickstart Scenario 7 command set works.
 
-- [R] T065 [P] [US7] Add publish/rollback/freeze tests + runtime-refusal integration test in apps/content-pipeline/tests/publish.test.ts
+- [x] T065 [P] [US7] Add publish/rollback/freeze tests + runtime-refusal integration test in apps/content-pipeline/tests/publish.test.ts
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR #25 · Blockers —
   - Do: Publish→staging, promote→production, project-level update touches one subtree (hash dedupe verified), rollback repoints to retained prior release, freeze blocks production publish; integration: runtime loader (T017) refuses a tampered/unapproved package and falls back per contract (previous release → fallback idle + operator alert).
   - Files: `apps/content-pipeline/tests/publish.test.ts`, `apps/experience/tests/content/loader-refusal.test.ts`
@@ -851,7 +851,7 @@ needs PH5)
   - Tests: this task IS the test artifact (write red-first alongside T064 where practical).
   - Accept: US7 scenarios 2–4 automated; live app provably consumes only validated approved versioned content.
 
-- [R] T066 [US7] Implement preview-without-console workflow (staging channel in dev app + documented full-journey preview procedure) in tools/kiosk/README.md
+- [x] T066 [US7] Implement preview-without-console workflow (staging channel in dev app + documented full-journey preview procedure) in tools/kiosk/README.md
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR #25 · Blockers —
   - Do: Dev/kiosk config to point the app at the staging channel; documented procedure for the team to preview every public journey (idle, category, preview, transition, landing, each option, voiceover, sequences, final frame, replay, back, category change) via the simulator (FR-035); wire into review workflow docs as the pre-approval visual check.
   - Files: `tools/kiosk/README.md`, `tools/kiosk/src/config.ts`, `apps/content-pipeline/src/review/preview.md`
