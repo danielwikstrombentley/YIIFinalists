@@ -843,8 +843,8 @@ needs PH5)
   - Tests: covered by T065.
   - Accept: FR-037 operations complete; quickstart Scenario 7 command set works.
 
-- [ ] T065 [P] [US7] Add publish/rollback/freeze tests + runtime-refusal integration test in apps/content-pipeline/tests/publish.test.ts
-  - Meta: Phase PH9 · Feature F001 · Owner — · Branch `task/001-T065-publish-tests` · PR — · Blockers —
+- [~] T065 [P] [US7] Add publish/rollback/freeze tests + runtime-refusal integration test in apps/content-pipeline/tests/publish.test.ts
+  - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Publish→staging, promote→production, project-level update touches one subtree (hash dedupe verified), rollback repoints to retained prior release, freeze blocks production publish; integration: runtime loader (T017) refuses a tampered/unapproved package and falls back per contract (previous release → fallback idle + operator alert).
   - Files: `apps/content-pipeline/tests/publish.test.ts`, `apps/experience/tests/content/loader-refusal.test.ts`
   - Deps: T064, T017
