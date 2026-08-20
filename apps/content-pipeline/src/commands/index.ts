@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { generateSampleRelease, parseSampleTileTier } from '../seed/sample.ts';
 import { runAnalyzeCommand } from './analyze.ts';
 import { runIngestCommand } from './ingest.ts';
@@ -11,6 +10,7 @@ import {
   rollbackChannel,
   setProductionFreeze,
 } from '../publish/release.ts';
+import { loadPublishCandidate } from '../publish/candidate.ts';
 
 export interface CliCommand {
   name: string;
@@ -25,16 +25,14 @@ function valueAfter(args: readonly string[], flag: string): string | undefined {
 
 async function runPublishCommand(args: string[]): Promise<void> {
   const root = valueAfter(args, '--root');
-  const candidateFile = valueAfter(args, '--candidate');
+  const version = valueAfter(args, '--version');
   const channel = valueAfter(args, '--channel');
-  if (!root || !candidateFile || (channel !== 'staging' && channel !== 'production')) {
+  if (!root || !version || (channel !== 'staging' && channel !== 'production')) {
     throw new Error(
-      'Usage: publish --root <content-root> --candidate <candidate.json> --channel staging|production.',
+      'Usage: publish --root <content-root> --version <semver> --channel staging|production.',
     );
   }
-  const candidate = JSON.parse(await readFile(candidateFile, 'utf8')) as Parameters<
-    typeof publishRelease
-  >[0]['candidate'];
+  const candidate = await loadPublishCandidate({ root, version });
   const release = await publishRelease({
     root,
     candidate,

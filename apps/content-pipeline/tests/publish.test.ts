@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ValidationReport } from '../src/validate/report.ts';
 import type { PublishCandidate } from '../src/publish/release.ts';
 import type { Project } from '@yii/content-schema';
+import { loadPublishCandidate } from '../src/publish/candidate.ts';
 import {
   publishRelease,
   promoteRelease,
@@ -261,4 +262,53 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
       readFile(join(root, 'releases', '1.0.0', 'validation-report.json'), 'utf8'),
     ).resolves.toContain('"valid": true');
   });
+
+  it('loads only a fresh validation-passing on-disk release candidate for CLI publication', async () => {
+    const sourceRoot = await mkdtemp(join(tmpdir(), 'yii-source-candidate-'));
+    try {
+      const source = validCandidate('1.0.0');
+      const releaseRoot = join(sourceRoot, 'releases', '1.0.0');
+      await writeCandidateSource(releaseRoot, source);
+      await writeFile(
+        join(sourceRoot, 'channels.json'),
+        JSON.stringify({ staging: '1.0.0', production: null, frozen: false, history: [] }),
+      );
+
+      const loaded = await loadPublishCandidate({ root: sourceRoot, version: '1.0.0' });
+      expect(loaded.projects).toHaveLength(36);
+      expect(Object.keys(loaded.assets ?? {})).toHaveLength(72);
+      expect(loaded.validationReport.valid).toBe(true);
+    } finally {
+      await rm(sourceRoot, { recursive: true, force: true });
+    }
+  });
 });
+
+async function writeCandidateSource(
+  releaseRoot: string,
+  candidate: PublishCandidate,
+): Promise<void> {
+  await writeJson(join(releaseRoot, 'manifest.json'), {
+    ...candidate.manifest,
+    contentHash: 'sha256-source-candidate',
+  });
+  await writeJson(join(releaseRoot, 'categories.json'), candidate.categories);
+  for (const project of candidate.projects) {
+    const projectRoot = join(releaseRoot, 'projects', project.id);
+    await writeJson(join(projectRoot, 'project.json'), project);
+    await writeJson(join(projectRoot, 'editorial.json'), {
+      options: [{ position: 1, reviewState: 'approved', producedBy: 'copilot-agent' }],
+      metrics: [],
+    });
+  }
+  for (const [path, bytes] of Object.entries(candidate.assets ?? {})) {
+    const target = join(releaseRoot, path);
+    await mkdir(join(target, '..'), { recursive: true });
+    await writeFile(target, bytes);
+  }
+}
+
+async function writeJson(path: string, value: unknown): Promise<void> {
+  await mkdir(join(path, '..'), { recursive: true });
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
