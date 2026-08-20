@@ -827,7 +827,7 @@ needs PH5)
   - Tests: T061 green.
   - Accept: producer obligations of the content-package contract fully enforced; unpublishable until resolved or explicitly handled.
 
-- [~] T063 [P] [US7] Implement voiceover pre-generation (TTS adapter, mastering, script-version linkage, regeneration re-review) in apps/content-pipeline/src/voiceover/generate.ts
+- [x] T063 [P] [US7] Implement voiceover pre-generation (TTS adapter, mastering, script-version linkage, regeneration re-review) in apps/content-pipeline/src/voiceover/generate.ts
   - Meta: Phase PH9 · Feature F001 · Owner `agent:GPT-5.6 Terra (OpenAI)` · Branch `phase/001-ph9-us7-validate-publish` (consolidated, cost-bounded chunk) · PR — · Blockers —
   - Do: Per research R11: thin TTS provider adapter (provider/voice = open editorial decision → config); generate from approved voiceover scripts only; WAV master → AAC/Opus delivery within R14 budget; store per-option with scriptVersion, voiceId, params, duration, captionText carried; script change → regeneration → re-enters review; prep-time only (no runtime TTS path exists).
   - Files: `apps/content-pipeline/src/voiceover/{tts-adapter.ts,generate.ts,master.ts}`
