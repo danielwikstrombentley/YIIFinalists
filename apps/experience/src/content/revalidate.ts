@@ -1,6 +1,9 @@
 import {
   categoriesFileSchema,
+  binaryContentHash,
   contentHash,
+  releaseIntegritySchema,
+  releaseValidationReportSchema,
   manifestSchema,
   projectSchema,
   type Category,
@@ -26,11 +29,20 @@ export function revalidateProject(raw: unknown) {
   return projectSchema.safeParse(raw);
 }
 
+export function revalidateReleaseIntegrity(raw: unknown) {
+  return releaseIntegritySchema.safeParse(raw);
+}
+
+export function revalidateValidationReport(raw: unknown) {
+  return releaseValidationReportSchema.safeParse(raw);
+}
+
 /** Recomputes the package-tree hash used by the publisher before runtime acceptance. */
 export async function revalidateReleaseContentHash(options: {
   manifest: Manifest;
   categories: Category[];
   projects: Project[];
+  fileHashes: Record<string, string>;
 }): Promise<boolean> {
   const projectHashes = Object.fromEntries(
     await Promise.all(
@@ -39,8 +51,19 @@ export async function revalidateReleaseContentHash(options: {
   );
   return (
     options.manifest.contentHash ===
-    (await contentHash({ categories: options.categories, projectHashes }))
+    (await contentHash({
+      categories: options.categories,
+      projectHashes,
+      fileHashes: options.fileHashes,
+    }))
   );
+}
+
+export async function revalidateAssetHash(
+  asset: Uint8Array,
+  expectedHash: string,
+): Promise<boolean> {
+  return (await binaryContentHash(asset)) === expectedHash;
 }
 
 export type { Category, Manifest, Project };

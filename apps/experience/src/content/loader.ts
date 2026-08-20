@@ -2,10 +2,13 @@ import type { Category, Manifest, Project, ReleaseChannelName } from '@yii/conte
 import { ContentCache } from './cache.js';
 import { resolveActiveRelease } from './channels.js';
 import {
+  revalidateAssetHash,
   revalidateCategories,
   revalidateManifest,
   revalidateProject,
   revalidateReleaseContentHash,
+  revalidateReleaseIntegrity,
+  revalidateValidationReport,
 } from './revalidate.js';
 
 // Content loader (T017) — consumer obligations of contracts/content-package.md, fully
@@ -25,6 +28,8 @@ export interface LoadedRelease {
 export interface ContentLoaderOptions {
   /** Fetches and JSON-parses a path; defaults to `fetch(path).then(r => r.json())`. */
   fetchJson?: (path: string) => Promise<unknown>;
+  /** Fetches binary package assets for integrity checks; defaults to browser fetch. */
+  fetchBytes?: (path: string) => Promise<Uint8Array>;
   basePath?: string;
   channel?: ReleaseChannelName;
   onOperatorAlert?: (message: string) => void;
@@ -38,8 +43,17 @@ async function defaultFetchJson(path: string): Promise<unknown> {
   return response.json() as Promise<unknown>;
 }
 
+async function defaultFetchBytes(path: string): Promise<Uint8Array> {
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new ContentLoadError(`failed to fetch "${path}": HTTP ${response.status}`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
 export class ContentLoader {
   private readonly fetchJson: (path: string) => Promise<unknown>;
+  private readonly fetchBytes: (path: string) => Promise<Uint8Array>;
   private readonly basePath: string;
   private channel: ReleaseChannelName;
   private readonly onOperatorAlert?: (message: string) => void;
@@ -48,6 +62,7 @@ export class ContentLoader {
 
   constructor(options: ContentLoaderOptions = {}) {
     this.fetchJson = options.fetchJson ?? defaultFetchJson;
+    this.fetchBytes = options.fetchBytes ?? defaultFetchBytes;
     this.basePath = options.basePath ?? '';
     this.channel = options.channel ?? 'production';
     this.onOperatorAlert = options.onOperatorAlert;
@@ -93,6 +108,22 @@ export class ContentLoader {
     }
 
     if (manifestResult.data.contentHash.startsWith('sha256:')) {
+      const integrityRaw = await this.fetchJson(`${releaseBase}/publication.json`);
+      const integrityResult = revalidateReleaseIntegrity(integrityRaw);
+      if (!integrityResult.success || integrityResult.data.version !== version) {
+        throw new ContentLoadError(
+          `publication.json failed integrity validation for release "${version}"`,
+        );
+      }
+      const validationRaw = await this.fetchJson(`${releaseBase}/validation-report.json`);
+      const validationResult = revalidateValidationReport(validationRaw);
+      if (
+        !validationResult.success ||
+        !validationResult.data.valid ||
+        validationResult.data.candidateVersion !== version
+      ) {
+        throw new ContentLoadError(`validation-report.json does not admit release "${version}"`);
+      }
       const projects = await Promise.all(
         categoriesResult.data
           .flatMap((category) => category.projectIds)
@@ -112,9 +143,16 @@ export class ContentLoader {
           manifest: manifestResult.data,
           categories: categoriesResult.data,
           projects,
+          fileHashes: integrityResult.data.fileHashes,
         }))
       ) {
         throw new ContentLoadError(`release "${version}" contentHash verification failed`);
+      }
+      for (const [relativePath, expectedHash] of Object.entries(integrityResult.data.fileHashes)) {
+        const asset = await this.fetchBytes(`${releaseBase}/${relativePath}`);
+        if (!(await revalidateAssetHash(asset, expectedHash))) {
+          throw new ContentLoadError(`asset "${relativePath}" contentHash verification failed`);
+        }
       }
     }
 

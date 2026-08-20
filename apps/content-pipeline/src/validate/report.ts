@@ -1,19 +1,7 @@
-export type ValidationSeverity = 'error' | 'warning';
+import { releaseValidationReportSchema, type ReleaseValidationReport } from '@yii/content-schema';
 
-export interface ValidationIssue {
-  rule: string;
-  severity: ValidationSeverity;
-  path: string;
-  message: string;
-}
-
-export interface ValidationReport {
-  schemaVersion: 1;
-  generatedAt: string;
-  candidateVersion: string;
-  valid: boolean;
-  issues: ValidationIssue[];
-}
+export type ValidationIssue = ReleaseValidationReport['issues'][number];
+export type ValidationReport = ReleaseValidationReport;
 
 export function createValidationReport(options: {
   candidateVersion: string;
@@ -25,11 +13,11 @@ export function createValidationReport(options: {
     const rightKey = `${right.path}\u0000${right.rule}\u0000${right.message}`;
     return leftKey.localeCompare(rightKey);
   });
-  return {
+  return releaseValidationReportSchema.parse({
     schemaVersion: 1,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     candidateVersion: options.candidateVersion,
     valid: !issues.some((issue) => issue.severity === 'error'),
     issues,
-  };
+  });
 }

@@ -26,24 +26,49 @@ export function canonicalJson(value: unknown): string {
  * WebCrypto, keeping this package free of a Node-only import that would leak into the LED runtime.
  */
 export async function contentHash(value: unknown): Promise<ContentHash> {
+  return binaryContentHash(new TextEncoder().encode(canonicalJson(value)));
+}
+
+/** Hashes an exact binary asset while retaining the same `sha256:<hex>` representation. */
+export async function binaryContentHash(value: Uint8Array): Promise<ContentHash> {
   if (!globalThis.crypto?.subtle) {
     throw new Error('WebCrypto SubtleCrypto is required to verify release content hashes.');
   }
-  const digest = await globalThis.crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(canonicalJson(value)),
-  );
+  const bytes = new Uint8Array(value);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
   const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
     '',
   );
   return `sha256:${hex}`;
 }
 
+export const validationIssueSchema = z
+  .object({
+    rule: z.string().min(1),
+    severity: z.enum(['error', 'warning']),
+    path: z.string().min(1),
+    message: z.string().min(1),
+  })
+  .strict();
+
+export const releaseValidationReportSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    generatedAt: z.iso.datetime({ offset: true }),
+    candidateVersion: semverSchema,
+    valid: z.boolean(),
+    issues: z.array(validationIssueSchema),
+  })
+  .strict();
+
+export type ReleaseValidationReport = z.infer<typeof releaseValidationReportSchema>;
+
 export const releaseIntegritySchema = z
   .object({
     version: semverSchema,
     contentHash: sha256ContentHashSchema,
     projectHashes: z.record(slugSchema, sha256ContentHashSchema),
+    fileHashes: z.record(z.string().min(1), sha256ContentHashSchema),
   })
   .strict();
 

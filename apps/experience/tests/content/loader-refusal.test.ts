@@ -1,4 +1,4 @@
-import { contentHash } from '@yii/content-schema';
+import { binaryContentHash, contentHash, type ReleaseIntegrity } from '@yii/content-schema';
 import { describe, expect, it, vi } from 'vitest';
 import { ContentLoader, ContentLoadError } from '../../src/content/loader.js';
 
@@ -12,10 +12,11 @@ async function validManifest(version: string) {
       projects.map(async (project) => [project.id, await contentHash(project)] as const),
     ),
   );
+  const fileHashes: Record<string, string> = {};
   return {
     schemaVersion: 1,
     version,
-    contentHash: await contentHash({ categories, projectHashes }),
+    contentHash: await contentHash({ categories, projectHashes, fileHashes }),
     createdAt: '2026-08-19T10:00:00.000Z',
     approvedBy: 'editor@example.test',
     frozen: false,
@@ -87,13 +88,57 @@ function validProject(projectId: string) {
 
 async function validReleaseFiles(version: string): Promise<Record<string, unknown>> {
   const categories = validCategories();
+  const projects = categories
+    .flatMap((category) => category.projectIds)
+    .map((projectId) => validProject(projectId));
+  const projectHashes = Object.fromEntries(
+    await Promise.all(
+      projects.map(async (project) => [project.id, await contentHash(project)] as const),
+    ),
+  );
+  const manifest = await validManifest(version);
+  const integrity: ReleaseIntegrity = {
+    version,
+    contentHash: manifest.contentHash,
+    projectHashes,
+    fileHashes: {},
+  };
   const files: Record<string, unknown> = {};
-  files[`/releases/${version}/manifest.json`] = await validManifest(version);
+  files[`/releases/${version}/manifest.json`] = manifest;
   files[`/releases/${version}/categories.json`] = categories;
-  for (const projectId of categories.flatMap((category) => category.projectIds)) {
-    files[`/releases/${version}/projects/${projectId}/project.json`] = validProject(projectId);
+  files[`/releases/${version}/publication.json`] = integrity;
+  files[`/releases/${version}/validation-report.json`] = {
+    schemaVersion: 1,
+    generatedAt: '2026-08-19T10:00:00.000Z',
+    candidateVersion: version,
+    valid: true,
+    issues: [],
+  };
+  for (const project of projects) {
+    files[`/releases/${version}/projects/${project.id}/project.json`] = project;
   }
   return files;
+}
+
+async function validHashedReleaseFiles(version: string): Promise<{
+  files: Record<string, unknown>;
+  bytes: Record<string, Uint8Array>;
+}> {
+  const files = await validReleaseFiles(version);
+  const relativePath = 'projects/cat-1-project-1/voiceover/overview.opus';
+  const asset = new TextEncoder().encode('approved local voiceover');
+  const manifest = files[`/releases/${version}/manifest.json`] as Awaited<
+    ReturnType<typeof validManifest>
+  >;
+  const integrity = files[`/releases/${version}/publication.json`] as ReleaseIntegrity;
+  integrity.fileHashes[relativePath] = await binaryContentHash(asset);
+  manifest.contentHash = await contentHash({
+    categories: files[`/releases/${version}/categories.json`],
+    projectHashes: integrity.projectHashes,
+    fileHashes: integrity.fileHashes,
+  });
+  integrity.contentHash = manifest.contentHash;
+  return { files, bytes: { [`/releases/${version}/${relativePath}`]: asset } };
 }
 
 describe('ContentLoader publication-integrity refusal (T065)', () => {
@@ -132,5 +177,22 @@ describe('ContentLoader publication-integrity refusal (T065)', () => {
 
     await expect(loader.load()).resolves.toMatchObject({ version: '1.0.0' });
     expect(onOperatorAlert).toHaveBeenCalledWith(expect.stringMatching(/content load failed/i));
+  });
+
+  it('refuses a release whose immutable local asset bytes no longer match publication.json', async () => {
+    const { files, bytes } = await validHashedReleaseFiles('1.0.0');
+    const fetchJson = vi.fn(async (path: string) => {
+      if (path === '/channels.json') {
+        return { staging: '1.0.0', production: null, frozen: false, history: [] };
+      }
+      return files[path];
+    });
+    const fetchBytes = vi.fn(async (path: string) => bytes[path] ?? new Uint8Array([0]));
+    const loader = new ContentLoader({ fetchJson, fetchBytes, channel: 'staging' });
+
+    bytes['/releases/1.0.0/projects/cat-1-project-1/voiceover/overview.opus'] =
+      new TextEncoder().encode('tampered audio');
+
+    await expect(loader.load()).rejects.toThrow(/asset .*contentHash/i);
   });
 });

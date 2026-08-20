@@ -163,4 +163,33 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
       /validation-passing/i,
     );
   });
+
+  it('hashes and writes package-relative local assets into the immutable release', async () => {
+    const candidate = validCandidate('1.0.0');
+    candidate.assets = {
+      'projects/cat-1-project-1/voiceover/overview.opus': Buffer.from('local-voiceover'),
+    };
+
+    const published = await publishRelease({ root, candidate, channel: 'staging' });
+
+    expect(published.fileHashes['projects/cat-1-project-1/voiceover/overview.opus']).toMatch(
+      /^sha256:/,
+    );
+    await expect(
+      readFile(
+        join(
+          root,
+          'releases',
+          '1.0.0',
+          'projects',
+          'cat-1-project-1',
+          'voiceover',
+          'overview.opus',
+        ),
+      ),
+    ).resolves.toEqual(Buffer.from('local-voiceover'));
+    await expect(
+      readFile(join(root, 'releases', '1.0.0', 'validation-report.json'), 'utf8'),
+    ).resolves.toContain('"valid": true');
+  });
 });

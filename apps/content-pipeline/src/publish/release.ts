@@ -5,13 +5,14 @@ import {
   categoriesFileSchema,
   manifestSchema,
   projectSchema,
+  releaseValidationReportSchema,
   type Category,
   type Project,
   type ReleaseChannelName,
 } from '@yii/content-schema';
 import { readChannels, setChannelVersion, writeChannels } from './channels.ts';
 import { withProductionFreeze } from './freeze.ts';
-import { contentHash } from './hash.ts';
+import { contentHash, fileHash } from './hash.ts';
 import type { ValidationReport } from '../validate/report.ts';
 
 export interface PublishCandidate {
@@ -27,12 +28,15 @@ export interface PublishCandidate {
   projects: Array<{ id: string; content: string; project?: Project }>;
   /** The T062 report that admitted this exact candidate to the release boundary. */
   validationReport: ValidationReport;
+  /** Candidate-local asset path → byte content. Paths must be package-relative. */
+  assets?: Record<string, Uint8Array>;
 }
 
 export interface PublishedRelease {
   version: string;
   contentHash: string;
   projectHashes: Record<string, string>;
+  fileHashes: Record<string, string>;
 }
 
 export interface PublishReleaseOptions {
@@ -58,11 +62,16 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await rename(temporary, path);
 }
 
+function isPackageRelativePath(path: string): boolean {
+  return path.length > 0 && !path.startsWith('/') && !path.includes('..') && !path.includes('\\');
+}
+
 function validateCandidate(candidate: PublishCandidate): void {
-  if (!candidate.validationReport.valid) {
+  const validationReport = releaseValidationReportSchema.safeParse(candidate.validationReport);
+  if (!validationReport.success || !validationReport.data.valid) {
     throw new Error('Only a validation-passing candidate may publish. Resolve T062 report errors.');
   }
-  if (candidate.validationReport.candidateVersion !== candidate.version) {
+  if (validationReport.data.candidateVersion !== candidate.version) {
     throw new Error('Validation report version must match the requested release version.');
   }
   if (candidate.manifest.version !== candidate.version) {
@@ -85,6 +94,11 @@ function validateCandidate(candidate: PublishCandidate): void {
   for (const project of candidate.projects) {
     if (project.project && !projectSchema.safeParse(project.project).success) {
       throw new Error(`Candidate project "${project.id}" is not schema-valid. Run validate first.`);
+    }
+  }
+  for (const path of Object.keys(candidate.assets ?? {})) {
+    if (!isPackageRelativePath(path)) {
+      throw new Error(`Candidate asset "${path}" must use a package-relative path.`);
     }
   }
 }
@@ -115,6 +129,7 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
 
   const base = options.baseVersion ? await readPublished(root, options.baseVersion) : undefined;
   const projectHashes: Record<string, string> = {};
+  const fileHashes: Record<string, string> = {};
   for (const project of options.candidate.projects) {
     const nextHash = await contentHash(project.content);
     const existingHash = base?.projectHashes[project.id];
@@ -125,9 +140,20 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
     );
   }
 
+  for (const [relativePath, asset] of Object.entries(options.candidate.assets ?? {})) {
+    fileHashes[relativePath] = await fileHash(asset);
+    const assetPath = join(releaseRoot, relativePath);
+    await mkdir(resolve(assetPath, '..'), { recursive: true });
+    await writeFile(assetPath, asset, { flag: 'wx' });
+  }
+
   const normalizedManifest = manifestSchema.parse({
     ...options.candidate.manifest,
-    contentHash: await contentHash({ categories: options.candidate.categories, projectHashes }),
+    contentHash: await contentHash({
+      categories: options.candidate.categories,
+      projectHashes,
+      fileHashes,
+    }),
   });
   await writeJson(join(releaseRoot, 'manifest.json'), normalizedManifest);
   await writeJson(join(releaseRoot, 'categories.json'), options.candidate.categories);
@@ -136,6 +162,7 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
     version: options.candidate.version,
     contentHash: normalizedManifest.contentHash,
     projectHashes,
+    fileHashes,
   };
   await writeJson(join(releaseRoot, 'publication.json'), published);
   await writeChannels(
