@@ -1,7 +1,8 @@
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   canPublishToProduction,
+  canonicalJson,
   canonicalManifestForHash,
   canonicalValidationReportForHash,
   categoriesFileSchema,
@@ -37,6 +38,12 @@ export interface PublishCandidate {
 export interface PublishedRelease {
   version: string;
   contentHash: string;
+  projectHashes: Record<string, string>;
+  fileHashes: Record<string, string>;
+}
+
+interface PreparedRelease {
+  manifest: ReturnType<typeof manifestSchema.parse>;
   projectHashes: Record<string, string>;
   fileHashes: Record<string, string>;
 }
@@ -99,6 +106,16 @@ function isPackageRelativePath(path: string): boolean {
   return path.length > 0 && !path.startsWith('/') && !path.includes('..') && !path.includes('\\');
 }
 
+function isReservedReleasePath(path: string): boolean {
+  return (
+    path === 'manifest.json' ||
+    path === 'categories.json' ||
+    path === 'validation-report.json' ||
+    path === 'publication.json' ||
+    /^projects\/[^/]+\/(?:project|editorial)\.json$/.test(path)
+  );
+}
+
 function validateCandidate(candidate: PublishCandidate): void {
   const validationReport = releaseValidationReportSchema.safeParse(candidate.validationReport);
   if (!validationReport.success || !validationReport.data.valid) {
@@ -134,6 +151,9 @@ function validateCandidate(candidate: PublishCandidate): void {
     if (!isPackageRelativePath(path)) {
       throw new Error(`Candidate asset "${path}" must use a package-relative path.`);
     }
+    if (isReservedReleasePath(path)) {
+      throw new Error(`Candidate asset "${path}" would overwrite release metadata.`);
+    }
   }
   const requiredAssetPaths = candidate.projects.flatMap((project) =>
     project.contentOptions.flatMap((option) => [
@@ -148,6 +168,40 @@ function validateCandidate(candidate: PublishCandidate): void {
   }
 }
 
+async function prepareRelease(candidate: PublishCandidate): Promise<PreparedRelease> {
+  const projectHashes = Object.fromEntries(
+    await Promise.all(
+      candidate.projects.map(async (project) => [project.id, await contentHash(project)] as const),
+    ),
+  );
+  const fileHashes = Object.fromEntries(
+    await Promise.all(
+      Object.entries(candidate.assets ?? {}).map(
+        async ([path, asset]) => [path, await fileHash(asset)] as const,
+      ),
+    ),
+  );
+  const manifest = manifestSchema.parse({
+    ...candidate.manifest,
+    contentHash: await contentHash({
+      manifest: canonicalManifestForHash(candidate.manifest),
+      categories: candidate.categories,
+      projectHashes,
+      fileHashes,
+      validationReport: canonicalValidationReportForHash(candidate.validationReport),
+    }),
+  });
+  return { manifest, projectHashes, fileHashes };
+}
+
+function matchesPreparedRelease(published: PublishedRelease, prepared: PreparedRelease): boolean {
+  return (
+    published.contentHash === prepared.manifest.contentHash &&
+    canonicalJson(published.projectHashes) === canonicalJson(prepared.projectHashes) &&
+    canonicalJson(published.fileHashes) === canonicalJson(prepared.fileHashes)
+  );
+}
+
 async function readPublished(root: string, version: string): Promise<PublishedRelease> {
   return JSON.parse(
     await readFile(join(root, 'releases', version, 'publication.json'), 'utf8'),
@@ -157,14 +211,21 @@ async function readPublished(root: string, version: string): Promise<PublishedRe
 export async function publishRelease(options: PublishReleaseOptions): Promise<PublishedRelease> {
   const root = resolve(options.root);
   validateCandidate(options.candidate);
+  const prepared = await prepareRelease(options.candidate);
   const channels = await readChannels(root);
   if (options.channel === 'production' && !canPublishToProduction(channels)) {
     throw new Error('Production channel is frozen; publishing is blocked.');
   }
 
-  const releaseRoot = join(root, 'releases', options.candidate.version);
+  const releasesRoot = join(root, 'releases');
+  const releaseRoot = join(releasesRoot, options.candidate.version);
   if (await exists(releaseRoot)) {
     const published = await readPublished(root, options.candidate.version);
+    if (!matchesPreparedRelease(published, prepared)) {
+      throw new Error(
+        `Release "${options.candidate.version}" already exists with different content and cannot be overwritten.`,
+      );
+    }
     await writeChannels(
       root,
       setChannelVersion(channels, options.channel, options.candidate.version, 'publish'),
@@ -173,62 +234,61 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
   }
 
   const base = options.baseVersion ? await readPublished(root, options.baseVersion) : undefined;
-  const projectHashes: Record<string, string> = {};
-  const fileHashes: Record<string, string> = {};
-  for (const project of options.candidate.projects) {
-    const nextHash = await contentHash(project);
-    const existingHash = base?.projectHashes[project.id];
-    projectHashes[project.id] = existingHash === nextHash ? existingHash : nextHash;
-    if (existingHash === nextHash && options.baseVersion) {
-      await copyUnchangedProjectFromBase({
-        root,
-        baseVersion: options.baseVersion,
-        projectId: project.id,
-        targetReleaseRoot: releaseRoot,
-      });
-    } else {
-      await writeJson(join(releaseRoot, 'projects', project.id, 'project.json'), project);
-    }
-  }
-
-  for (const [relativePath, asset] of Object.entries(options.candidate.assets ?? {})) {
-    const nextHash = await fileHash(asset);
-    const existingHash = base?.fileHashes[relativePath];
-    fileHashes[relativePath] = existingHash === nextHash ? existingHash : nextHash;
-    if (existingHash === nextHash && options.baseVersion) {
-      await copyUnchangedAssetFromBase({
-        root,
-        baseVersion: options.baseVersion,
-        relativePath,
-        targetReleaseRoot: releaseRoot,
-      });
-    } else {
-      const assetPath = join(releaseRoot, relativePath);
-      await mkdir(resolve(assetPath, '..'), { recursive: true });
-      await writeFile(assetPath, asset, { flag: 'wx' });
-    }
-  }
-
-  const normalizedManifest = manifestSchema.parse({
-    ...options.candidate.manifest,
-    contentHash: await contentHash({
-      manifest: canonicalManifestForHash(options.candidate.manifest),
-      categories: options.candidate.categories,
-      projectHashes,
-      fileHashes,
-      validationReport: canonicalValidationReportForHash(options.candidate.validationReport),
-    }),
-  });
-  await writeJson(join(releaseRoot, 'manifest.json'), normalizedManifest);
-  await writeJson(join(releaseRoot, 'categories.json'), options.candidate.categories);
-  await writeJson(join(releaseRoot, 'validation-report.json'), options.candidate.validationReport);
+  await mkdir(releasesRoot, { recursive: true });
+  const stagingRoot = await mkdtemp(
+    join(releasesRoot, `.${options.candidate.version}.publishing-`),
+  );
   const published: PublishedRelease = {
     version: options.candidate.version,
-    contentHash: normalizedManifest.contentHash,
-    projectHashes,
-    fileHashes,
+    contentHash: prepared.manifest.contentHash,
+    projectHashes: prepared.projectHashes,
+    fileHashes: prepared.fileHashes,
   };
-  await writeJson(join(releaseRoot, 'publication.json'), published);
+
+  try {
+    for (const project of options.candidate.projects) {
+      const existingHash = base?.projectHashes[project.id];
+      if (existingHash === prepared.projectHashes[project.id] && options.baseVersion) {
+        await copyUnchangedProjectFromBase({
+          root,
+          baseVersion: options.baseVersion,
+          projectId: project.id,
+          targetReleaseRoot: stagingRoot,
+        });
+      } else {
+        await writeJson(join(stagingRoot, 'projects', project.id, 'project.json'), project);
+      }
+    }
+
+    for (const [relativePath, asset] of Object.entries(options.candidate.assets ?? {})) {
+      const existingHash = base?.fileHashes[relativePath];
+      if (existingHash === prepared.fileHashes[relativePath] && options.baseVersion) {
+        await copyUnchangedAssetFromBase({
+          root,
+          baseVersion: options.baseVersion,
+          relativePath,
+          targetReleaseRoot: stagingRoot,
+        });
+      } else {
+        const assetPath = join(stagingRoot, relativePath);
+        await mkdir(resolve(assetPath, '..'), { recursive: true });
+        await writeFile(assetPath, asset, { flag: 'wx' });
+      }
+    }
+
+    await writeJson(join(stagingRoot, 'manifest.json'), prepared.manifest);
+    await writeJson(join(stagingRoot, 'categories.json'), options.candidate.categories);
+    await writeJson(
+      join(stagingRoot, 'validation-report.json'),
+      options.candidate.validationReport,
+    );
+    await writeJson(join(stagingRoot, 'publication.json'), published);
+    await rename(stagingRoot, releaseRoot);
+  } catch (error) {
+    await rm(stagingRoot, { recursive: true, force: true });
+    throw error;
+  }
+
   await writeChannels(
     root,
     setChannelVersion(channels, options.channel, options.candidate.version, 'publish'),

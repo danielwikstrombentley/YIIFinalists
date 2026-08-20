@@ -141,6 +141,15 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
     expect(channels.staging).toBe('1.0.0');
   });
 
+  it('refuses to overwrite an existing version with different release content', async () => {
+    await publishRelease({ root, candidate: validCandidate('1.0.0'), channel: 'staging' });
+    const conflicting = validCandidate('1.0.0', 'Conflicting content');
+
+    await expect(
+      publishRelease({ root, candidate: conflicting, channel: 'staging' }),
+    ).rejects.toThrow(/already exists with different content/i);
+  });
+
   it('promotes a retained staging release to production without rewriting it', async () => {
     await publishRelease({ root, candidate: validCandidate('1.0.0'), channel: 'staging' });
     await promoteRelease({ root, version: '1.0.0' });
@@ -261,6 +270,15 @@ describe('release publishing lifecycle (T065 red-first contract)', () => {
     await expect(
       readFile(join(root, 'releases', '1.0.0', 'validation-report.json'), 'utf8'),
     ).resolves.toContain('"valid": true');
+  });
+
+  it('rejects candidate assets that would overwrite release metadata', async () => {
+    const candidate = validCandidate('1.0.0');
+    candidate.assets = { ...candidate.assets, 'manifest.json': Buffer.from('malicious') };
+
+    await expect(publishRelease({ root, candidate, channel: 'staging' })).rejects.toThrow(
+      /overwrite release metadata/i,
+    );
   });
 
   it('loads only a fresh validation-passing on-disk release candidate for CLI publication', async () => {
