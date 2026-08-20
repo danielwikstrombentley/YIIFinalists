@@ -67,7 +67,10 @@ function validateCandidate(candidate: PublishCandidate): void {
     throw new Error('Only a fully validated 36-project candidate may publish. Run validate first.');
   }
   const referencedIds = new Set(categories.data.flatMap((category) => category.projectIds));
-  if (referencedIds.size !== 36 || candidate.projects.some((project) => !referencedIds.has(project.id))) {
+  if (
+    referencedIds.size !== 36 ||
+    candidate.projects.some((project) => !referencedIds.has(project.id))
+  ) {
     throw new Error('Candidate project identities must match the 12×3 category references.');
   }
   for (const project of candidate.projects) {
@@ -135,7 +138,8 @@ export async function publishRelease(options: PublishReleaseOptions): Promise<Pu
 export async function promoteRelease(options: { root: string; version: string }): Promise<void> {
   const root = resolve(options.root);
   const channels = await readChannels(root);
-  if (!canPublishToProduction(channels)) throw new Error('Production channel is frozen; promotion is blocked.');
+  if (!canPublishToProduction(channels))
+    throw new Error('Production channel is frozen; promotion is blocked.');
   if (!(await exists(join(root, 'releases', options.version, 'publication.json')))) {
     throw new Error(`Cannot promote missing release "${options.version}".`);
   }
@@ -151,12 +155,18 @@ export async function rollbackChannel(options: {
   const current = channels[options.channel];
   const prior = [...channels.history]
     .reverse()
-    .find((event) => event.channel === options.channel && event.version && event.version !== current)?.version;
-  if (!prior) throw new Error(`No retained prior ${options.channel} release is available for rollback.`);
+    .find(
+      (event) => event.channel === options.channel && event.version && event.version !== current,
+    )?.version;
+  if (!prior)
+    throw new Error(`No retained prior ${options.channel} release is available for rollback.`);
   await writeChannels(root, setChannelVersion(channels, options.channel, prior, 'rollback'));
 }
 
-export async function setProductionFreeze(options: { root: string; frozen: boolean }): Promise<void> {
+export async function setProductionFreeze(options: {
+  root: string;
+  frozen: boolean;
+}): Promise<void> {
   const root = resolve(options.root);
   await writeChannels(root, withProductionFreeze(await readChannels(root), options.frozen));
 }

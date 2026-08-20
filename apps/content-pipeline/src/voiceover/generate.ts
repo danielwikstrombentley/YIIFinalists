@@ -65,12 +65,10 @@ export async function generateVoiceover(
   const masterPath = join(outputDirectory, `${filename}.wav`);
   const deliveryPath = join(outputDirectory, `${filename}.${extension}`);
   await mkdir(outputDirectory, { recursive: true });
-  await Promise.all([
-    writeFile(masterPath, generated.wav),
-    writeFile(deliveryPath, delivery),
-  ]);
+  await Promise.all([writeFile(masterPath, generated.wav), writeFile(deliveryPath, delivery)]);
 
-  const regenerated = options.previousAsset?.scriptVersion !== undefined &&
+  const regenerated =
+    options.previousAsset?.scriptVersion !== undefined &&
     options.previousAsset.scriptVersion !== version;
   return {
     asset: {

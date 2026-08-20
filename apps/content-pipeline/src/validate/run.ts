@@ -118,7 +118,8 @@ export async function validateReleaseCandidate(
   const parsedCategories = parseCategories(categoriesRaw, 'categories.json');
   issues.push(...parsedCategories.issues);
   const projects = new Map<string, Project>();
-  const categoryProjectIds = parsedCategories.categories?.flatMap((category) => category.projectIds) ?? [];
+  const categoryProjectIds =
+    parsedCategories.categories?.flatMap((category) => category.projectIds) ?? [];
 
   for (const projectId of categoryProjectIds) {
     const relativePath = `projects/${projectId}/project.json`;
@@ -142,7 +143,9 @@ export async function validateReleaseCandidate(
     issues.push(...validateProjectRules(parsedProject.project));
     issues.push(...(await validateProjectAssets({ releaseRoot, project: parsedProject.project })));
 
-    const editorial = await readOptionalJson(join(releaseRoot, 'projects', projectId, 'editorial.json'));
+    const editorial = await readOptionalJson(
+      join(releaseRoot, 'projects', projectId, 'editorial.json'),
+    );
     issues.push(...validateEditorialRecord(projectId, editorial));
   }
 

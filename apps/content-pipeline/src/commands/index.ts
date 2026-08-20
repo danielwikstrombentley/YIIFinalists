@@ -28,16 +28,20 @@ async function runPublishCommand(args: string[]): Promise<void> {
   const candidateFile = valueAfter(args, '--candidate');
   const channel = valueAfter(args, '--channel');
   if (!root || !candidateFile || (channel !== 'staging' && channel !== 'production')) {
-    throw new Error('Usage: publish --root <content-root> --candidate <candidate.json> --channel staging|production.');
+    throw new Error(
+      'Usage: publish --root <content-root> --candidate <candidate.json> --channel staging|production.',
+    );
   }
-  const candidate = JSON.parse(
-    await readFile(candidateFile, 'utf8'),
-  ) as Parameters<typeof publishRelease>[0]['candidate'];
+  const candidate = JSON.parse(await readFile(candidateFile, 'utf8')) as Parameters<
+    typeof publishRelease
+  >[0]['candidate'];
   const release = await publishRelease({
     root,
     candidate,
     channel,
-    ...(valueAfter(args, '--base-version') ? { baseVersion: valueAfter(args, '--base-version') } : {}),
+    ...(valueAfter(args, '--base-version')
+      ? { baseVersion: valueAfter(args, '--base-version') }
+      : {}),
   });
   console.log(`[content-pipeline] published ${release.version} to ${channel}.`);
 }
@@ -56,7 +60,9 @@ async function runFreezeCommand(args: string[]): Promise<void> {
   const root = valueAfter(args, '--root');
   if (!root) throw new Error('Usage: freeze --root <content-root> [--unfreeze].');
   await setProductionFreeze({ root, frozen: !args.includes('--unfreeze') });
-  console.log(`[content-pipeline] production channel ${args.includes('--unfreeze') ? 'unfrozen' : 'frozen'}.`);
+  console.log(
+    `[content-pipeline] production channel ${args.includes('--unfreeze') ? 'unfrozen' : 'frozen'}.`,
+  );
 }
 
 // Stub subcommand registry (T003). Each command is fleshed out by its owning task:
@@ -101,7 +107,8 @@ export const commands: CliCommand[] = [
     run: async (args) => {
       const root = valueAfter(args, '--root');
       const version = valueAfter(args, '--version');
-      if (!root || !version) throw new Error('Usage: promote --root <content-root> --version <semver>.');
+      if (!root || !version)
+        throw new Error('Usage: promote --root <content-root> --version <semver>.');
       await promoteRelease({ root, version });
       console.log(`[content-pipeline] promoted ${version} to production.`);
     },

@@ -6,10 +6,7 @@ export interface PublishedEditorialRecord {
   metrics: Array<Pick<MetricClaim, 'label' | 'value' | 'verified'>>;
 }
 
-export function validateEditorialRecord(
-  projectId: string,
-  raw: unknown,
-): ValidationIssue[] {
+export function validateEditorialRecord(projectId: string, raw: unknown): ValidationIssue[] {
   const path = `projects/${projectId}/editorial.json`;
   if (!raw || typeof raw !== 'object') {
     return [
@@ -34,7 +31,10 @@ export function validateEditorialRecord(
     });
   }
   for (const option of options) {
-    if (option.reviewState !== 'approved' || (option.producedBy !== undefined && option.reviewState !== 'approved')) {
+    if (
+      option.reviewState !== 'approved' ||
+      (option.producedBy !== undefined && option.reviewState !== 'approved')
+    ) {
       issues.push({
         rule: 'editorial.approval',
         severity: 'error',

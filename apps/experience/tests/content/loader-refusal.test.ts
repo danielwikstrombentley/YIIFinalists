@@ -4,9 +4,13 @@ import { ContentLoader, ContentLoadError } from '../../src/content/loader.js';
 
 async function validManifest(version: string) {
   const categories = validCategories();
-  const projects = categories.flatMap((category) => category.projectIds).map((id) => validProject(id));
+  const projects = categories
+    .flatMap((category) => category.projectIds)
+    .map((id) => validProject(id));
   const projectHashes = Object.fromEntries(
-    await Promise.all(projects.map(async (project) => [project.id, await contentHash(project)] as const)),
+    await Promise.all(
+      projects.map(async (project) => [project.id, await contentHash(project)] as const),
+    ),
   );
   return {
     schemaVersion: 1,
@@ -23,7 +27,11 @@ function validCategories() {
     id: `cat-${index + 1}`,
     name: `Category ${index + 1}`,
     order: index + 1,
-    projectIds: [`cat-${index + 1}-project-1`, `cat-${index + 1}-project-2`, `cat-${index + 1}-project-3`],
+    projectIds: [
+      `cat-${index + 1}-project-1`,
+      `cat-${index + 1}-project-2`,
+      `cat-${index + 1}-project-3`,
+    ],
   }));
 }
 
@@ -96,7 +104,8 @@ describe('ContentLoader publication-integrity refusal (T065)', () => {
       contentHash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
     };
     const fetchJson = vi.fn(async (path: string) => {
-      if (path === '/channels.json') return { staging: '1.0.0', production: null, frozen: false, history: [] };
+      if (path === '/channels.json')
+        return { staging: '1.0.0', production: null, frozen: false, history: [] };
       return files[path];
     });
 

@@ -7,7 +7,9 @@ function valueAfter(args: readonly string[], flag: string): string | undefined {
 }
 
 export async function runValidateCommand(args: string[]): Promise<void> {
-  const root = resolve(valueAfter(args, '--root') ?? valueAfter(args, '--release-candidate') ?? 'content');
+  const root = resolve(
+    valueAfter(args, '--root') ?? valueAfter(args, '--release-candidate') ?? 'content',
+  );
   const version = valueAfter(args, '--version');
   const report = await validateReleaseCandidate({ root, version });
   console.log(

@@ -15,7 +15,10 @@ export interface ParsedCandidateFiles {
   issues: ValidationIssue[];
 }
 
-export function parseManifest(raw: unknown, path: string): {
+export function parseManifest(
+  raw: unknown,
+  path: string,
+): {
   manifest?: Manifest;
   issues: ValidationIssue[];
 } {
@@ -31,7 +34,10 @@ export function parseManifest(raw: unknown, path: string): {
   };
 }
 
-export function parseCategories(raw: unknown, path: string): {
+export function parseCategories(
+  raw: unknown,
+  path: string,
+): {
   categories?: Category[];
   issues: ValidationIssue[];
 } {
@@ -47,7 +53,10 @@ export function parseCategories(raw: unknown, path: string): {
   };
 }
 
-export function parseProject(raw: unknown, path: string): {
+export function parseProject(
+  raw: unknown,
+  path: string,
+): {
   project?: Project;
   issues: ValidationIssue[];
 } {
@@ -57,35 +66,36 @@ export function parseProject(raw: unknown, path: string): {
   const issueText = result.error.issues.map((issue) => issue.message).join(' ');
   const issuePaths = result.error.issues.map((issue) => issue.path.join('.')).join(' ');
   const rawOptionCount =
-    raw && typeof raw === 'object' && Array.isArray((raw as { contentOptions?: unknown }).contentOptions)
+    raw &&
+    typeof raw === 'object' &&
+    Array.isArray((raw as { contentOptions?: unknown }).contentOptions)
       ? (raw as { contentOptions: unknown[] }).contentOptions.length
       : undefined;
-  const rule =
-    /position 1/.test(issueText)
-      ? 'overview.position-one'
-      : rawOptionCount !== undefined && rawOptionCount > 5
-        ? 'option.maximum-count'
-        : /geographicFraming/.test(issueText) || /geographicFraming/.test(issuePaths)
-          ? 'project.geographic-framing'
-          : /organisation|country|location|name/.test(issueText) ||
-              /organisation|country|location|name/.test(issuePaths)
-            ? 'project.required-metadata'
-            : /displayText/.test(issueText) || /displayText/.test(issuePaths)
-              ? 'option.display-text'
-              : /voiceover/.test(issueText) || /voiceover/.test(issuePaths)
-                ? 'option.voiceover'
-                : /formats/.test(issueText) || /formats/.test(issuePaths)
-                  ? 'option.unsupported-format'
-                  : /finalFrame|openingState|timebase|syncTolerance|beats/.test(issueText) ||
-                      /finalFrame|openingState|timebase|syncTolerance|beats/.test(issuePaths)
-                    ? 'sequence.required-fields'
-                    : /contentOptions/.test(issuePaths)
-                      ? 'option.maximum-count'
-                      : /duplicate content-option position/.test(issueText)
-                        ? 'positions.unique-and-complete'
-                        : /rights/.test(issueText)
-                          ? 'media.rights-record'
-                          : 'project.schema';
+  const rule = /position 1/.test(issueText)
+    ? 'overview.position-one'
+    : rawOptionCount !== undefined && rawOptionCount > 5
+      ? 'option.maximum-count'
+      : /geographicFraming/.test(issueText) || /geographicFraming/.test(issuePaths)
+        ? 'project.geographic-framing'
+        : /organisation|country|location|name/.test(issueText) ||
+            /organisation|country|location|name/.test(issuePaths)
+          ? 'project.required-metadata'
+          : /displayText/.test(issueText) || /displayText/.test(issuePaths)
+            ? 'option.display-text'
+            : /voiceover/.test(issueText) || /voiceover/.test(issuePaths)
+              ? 'option.voiceover'
+              : /formats/.test(issueText) || /formats/.test(issuePaths)
+                ? 'option.unsupported-format'
+                : /finalFrame|openingState|timebase|syncTolerance|beats/.test(issueText) ||
+                    /finalFrame|openingState|timebase|syncTolerance|beats/.test(issuePaths)
+                  ? 'sequence.required-fields'
+                  : /contentOptions/.test(issuePaths)
+                    ? 'option.maximum-count'
+                    : /duplicate content-option position/.test(issueText)
+                      ? 'positions.unique-and-complete'
+                      : /rights/.test(issueText)
+                        ? 'media.rights-record'
+                        : 'project.schema';
   return {
     issues: result.error.issues.map((issue) => ({
       rule,

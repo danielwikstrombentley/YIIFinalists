@@ -164,7 +164,10 @@ async function expectRule(rule: string): Promise<void> {
 
 describe('validateReleaseCandidate (T061 red-first contract)', () => {
   it('passes a valid approved candidate and emits validation-report.json', async () => {
-    const report = await validateReleaseCandidate({ root: candidateRoot, version: RELEASE_VERSION });
+    const report = await validateReleaseCandidate({
+      root: candidateRoot,
+      version: RELEASE_VERSION,
+    });
 
     expect(report.valid).toBe(true);
     await expect(
@@ -173,83 +176,148 @@ describe('validateReleaseCandidate (T061 red-first contract)', () => {
   });
 
   it.each([
-    ['structure.category-count', async () => {
-      await writeJson(join(candidateRoot, 'releases', RELEASE_VERSION, 'categories.json'), categories().slice(0, 11));
-    }],
-    ['overview.position-one', async () => {
-      const value = await readProject();
-      value.contentOptions[0]!.position = 2;
-      await writeProject(value);
-    }],
-    ['option.maximum-count', async () => {
-      const value = await readProject();
-      value.contentOptions = Array.from({ length: 6 }, (_, index) => ({
-        ...value.contentOptions[0]!,
-        position: (index % 5) + 1 as 1 | 2 | 3 | 4 | 5,
-      }));
-      await writeProject(value);
-    }],
-    ['project.required-metadata', async () => {
-      const value = await readProject() as unknown as Record<string, unknown>;
-      delete value.organisation;
-      await writeProject(value);
-    }],
-    ['project.geographic-framing', async () => {
-      const value = await readProject() as unknown as Record<string, unknown>;
-      delete value.geographicFraming;
-      await writeProject(value);
-    }],
-    ['media.asset-reference', async () => {
-      const value = await readProject();
-      value.contentOptions[0]!.mediaRefs[0]!.file = 'projects/cat-1-project-1/media/missing.jpg';
-      await writeProject(value);
-    }],
-    ['voiceover.asset-reference', async () => {
-      const value = await readProject();
-      value.contentOptions[0]!.voiceover.file = 'projects/cat-1-project-1/voiceover/missing.opus';
-      await writeProject(value);
-    }],
-    ['option.display-text', async () => {
-      const value = await readProject();
-      value.contentOptions[0]!.displayText = [];
-      await writeProject(value);
-    }],
-    ['option.unsupported-format', async () => {
-      const value = await readProject() as unknown as {
-        contentOptions: Array<{ formats: string[] }>;
-      };
-      value.contentOptions[0]!.formats = ['unsupported-format'];
-      await writeProject(value);
-    }],
-    ['sequence.required-fields', async () => {
-      const value = await readProject() as unknown as {
-        contentOptions: Array<{ sequence: Record<string, unknown> }>;
-      };
-      delete value.contentOptions[0]!.sequence.finalFrame;
-      await writeProject(value);
-    }],
-    ['positions.unique-and-complete', async () => {
-      const value = await readProject();
-      value.inactivePositions = [2, 2, 3, 4, 5];
-      await writeProject(value);
-    }],
-    ['editorial.approval', async () => {
-      await writeJson(
-        join(candidateRoot, 'releases', RELEASE_VERSION, 'projects', 'cat-1-project-1', 'editorial.json'),
-        { options: [{ position: 1, reviewState: 'draft', producedBy: 'copilot-agent' }], metrics: [] },
-      );
-    }],
-    ['metrics.verified', async () => {
-      await writeJson(
-        join(candidateRoot, 'releases', RELEASE_VERSION, 'projects', 'cat-1-project-1', 'editorial.json'),
-        { options: [{ position: 1, reviewState: 'approved' }], metrics: [{ label: 'People reached', value: '100', verified: false }] },
-      );
-    }],
-    ['media.rights-approved', async () => {
-      const value = await readProject();
-      value.contentOptions[0]!.mediaRefs[0]!.rights.status = 'pending';
-      await writeProject(value);
-    }],
+    [
+      'structure.category-count',
+      async () => {
+        await writeJson(
+          join(candidateRoot, 'releases', RELEASE_VERSION, 'categories.json'),
+          categories().slice(0, 11),
+        );
+      },
+    ],
+    [
+      'overview.position-one',
+      async () => {
+        const value = await readProject();
+        value.contentOptions[0]!.position = 2;
+        await writeProject(value);
+      },
+    ],
+    [
+      'option.maximum-count',
+      async () => {
+        const value = await readProject();
+        value.contentOptions = Array.from({ length: 6 }, (_, index) => ({
+          ...value.contentOptions[0]!,
+          position: ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5,
+        }));
+        await writeProject(value);
+      },
+    ],
+    [
+      'project.required-metadata',
+      async () => {
+        const value = (await readProject()) as unknown as Record<string, unknown>;
+        delete value.organisation;
+        await writeProject(value);
+      },
+    ],
+    [
+      'project.geographic-framing',
+      async () => {
+        const value = (await readProject()) as unknown as Record<string, unknown>;
+        delete value.geographicFraming;
+        await writeProject(value);
+      },
+    ],
+    [
+      'media.asset-reference',
+      async () => {
+        const value = await readProject();
+        value.contentOptions[0]!.mediaRefs[0]!.file = 'projects/cat-1-project-1/media/missing.jpg';
+        await writeProject(value);
+      },
+    ],
+    [
+      'voiceover.asset-reference',
+      async () => {
+        const value = await readProject();
+        value.contentOptions[0]!.voiceover.file = 'projects/cat-1-project-1/voiceover/missing.opus';
+        await writeProject(value);
+      },
+    ],
+    [
+      'option.display-text',
+      async () => {
+        const value = await readProject();
+        value.contentOptions[0]!.displayText = [];
+        await writeProject(value);
+      },
+    ],
+    [
+      'option.unsupported-format',
+      async () => {
+        const value = (await readProject()) as unknown as {
+          contentOptions: Array<{ formats: string[] }>;
+        };
+        value.contentOptions[0]!.formats = ['unsupported-format'];
+        await writeProject(value);
+      },
+    ],
+    [
+      'sequence.required-fields',
+      async () => {
+        const value = (await readProject()) as unknown as {
+          contentOptions: Array<{ sequence: Record<string, unknown> }>;
+        };
+        delete value.contentOptions[0]!.sequence.finalFrame;
+        await writeProject(value);
+      },
+    ],
+    [
+      'positions.unique-and-complete',
+      async () => {
+        const value = await readProject();
+        value.inactivePositions = [2, 2, 3, 4, 5];
+        await writeProject(value);
+      },
+    ],
+    [
+      'editorial.approval',
+      async () => {
+        await writeJson(
+          join(
+            candidateRoot,
+            'releases',
+            RELEASE_VERSION,
+            'projects',
+            'cat-1-project-1',
+            'editorial.json',
+          ),
+          {
+            options: [{ position: 1, reviewState: 'draft', producedBy: 'copilot-agent' }],
+            metrics: [],
+          },
+        );
+      },
+    ],
+    [
+      'metrics.verified',
+      async () => {
+        await writeJson(
+          join(
+            candidateRoot,
+            'releases',
+            RELEASE_VERSION,
+            'projects',
+            'cat-1-project-1',
+            'editorial.json',
+          ),
+          {
+            options: [{ position: 1, reviewState: 'approved' }],
+            metrics: [{ label: 'People reached', value: '100', verified: false }],
+          },
+        );
+      },
+    ],
+    [
+      'media.rights-approved',
+      async () => {
+        const value = await readProject();
+        value.contentOptions[0]!.mediaRefs[0]!.rights.status = 'pending';
+        await writeProject(value);
+      },
+    ],
   ] as const)('reports %s for its FR-036 defect class', async (rule, mutate) => {
     await mutate();
     await expectRule(rule);
@@ -258,7 +326,10 @@ describe('validateReleaseCandidate (T061 red-first contract)', () => {
   it('reports duplicate project references across categories distinctly', async () => {
     const releaseCategories = categories();
     releaseCategories[1]!.projectIds[0] = releaseCategories[0]!.projectIds[0]!;
-    await writeJson(join(candidateRoot, 'releases', RELEASE_VERSION, 'categories.json'), releaseCategories);
+    await writeJson(
+      join(candidateRoot, 'releases', RELEASE_VERSION, 'categories.json'),
+      releaseCategories,
+    );
 
     await expectRule('structure.duplicate-project-reference');
   });

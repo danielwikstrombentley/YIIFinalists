@@ -67,7 +67,8 @@ export function validateRawProjectRules(raw: unknown, path: string): ValidationI
     if (
       !Array.isArray(option.formats) ||
       option.formats.some(
-        (format) => typeof format !== 'string' || !(KNOWN_FORMAT_IDS as readonly string[]).includes(format),
+        (format) =>
+          typeof format !== 'string' || !(KNOWN_FORMAT_IDS as readonly string[]).includes(format),
       )
     ) {
       issues.push({

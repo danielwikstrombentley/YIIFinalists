@@ -1,8 +1,4 @@
-import {
-  KNOWN_FORMAT_IDS,
-  isRightsApproved,
-  type Project,
-} from '@yii/content-schema';
+import { KNOWN_FORMAT_IDS, isRightsApproved, type Project } from '@yii/content-schema';
 import type { ValidationIssue } from '../report.ts';
 
 export function validateProjectRules(project: Project): ValidationIssue[] {
@@ -28,7 +24,10 @@ export function validateProjectRules(project: Project): ValidationIssue[] {
       message: `Project contains ${String(project.contentOptions.length)} options; maximum is 5.`,
     });
   }
-  if (new Set(positions).size !== positions.length || new Set(project.inactivePositions).size !== project.inactivePositions.length) {
+  if (
+    new Set(positions).size !== positions.length ||
+    new Set(project.inactivePositions).size !== project.inactivePositions.length
+  ) {
     issues.push({
       rule: 'positions.unique-and-complete',
       severity: 'error',
@@ -65,7 +64,9 @@ export function validateProjectRules(project: Project): ValidationIssue[] {
         message: 'A pre-generated voiceover file is required for every content option.',
       });
     }
-    if (option.formats.some((format) => !(KNOWN_FORMAT_IDS as readonly string[]).includes(format))) {
+    if (
+      option.formats.some((format) => !(KNOWN_FORMAT_IDS as readonly string[]).includes(format))
+    ) {
       issues.push({
         rule: 'option.unsupported-format',
         severity: 'error',

@@ -94,16 +94,18 @@ export class ContentLoader {
 
     if (manifestResult.data.contentHash.startsWith('sha256:')) {
       const projects = await Promise.all(
-        categoriesResult.data.flatMap((category) => category.projectIds).map(async (projectId) => {
-          const raw = await this.fetchJson(`${releaseBase}/projects/${projectId}/project.json`);
-          const result = revalidateProject(raw);
-          if (!result.success) {
-            throw new ContentLoadError(
-              `project "${projectId}" failed schema validation while verifying release integrity`,
-            );
-          }
-          return result.data;
-        }),
+        categoriesResult.data
+          .flatMap((category) => category.projectIds)
+          .map(async (projectId) => {
+            const raw = await this.fetchJson(`${releaseBase}/projects/${projectId}/project.json`);
+            const result = revalidateProject(raw);
+            if (!result.success) {
+              throw new ContentLoadError(
+                `project "${projectId}" failed schema validation while verifying release integrity`,
+              );
+            }
+            return result.data;
+          }),
       );
       if (
         !(await revalidateReleaseContentHash({
